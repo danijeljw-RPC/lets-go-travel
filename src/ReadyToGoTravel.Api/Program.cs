@@ -1,17 +1,27 @@
+using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 using ReadyToGoTravel.Api.Endpoints;
 using ReadyToGoTravel.Api.Infrastructure;
+using ReadyToGoTravel.Consumer;
+using ReadyToGoTravel.Consumer.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHealthChecks();
 builder.Services.AddOpenApi();
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow);
+builder.Services.AddPlatformAuthentication(builder.Configuration);
+var consumerConnectionString = builder.Configuration.GetConnectionString("Consumer")
+    ?? throw new InvalidOperationException("ConnectionStrings:Consumer is required.");
+builder.Services.AddConsumerModule((_, options) => options.UseNpgsql(consumerConnectionString));
 builder.Services.AddProblemDetails(options =>
 {
     options.CustomizeProblemDetails = context =>
     {
-        context.ProblemDetails.Extensions["code"] ??= "request_failed";
+        context.ProblemDetails.Extensions.TryAdd("code", "request_failed");
         context.ProblemDetails.Extensions["correlationId"] = context.HttpContext.TraceIdentifier;
     };
 });
@@ -33,6 +43,8 @@ var app = builder.Build();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseRateLimiter();
 
 if (app.Environment.IsDevelopment())
@@ -46,9 +58,10 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
 });
 app.MapHealthChecks("/health/ready");
 
-app.MapGroup("/api/v1")
-    .RequireRateLimiting("public-api")
-    .MapPlatformEndpoints();
+var api = app.MapGroup("/api/v1")
+    .RequireRateLimiting("public-api");
+api.MapPlatformEndpoints();
+api.MapConsumerEndpoints();
 
 app.MapFallback("/api/{**path}", (HttpContext context) =>
     Results.Problem(

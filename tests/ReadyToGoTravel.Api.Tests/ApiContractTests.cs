@@ -51,7 +51,33 @@ public sealed class ApiContractTests(WebApplicationFactory<ApiAssemblyMarker> fa
         Assert.False(string.IsNullOrWhiteSpace(problem.CorrelationId));
     }
 
+    [Fact]
+    public async Task ConsumerRoutesRequireAuthentication()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/trips", CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task LocaleCatalogueIsAvailableWithoutAuthentication()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/locales", CancellationToken.None);
+
+        response.EnsureSuccessStatusCode();
+        var locales = await response.Content.ReadFromJsonAsync<LocaleResponse[]>(CancellationToken.None);
+        var locale = Assert.Single(locales!);
+        Assert.Equal("en-AU", locale.Code);
+        Assert.Equal("AUD", locale.DefaultCurrency);
+    }
+
     private sealed record PlatformResponse(string Product, string Shortcode, string ApiVersion);
 
     private sealed record ProblemResponse(string Code, string CorrelationId);
+
+    private sealed record LocaleResponse(string Code, string DefaultCurrency);
 }
