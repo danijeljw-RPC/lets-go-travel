@@ -43,7 +43,7 @@ scope:
 
 ## Status
 
-Active. Product scope, market/locale, sensitive traveller opt-in, frontend, flight-reconciliation and support decisions are recorded. LiteAPI commercial, carrier, servicing, webhook and payment evidence plus the OI-0011 retention decision remain before production-ready implementation planning. OI-0010 is a non-blocking post-MVP wishlist item.
+Active. Product scope, market/locale, sensitive traveller opt-in, frontend, flight-reconciliation, support and retention directions are recorded. LiteAPI commercial, carrier, servicing, webhook, payment and retention evidence remains before production-ready implementation planning. OI-0010 is a non-blocking post-MVP wishlist item.
 
 ## Purpose
 
@@ -102,7 +102,7 @@ The repository contains a compact consumer-project documentation system. Eight A
 
 - [ ] Complete OI-0006 review: prove the selected hosted/SDK integration and qualified PCI scope.
 - [x] Resolve OI-0008: reusable sensitive traveller data requires granular opt-in and is off by default.
-- [ ] Resolve OI-0011: payload/evidence retention.
+- [ ] Complete OI-0011 review: classify records and approve LiteAPI terms, exact retention periods, backup expiry and the legal-hold procedure for selected Option A.
 - [ ] Obtain applicable privacy, consumer-law/pricing, payment/acquiring, travel-selling/licensing, insolvency/trust, cross-border/data-residency, minor-traveller and breach-response advice.
 - [ ] Define the terms/privacy notices, consent and supplier-term disclosures required for the chosen market and product.
 - [x] Review ADR-0003, ADR-0004 and ADR-0007.
@@ -159,6 +159,7 @@ All current questions are indexed in [Open Issues](../../issues/index.md).
 
 ## Change Log
 
+- 2026-07-28: Selected OI-0011 Option A and moved it to in review; distinguished seven-year corporate financial records, general five-year tax records, privacy deletion and matter-specific legal holds from raw supplier payload retention.
 - 2026-07-28: Recorded OI-0010 as an explicitly non-blocking post-MVP wishlist item; launch uses reconciled itinerary data and directs customers to the airline for live operational status.
 - 2026-07-28: Closed OI-0001, OI-0007, OI-0008, OI-0009 and OI-0012; moved OI-0002 through OI-0006 to in review; retained OI-0010/OI-0011 as open deferrals; accepted ADR-0008 and synchronised the product, locale, traveller, payment, reconciliation and ticket-support direction.
 - 2026-07-28: Consolidated the root discovery pack into canonical documents under `docs/` and removed the duplicate source files.
