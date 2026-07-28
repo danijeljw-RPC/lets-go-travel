@@ -1,12 +1,12 @@
 ---
 issue_id: OI-0004
 title: Verify Flight Servicing and Schedule-Change Behaviour
-status: open
+status: in-review
 type: integration-question
 priority: p0
 severity: critical
 created: 2026-07-27
-updated: 2026-07-27
+updated: 2026-07-28
 decision_owners:
   - Product
   - Architecture
@@ -51,6 +51,18 @@ Keep flights out of transactional scope.
 ## Recommendation
 
 Plan for Option B as the likely minimum safe model, but do not sell flights until the exact manual/automated boundary and customer support path are contractually and technically proven.
+
+## Selected Direction
+
+The platform monitoring direction was selected on 2026-07-28 and accepted in [ADR-0008](../../adr/accepted/ADR-0008-durable-flight-reconciliation-and-customer-notification.md). A dedicated private .NET 10 worker reconciles active flight bookings daily, increases to hourly checks during the final 24 hours before each affected segment, records meaningful immutable itinerary versions under ADR-0004 and triggers customer notifications. Webhooks may trigger immediate checks.
+
+This answers how the platform detects and records supplier-visible changes. It does not prove LiteAPI retrieval freshness, schedule-change propagation, exchanges, cancellation, refund automation or the supplier's manual servicing path. Option B remains the safe operational assumption until that evidence is recorded, so the issue is in review.
+
+## Evidence Reviewed
+
+- Product-owner flight-monitoring direction recorded on 2026-07-28.
+- ADR-0004, ADR-0005 and ADR-0008.
+- No controlled schedule-change retrieval test or written LiteAPI servicing matrix has been recorded.
 
 ## Evidence Required
 

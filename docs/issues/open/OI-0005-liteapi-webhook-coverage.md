@@ -1,12 +1,12 @@
 ---
 issue_id: OI-0005
 title: Validate LiteAPI Webhook Coverage and Delivery Guarantees
-status: open
+status: in-review
 type: integration-question
 priority: p0
 severity: high
 created: 2026-07-27
-updated: 2026-07-27
+updated: 2026-07-28
 decision_owners:
   - Architecture
   - Security
@@ -50,6 +50,18 @@ Assume successful event delivery is sufficient to maintain booking state.
 ## Recommendation
 
 Choose Option A. It provides timely response without treating webhook delivery as complete or ordered. Reject webhook-only state mutation.
+
+## Selected Direction
+
+The product owner selected Option A on 2026-07-28. Authenticated webhooks are persisted to a durable inbox, deduplicated and processed asynchronously. They enqueue supplier retrieval and reconciliation rather than directly overwriting booking state. Scheduled checks cover active bookings and act as the missing-event safety net, including ADR-0008's flight schedule.
+
+The issue is in review because the exact account event catalogue, authentication strength, retry/backoff, ordering, retention, replay and environment differences still require LiteAPI evidence.
+
+## Evidence Reviewed
+
+- Product-owner webhook-first plus scheduled-fallback direction recorded on 2026-07-28.
+- Public LiteAPI webhook documentation already recorded in the supplier profile.
+- No account-specific event catalogue or replay/delivery guarantee has been recorded.
 
 ## Evidence Required
 

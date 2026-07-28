@@ -1,12 +1,12 @@
 ---
 issue_id: OI-0007
 title: Decide Launch Market Locale and Currency
-status: open
+status: closed
 type: product-question
 priority: p1
 severity: medium
 created: 2026-07-27
-updated: 2026-07-27
+updated: 2026-07-28
 decision_owners:
   - Product
   - Finance
@@ -31,7 +31,7 @@ Define the initial customer market, point of sale, display/transaction currency,
 
 ## Context
 
-The source questions focus on Australian coverage and law, but the launch configuration has not been explicitly decided.
+The initial operating focus, customer eligibility and locale foundation needed an explicit decision.
 
 ## Options
 
@@ -49,7 +49,13 @@ Support several locales, currencies and points of sale immediately.
 
 ## Recommendation
 
-Choose Option A for the MVP. Preserve correct currency/timezone models so later markets do not require data migration, but do not build multi-market operations before product evidence requires them.
+Option A was selected with a globally accessible consumer boundary. Australia is the initial operating market with `en-AU` and AUD defaults, but customers from other countries are not geo-blocked.
+
+## Decision
+
+Australia is the initial operating focus. The first UI defaults to `en-AU` and AUD, while customers may select their locale from the anonymous web experience and their authenticated profile. Anonymous locale preference is stored in a secure same-site cookie; authenticated BCP 47 locale preference is stored in PostgreSQL. Version-controlled .NET localisation resources provide UI translations with `en-AU` fallback.
+
+Currency is independent from language. The platform preserves supplier, transaction, charged, settlement and refund currency even when AUD is the initial display default. Additional commercial points of sale and transaction currencies require supplier and legal evidence, but access is not restricted by customer country.
 
 ## Evidence Required
 
@@ -64,10 +70,10 @@ Controls search point of sale, pricing display, terms, locale, notifications, su
 
 ## Acceptance Criteria
 
-- [ ] Launch country and eligible customers are explicit.
-- [ ] Default locale, transaction/display currencies and timezone handling are explicit.
-- [ ] Supplier and legal evidence supports the choice.
-- [ ] Deferred markets are listed.
+- [x] Launch country and eligible customers are explicit.
+- [x] Default locale, display currency and timezone/currency handling are explicit.
+- [x] Supplier and legal evidence remains a production gate for additional points of sale rather than an unresolved product choice.
+- [x] Additional market operations and currencies are deferred while global customer access remains permitted.
 
 ## Related Documents
 

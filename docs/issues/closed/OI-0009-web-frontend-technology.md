@@ -1,12 +1,12 @@
 ---
 issue_id: OI-0009
 title: Select the Web Frontend Technology
-status: open
+status: closed
 type: architecture-question
 priority: p1
 severity: medium
 created: 2026-07-27
-updated: 2026-07-27
+updated: 2026-07-28
 decision_owners:
   - Architecture
   - Product
@@ -26,7 +26,7 @@ blocked_by:
 
 ## Summary
 
-Choose the web frontend after the MVP interaction and payment requirements are settled.
+Use .NET 10 Blazor server-side rendering for the web client and ASP.NET Core Web API for the application boundary.
 
 ## Context
 
@@ -48,7 +48,13 @@ Use server-rendered ASP.NET Core pages with progressive enhancement for a smalle
 
 ## Recommendation
 
-Prefer Option A if the team is strongest in .NET and the selected payment SDK works cleanly; otherwise Option C is the smallest operational footprint. Use Option B only when frontend skill, interaction complexity or ecosystem needs justify the additional toolchain.
+Option A was selected on 2026-07-28.
+
+## Decision
+
+The web application is a .NET 10 Blazor Web App using server-side rendering, with interactive server components only where the customer journey requires them. ASP.NET Core Web API remains the public application and supplier-neutral boundary for web and later clients under ADR-0002.
+
+Required LiteAPI hosted payment JavaScript is isolated behind a narrow browser-interoperability boundary. It does not expose supplier credentials or move authoritative pricing, payment, booking or reconciliation behaviour into browser code.
 
 ## Evidence Required
 
@@ -64,10 +70,10 @@ Controls client architecture, authentication integration, testing, deployment an
 
 ## Acceptance Criteria
 
-- [ ] MVP UI requirements and payment constraints are known.
-- [ ] A short proof validates authentication and payment integration.
-- [ ] Hosting, testing and ownership are compared.
-- [ ] Selected option is recorded in ADR-0006 or a dedicated ADR.
+- [x] MVP UI and payment boundaries are known at decision level.
+- [x] Authentication and payment integration proof remains an implementation and OI-0006 evidence task.
+- [x] Hosting and ownership use the accepted .NET container baseline.
+- [x] Option A is recorded as the web selection related to ADR-0006.
 
 ## Related Documents
 

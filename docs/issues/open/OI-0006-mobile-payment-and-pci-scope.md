@@ -1,12 +1,12 @@
 ---
 issue_id: OI-0006
 title: Select Web and Mobile Payment Integration and Confirm PCI Scope
-status: open
+status: in-review
 type: compliance-question
 priority: p0
 severity: critical
 created: 2026-07-27
-updated: 2026-07-27
+updated: 2026-07-28
 decision_owners:
   - Finance
   - Security
@@ -51,6 +51,18 @@ Embed the web flow in a mobile web view or send card data through platform-contr
 ## Recommendation
 
 Prefer Option A where supported. Use Option B only after vendor and PCI review. Do not use Option C for the MVP unless a qualified review explicitly establishes support and scope.
+
+## Selected Direction
+
+The product owner selected the officially supported LiteAPI SDK or hosted component route on 2026-07-28. For the .NET 10 Blazor web client, use LiteAPI's approved hosted JavaScript or hosted payment experience where supported, with raw card data sent directly to the responsible provider. A later native client uses an officially supported platform SDK or system-browser hosted flow where available.
+
+This is Option B where LiteAPI provides an approved embedded component, with Option A as the safe fallback where only hosted redirection is supported. Custom card forms and unsupported embedded web views remain prohibited. The issue is in review until platform support and qualified PCI scope are evidenced.
+
+## Evidence Reviewed
+
+- Product-owner SDK/hosted-component direction recorded on 2026-07-28.
+- Public LiteAPI payment documentation already referenced by ADR-0007.
+- No qualified PCI assessment, supported-platform matrix or production component approval has been recorded.
 
 ## Evidence Required
 

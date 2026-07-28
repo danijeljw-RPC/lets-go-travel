@@ -1,12 +1,12 @@
 ---
 issue_id: OI-0003
 title: Verify Australian Airline and Qantas Coverage
-status: open
+status: in-review
 type: integration-question
 priority: p0
 severity: high
 created: 2026-07-27
-updated: 2026-07-27
+updated: 2026-07-28
 decision_owners:
   - Product
   - Architecture
@@ -49,6 +49,18 @@ Launch hotel-first and keep flight content out of the transactional MVP.
 ## Recommendation
 
 Choose Option C as the planning default until production-level evidence supports A or B. Do not advertise Qantas or other carrier support based on generic API documentation.
+
+## Selected Direction
+
+Option A is the intended initial route if account-level evidence confirms it. On 2026-07-28, the product owner reported seeing Qantas, Jetstar and Virgin Australia in the LiteAPI developer portal. This is useful discovery evidence but is not treated as proof of production entitlement, bookable content, fare completeness, Australian point-of-sale approval or post-booking servicing.
+
+The issue is in review while the coverage matrix and production-like searches are completed. Flight scope remains accepted under closed OI-0001, but customer-facing inventory must be capability-gated.
+
+## Evidence Reviewed
+
+- Product-owner observation of Qantas, Jetstar and Virgin Australia in the LiteAPI developer portal on 2026-07-28.
+- Existing public LiteAPI flight API documentation.
+- No dated production-like search, booking, ticketing or servicing result has been recorded.
 
 ## Evidence Required
 

@@ -1,12 +1,12 @@
 ---
 issue_id: OI-0008
 title: Decide Saved Traveller and Passport Data Policy
-status: open
+status: closed
 type: privacy-question
 priority: p1
 severity: high
 created: 2026-07-27
-updated: 2026-07-27
+updated: 2026-07-28
 decision_owners:
   - Product
   - Privacy
@@ -49,7 +49,15 @@ Collect all traveller details per booking.
 
 ## Recommendation
 
-Choose Option A. It preserves useful repeat-traveller capability while avoiding a passport vault before the product demonstrates need and completes a privacy/security design.
+The product owner selected a constrained form of Option B on 2026-07-28: sensitive traveller data may be saved only after a separate, explicit, granular customer opt-in that is off by default.
+
+## Decision
+
+Customers enter date of birth, passport and identity-document data for each booking by default. The platform does not create a reusable sensitive traveller profile from booking submission, account registration, general privacy acceptance or a low-risk saved-traveller record.
+
+Saving date of birth or identity documents for future bookings requires an unchecked, affirmative control that names the saved categories and purpose. Consent is recorded separately and the customer can remove future-use storage without rewriting evidence required for an existing booking. Activation requires field-level protection, masking, least-privilege access, audit, key management, retention and deletion controls.
+
+Booking-time snapshots and reusable profile storage are separate data purposes. OI-0011 remains open for supplier payload and booking-evidence retention.
 
 ## Evidence Required
 
@@ -65,10 +73,10 @@ Controls data model, booking flow, privacy notices, security design, support acc
 
 ## Acceptance Criteria
 
-- [ ] Allowed saved fields are enumerated.
-- [ ] Passport/identity-document decision is explicit.
-- [ ] Retention, access, encryption and deletion rules are approved.
-- [ ] Customer consent and disclosure requirements are documented.
+- [x] Allowed sensitive saved fields require category-specific opt-in.
+- [x] Passport/identity-document storage is off by default and explicitly optional.
+- [x] Protection, access, audit and deletion are activation gates; booking-evidence retention remains in OI-0011.
+- [x] Customer consent is separate, granular, affirmative and revocable for future-use storage.
 
 ## Related Documents
 

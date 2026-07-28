@@ -1,12 +1,12 @@
 ---
 issue_id: OI-0002
 title: Confirm LiteAPI Commercial and Merchant-of-Record Model
-status: open
+status: in-review
 type: integration-question
 priority: p0
 severity: critical
 created: 2026-07-27
-updated: 2026-07-27
+updated: 2026-07-28
 decision_owners:
   - Finance
   - Product
@@ -50,6 +50,18 @@ Hotels, flights or payment methods use different merchant and settlement models.
 ## Recommendation
 
 Prefer Option A for the initial small product if commercially available and legally clear. It reduces operational burden, but the exact responsibilities must be confirmed in writing before the LiteAPI route can be activated in production under ADR-0007.
+
+## Selected Direction
+
+The product owner selected Option A on 2026-07-28. LiteAPI or its payment entity is the preferred customer-payment and merchant route for the initial product. `readytogo.travel` facilitates the customer journey, initiates the information and operations required by LiteAPI, reconciles booking/payment outcomes and exposes review through its dashboard.
+
+This direction does not establish the legal merchant of record from a technical SDK. The issue is in review until written LiteAPI terms establish the responsible merchant and every item under Evidence Required for hotels, flights and any combined journey.
+
+## Evidence Reviewed
+
+- Product-owner direction recorded on 2026-07-28.
+- LiteAPI payment and revenue documentation already referenced by ADR-0007.
+- No executed agreement or formal written allocation of merchant, settlement, refund, dispute, tax or consumer responsibilities has been recorded in the repository.
 
 ## Evidence Required
 
