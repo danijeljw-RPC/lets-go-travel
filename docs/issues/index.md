@@ -15,7 +15,7 @@
 
 | Issue | Question | Priority | Recommendation |
 | --- | --- | --- | --- |
-| [OI-0010](open/OI-0010-operational-flight-status-provider.md) | Operational flight-status provider | p2 | Defer from MVP and keep separate from booking data. |
+| [OI-0010](open/OI-0010-operational-flight-status-provider.md) | Post-MVP operational flight-status wishlist | p3 | Explicitly non-blocking; evaluate a dedicated provider later. |
 | [OI-0011](open/OI-0011-supplier-payload-retention.md) | Supplier payload retention | p1 | Canonical history plus selective short-lived protected raw evidence. |
 
 ## In Review
@@ -40,4 +40,4 @@
 
 ## Decision Order
 
-The product, launch-market, traveller-storage, frontend and support choices are closed. Resolve the external evidence for OI-0002 through OI-0006 before production flight/payment activation. OI-0010 and OI-0011 remain deferred product/data decisions and must not be answered implicitly during implementation.
+The product, launch-market, traveller-storage, frontend and support choices are closed. Resolve the external evidence for OI-0002 through OI-0006 before production flight/payment activation. OI-0010 is a non-blocking post-MVP wishlist item. OI-0011 remains the open data-retention decision and must not be answered implicitly during implementation.

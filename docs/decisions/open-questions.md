@@ -14,8 +14,11 @@ The [Issue Index](../issues/index.md) is authoritative.
 
 ## Open Decisions
 
-1. OI-0010: whether live operational flight status belongs in the product and which provider supplies it.
-2. OI-0011: which supplier payloads and booking evidence may be retained, with what protection and for how long.
+1. OI-0011: which supplier payloads and booking evidence may be retained, with what protection and for how long.
+
+## Deferred Wishlist
+
+OI-0010 records live operational flight status as a post-MVP option. It is excluded from launch, directs customers to the airline for live operations and does not block MVP planning or implementation.
 
 The first sellable scope, launch market/locale, sensitive traveller opt-in, Blazor frontend and ticket-support model are closed decisions. The only remaining ticket behaviour to settle during implementation planning is whether a customer response to a closed ticket reopens it or creates a linked follow-up ticket.
 

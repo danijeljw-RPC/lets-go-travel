@@ -27,7 +27,7 @@ The accepted direction is a web-first consumer experience organised around trips
 
 ## Decision State
 
-Documentation may describe a recommendation without making it binding. Accepted ADRs and closed product issues record approved direction. Eight ADRs are accepted; five issues are closed, five LiteAPI-dependent directions are in review and OI-0010/OI-0011 remain open by explicit deferral.
+Documentation may describe a recommendation without making it binding. Accepted ADRs and closed product issues record approved direction. Eight ADRs are accepted; five issues are closed, five LiteAPI-dependent directions are in review, OI-0010 is a non-blocking post-MVP wishlist item and OI-0011 remains an open data-retention decision.
 
 ## Source of Truth
 

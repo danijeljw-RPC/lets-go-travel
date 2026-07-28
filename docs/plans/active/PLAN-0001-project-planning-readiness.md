@@ -43,7 +43,7 @@ scope:
 
 ## Status
 
-Active. Product scope, market/locale, sensitive traveller opt-in, frontend, flight-reconciliation and support decisions are recorded. LiteAPI commercial, carrier, servicing, webhook and payment evidence plus OI-0010/OI-0011 remain before production-ready implementation planning.
+Active. Product scope, market/locale, sensitive traveller opt-in, frontend, flight-reconciliation and support decisions are recorded. LiteAPI commercial, carrier, servicing, webhook and payment evidence plus the OI-0011 retention decision remain before production-ready implementation planning. OI-0010 is a non-blocking post-MVP wishlist item.
 
 ## Purpose
 
@@ -114,6 +114,7 @@ The repository contains a compact consumer-project documentation system. Eight A
 - [x] Resolve OI-0009: .NET 10 Blazor SSR with ASP.NET Core Web API.
 - [x] Review ADR-0006.
 - [x] Accept ADR-0008: dedicated durable flight-reconciliation worker and customer notification schedule.
+- [x] Defer OI-0010 live operational flight status as a non-blocking post-MVP wishlist item.
 - [x] Record accepted outcomes without hiding alternatives.
 
 ### Milestone 5 — Implementation Planning Gate
@@ -158,6 +159,7 @@ All current questions are indexed in [Open Issues](../../issues/index.md).
 
 ## Change Log
 
+- 2026-07-28: Recorded OI-0010 as an explicitly non-blocking post-MVP wishlist item; launch uses reconciled itinerary data and directs customers to the airline for live operational status.
 - 2026-07-28: Closed OI-0001, OI-0007, OI-0008, OI-0009 and OI-0012; moved OI-0002 through OI-0006 to in review; retained OI-0010/OI-0011 as open deferrals; accepted ADR-0008 and synchronised the product, locale, traveller, payment, reconciliation and ticket-support direction.
 - 2026-07-28: Consolidated the root discovery pack into canonical documents under `docs/` and removed the duplicate source files.
 - 2026-07-28: Recorded acceptance of ADR-0001 through ADR-0007 while retaining unresolved commercial, PCI and supplier evidence as open-issue production gates.
