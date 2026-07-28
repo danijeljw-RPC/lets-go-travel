@@ -120,7 +120,7 @@ Poor module discipline or unrestricted shared-table access could create a distri
 
 ## Dependencies
 
-The web frontend choice remains open in [OI-0009](../../issues/open/OI-0009-web-frontend-technology.md). Container orchestration, background-work framework, regional deployment selection and detailed infrastructure topology are deferred to implementation planning or dedicated decisions.
+The web frontend choice is closed in [OI-0009](../../issues/closed/OI-0009-web-frontend-technology.md) as .NET 10 Blazor SSR. ADR-0008 applies ADR-0006's workload-specific extraction rule to the dedicated flight-reconciliation worker. Container orchestration, background-work framework, regional deployment selection and detailed infrastructure topology are deferred to implementation planning or dedicated decisions.
 
 ## Related Documents
 

@@ -15,7 +15,7 @@ The accepted direction is a web-first consumer experience organised around trips
 | [Product](product/README.md) | Product vision, MVP boundary, roadmap and terminology. |
 | [Architecture](architecture/README.md) | System context, target shape and trust boundaries. |
 | [ADRs](adr/README.md) | Proposed, accepted, rejected and superseded architecture decisions. |
-| [Open issues](issues/README.md) | Questions requiring product, vendor, commercial, legal or technical answers. |
+| [Issues](issues/README.md) | Open, in-review and closed product, vendor, commercial, legal or technical questions. |
 | [Plans](plans/README.md) | Dependency-ordered documentation and delivery planning. |
 | [Decisions](decisions/README.md) | Current assumptions, constraints and question summaries. |
 | [Domain](domain/README.md) | Trips, travellers, bookings, lifecycle and version history. |
@@ -27,7 +27,7 @@ The accepted direction is a web-first consumer experience organised around trips
 
 ## Decision State
 
-Documentation may describe a recommendation without making it binding. Only accepted ADRs are decisions. All seven initial ADRs are accepted; unresolved vendor, commercial, compliance and product questions remain tracked as open issues with options, recommendations and evidence gates.
+Documentation may describe a recommendation without making it binding. Accepted ADRs and closed product issues record approved direction. Eight ADRs are accepted; five issues are closed, five LiteAPI-dependent directions are in review and OI-0010/OI-0011 remain open by explicit deferral.
 
 ## Source of Truth
 

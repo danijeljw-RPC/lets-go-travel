@@ -78,11 +78,11 @@ Option A is accepted. `readytogo.travel` is a standalone consumer product that m
 
 ### Risks
 
-Consumer scope can still expand too broadly unless [OI-0001](../../issues/open/OI-0001-mvp-product-scope.md) is resolved.
+Consumer scope can still expand too broadly unless changes follow the boundary recorded in closed [OI-0001](../../issues/closed/OI-0001-mvp-product-scope.md).
 
 ## Dependencies
 
-[OI-0001](../../issues/open/OI-0001-mvp-product-scope.md) and [OI-0007](../../issues/open/OI-0007-launch-market-locale-and-currency.md).
+Closed [OI-0001](../../issues/closed/OI-0001-mvp-product-scope.md) and [OI-0007](../../issues/closed/OI-0007-launch-market-locale-and-currency.md).
 
 ## Related Documents
 

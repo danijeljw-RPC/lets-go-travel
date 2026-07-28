@@ -80,11 +80,11 @@ Option A is accepted. Keycloak owns authentication, PostgreSQL owns product and 
 
 ### Risks
 
-Saving traveller identity documents can materially increase breach impact; [OI-0008](../../issues/open/OI-0008-saved-traveller-and-passport-data.md) must decide initial scope.
+Saving traveller identity documents can materially increase breach impact; closed [OI-0008](../../issues/closed/OI-0008-saved-traveller-and-passport-data.md) requires granular opt-in and protection before reusable storage is activated.
 
 ## Dependencies
 
-Privacy/legal review and the saved-traveller decision.
+Privacy/legal review and the protection gates recorded by closed OI-0008.
 
 ## Related Documents
 

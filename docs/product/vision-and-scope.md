@@ -27,15 +27,16 @@ The experience should optimise for simple onboarding, fast destination/date sear
 - Account creation, sign-in and recovery.
 - Customer profile and preferences.
 - Trip creation and management.
-- Saved travellers subject to the sensitive-data decision.
-- Supplier search and offer selection.
+- Saved travellers with sensitive reusable fields off by default and protected by granular opt-in.
+- Hotel, flight and combined hotel-plus-flight search and offer selection through approved supplier capabilities.
 - Price and availability confirmation before payment.
 - Secure supplier/payment-provider-controlled card entry.
 - Booking confirmation and current booking details.
 - Booking history and reconciliation.
 - Cancellation and refund status where supported.
-- Email and in-app notifications.
-- Responsive web experience using the platform API.
+- Email and in-app notifications, including versioned flight-itinerary changes.
+- First-party asynchronous ticket support for customers and guests.
+- Responsive .NET 10 Blazor SSR experience using the platform API.
 
 ## Explicit Non-goals
 

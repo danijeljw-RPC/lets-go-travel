@@ -7,17 +7,20 @@
 | Actor or system | Responsibility |
 | --- | --- |
 | Customer | Uses web and later mobile clients to manage trips and bookings. |
+| Support user | Reviews bookings and manages first-party customer tickets through privileged platform capability. |
 | Web/mobile client | Presents platform data, authenticates with Keycloak and calls the platform API. |
 | Platform API | Enforces ownership, business rules, pricing, idempotency and supplier orchestration. |
 | Keycloak | Owns credentials, authentication flows, sessions and token issuance. |
 | PostgreSQL | Stores platform customer, trip, booking, pricing, reconciliation and audit records. |
+| Private workers | Process durable general work and dedicated flight reconciliation without public application traffic. |
+| S3-compatible object storage | Stores private ticket attachments and approved customer/supplier documents. |
 | LiteAPI/Nuitee Connect | Initial supplier candidate for inventory, payment and fulfilment. |
 | Notification provider | Delivers email and later push/SMS messages. |
 | Operational flight-status provider | Optional future source for live operational data, separate from booking fulfilment. |
 
 ## Primary Flow
 
-The customer authenticates with Keycloak. The client sends the resulting access token to the platform API. The platform authorises platform resources, reads or writes PostgreSQL, calls suppliers using backend credentials, and returns supplier-neutral platform models.
+The customer authenticates with Keycloak. The client sends the resulting access token to the platform API. The platform authorises platform resources, reads or writes PostgreSQL, calls suppliers using backend credentials, and returns supplier-neutral platform models. Durable workers reconcile supplier state and dispatch notifications. Guest ticket access uses a ticket-scoped secret token rather than customer authentication, while attachments remain private behind ticket authorisation.
 
 ## Boundary Rule
 

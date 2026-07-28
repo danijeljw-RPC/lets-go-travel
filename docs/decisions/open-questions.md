@@ -2,19 +2,21 @@
 
 # Open Questions
 
-The [Issue Index](../issues/index.md) is authoritative. The immediate planning questions are:
+The [Issue Index](../issues/index.md) is authoritative.
 
-1. What is the first sellable product?
-2. Who is merchant of record and how do money, refunds and chargebacks flow?
-3. Which LiteAPI hotel and flight capabilities are enabled and commercially available?
-4. Are Qantas and other required Australian carriers covered?
-5. How are schedule changes, cancellations, exchanges and refunds serviced?
-6. Which webhooks exist and what are their security/delivery guarantees?
-7. Which web/mobile payment flows are supported and what PCI scope applies?
-8. What traveller data is saved and retained?
-9. Which frontend best fits the chosen MVP and team?
-10. Is a separate operational flight-status provider ever justified?
-11. Which supplier payloads and booking evidence are retained, and for how long?
-12. What customer support model is operationally credible?
+## Selected Directions Awaiting External Evidence
+
+1. OI-0002: LiteAPI/provider-controlled customer payment is selected, but written merchant, settlement, refund, dispute, tax and consumer responsibilities remain required.
+2. OI-0003: Qantas, Jetstar and Virgin Australia were observed in the developer portal, but production entitlement, fare completeness, booking, ticketing and servicing remain unverified.
+3. OI-0004: durable daily and proximity flight reconciliation is accepted, but supplier retrieval freshness and servicing boundaries remain unverified.
+4. OI-0005: webhook-first processing with scheduled reconciliation fallback is selected, but account event coverage and delivery guarantees remain unverified.
+5. OI-0006: officially supported LiteAPI hosted/SDK payment components are selected, but platform support and qualified PCI scope remain unverified.
+
+## Open Decisions
+
+1. OI-0010: whether live operational flight status belongs in the product and which provider supplies it.
+2. OI-0011: which supplier payloads and booking evidence may be retained, with what protection and for how long.
+
+The first sellable scope, launch market/locale, sensitive traveller opt-in, Blazor frontend and ticket-support model are closed decisions. The only remaining ticket behaviour to settle during implementation planning is whether a customer response to a closed ticket reopens it or creates a linked follow-up ticket.
 
 Secondary product, regulatory and implementation choices that do not yet justify separate open issues remain explicit work items in [PLAN-0001](../plans/active/PLAN-0001-project-planning-readiness.md). If one of those choices becomes a durable architecture decision or blocks progress independently, promote it to an ADR or OI rather than deciding it silently in implementation.

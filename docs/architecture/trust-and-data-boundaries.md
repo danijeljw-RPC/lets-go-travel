@@ -8,7 +8,7 @@ Keycloak owns authentication credentials, authentication sessions, recovery and 
 
 ## Product Data Boundary
 
-PostgreSQL owns customer profile, saved travellers, trips, preferences, consents, platform booking records, price records, reconciliation state, booking versions, notifications, support context and platform audit data.
+PostgreSQL owns customer profile, saved travellers, trips, preferences, consents, platform booking records, price records, reconciliation state, booking versions, notifications, support tickets, immutable ticket threads, guest-token hashes and platform audit data. Static UI translations remain version-controlled .NET localisation resources rather than database content.
 
 ## Supplier Boundary
 
@@ -20,7 +20,7 @@ Clients hold short-lived authentication material and approved cached trip data. 
 
 ## Administrative Boundary
 
-Support and administrative access requires separate privileged capabilities, stronger authentication, masked sensitive data and detailed audit. A booking reference alone never grants access.
+Support and administrative access requires separate privileged capabilities, stronger authentication, masked sensitive data and detailed audit. A booking reference, ticket UUIDv7 or object key alone never grants access. Guest ticket access requires the separate high-entropy magic-link token, and private attachments require ticket authorisation before short-lived access is issued.
 
 ## Network Trust Boundaries
 

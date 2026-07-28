@@ -2,7 +2,7 @@
 
 # Decisions and Assumptions
 
-This directory provides compact registers for discovery-stage direction. ADRs remain authoritative for accepted architecture decisions and open issues remain authoritative for unresolved questions.
+This directory provides compact registers for discovery-stage direction. ADRs remain authoritative for accepted architecture decisions. Issue records remain authoritative for selected directions awaiting evidence, unresolved questions and closed product decisions.
 
 - [Assumptions](assumptions.md)
 - [Constraints](constraints.md)
