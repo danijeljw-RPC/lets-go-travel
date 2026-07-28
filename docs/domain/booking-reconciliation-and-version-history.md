@@ -36,6 +36,10 @@ Triggers may include webhooks, booking completion, scheduled checks, customer/su
 
 Polling frequency must respect supplier terms, quotas, event coverage, travel proximity and customer value. Concurrency control must account for competing workers, webhook/job races, cancellation during reconciliation, stale responses, out-of-order events and retry after a partial update.
 
+Under [ADR-0008](../adr/accepted/ADR-0008-durable-flight-reconciliation-and-customer-notification.md), the dedicated flight-reconciliation worker checks every active future flight booking at least once per calendar day outside the final 24 hours before scheduled departure and at least once per hour during the final 24 hours before each affected flight segment. Authenticated webhooks and pending-operation recovery may enqueue immediate checks. Durable PostgreSQL work records preserve overdue work across restarts and prevent duplicate workers from processing the same due check unsafely.
+
+A meaningful change updates current state and creates its immutable version in the same transaction, then records a notification event in the outbox. Notification handlers classify severity, deduplicate customer communication, use the effective customer locale and retain delivery attempts. A failed supplier retrieval creates an inspectable failure and never implies that no change occurred.
+
 ## Failure and Retention
 
 A failed attempt records time, supplier, category, retry eligibility, next retry, correlation ID, last known state and whether customer/support action is required. Failure to reconcile never implies that the booking is unchanged.

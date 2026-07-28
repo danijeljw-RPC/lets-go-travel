@@ -15,7 +15,7 @@ Accepted. See [ADR-0006](../adr/accepted/ADR-0006-application-and-deployment-bas
 - Responsive web client first, with later Android and iOS clients using the same API.
 - Server-side LiteAPI and later Duffel adapters with backend-only credentials, platform-owned contracts and environment-specific provider activation. Duffel is disabled by default for the initial launch.
 - Modular monolith for transactional application behaviour.
-- A containerised public API and one general-purpose private worker container initially.
+- A containerised public API, one general-purpose private worker container and a dedicated private flight-reconciliation worker container.
 - No serverless functions.
 
 ## Logical Modules
@@ -32,11 +32,13 @@ Introduce distributed caching only when measurements justify it. Suitable candid
 
 ## Background Work
 
-Reconciliation, webhook processing, notification delivery, scheduled reminders, retryable supplier operations and cleanup do not extend customer-facing request latency unnecessarily. The general worker processes durable work through transactional outbox and inbox patterns with idempotency, bounded concurrency and inspectable failure states.
+Reconciliation, webhook processing, notification delivery, scheduled reminders, retryable supplier operations and cleanup do not extend customer-facing request latency unnecessarily. The general worker processes shared durable work through transactional outbox and inbox patterns with idempotency, bounded concurrency and inspectable failure states.
+
+The dedicated flight-reconciliation worker uses durable PostgreSQL work records rather than an operating-system crontab. It checks active future flight bookings at least daily outside the final 24 hours before departure and at least hourly during the final 24 hours before each affected segment. Authenticated webhooks may enqueue immediate checks. Meaningful changes create immutable versions and notification outbox events under [ADR-0008](../adr/accepted/ADR-0008-durable-flight-reconciliation-and-customer-notification.md).
 
 ## Deployment Boundary
 
-The frontend, API, worker and Keycloak are container workloads. Workers accept no public application traffic but can use controlled outbound connections. Each US, EU or Australian installation is isolated and has its own Azure PostgreSQL data boundary. Region and container-orchestration selection are separate decisions.
+The frontend, API, workers and Keycloak are container workloads. Workers accept no public application traffic but can use controlled outbound connections. Each US, EU or Australian installation is isolated and has its own Azure PostgreSQL data boundary. Region and container-orchestration selection are separate decisions.
 
 ## Scaling Direction
 

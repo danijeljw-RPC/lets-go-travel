@@ -7,7 +7,7 @@
 | Status | Count |
 | --- | ---: |
 | Proposed | 0 |
-| Accepted | 7 |
+| Accepted | 8 |
 | Rejected | 0 |
 | Superseded | 0 |
 
@@ -26,6 +26,7 @@ None.
 | [ADR-0005](accepted/ADR-0005-reconciliation-and-operational-flight-status-boundary.md) | Reconciliation and Operational Flight Status Boundary | Architecture, Product |
 | [ADR-0006](accepted/ADR-0006-application-and-deployment-baseline.md) | Application and Deployment Baseline | Architecture, Platform Engineering |
 | [ADR-0007](accepted/ADR-0007-payment-data-and-pci-scope-minimisation.md) | Payment Data and PCI Scope Minimisation | Finance, Security, Compliance |
+| [ADR-0008](accepted/ADR-0008-durable-flight-reconciliation-and-customer-notification.md) | Durable Flight Reconciliation and Customer Notification | Product, Architecture, Operations |
 
 ## Rejected
 
