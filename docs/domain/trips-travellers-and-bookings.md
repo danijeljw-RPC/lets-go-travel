@@ -32,6 +32,12 @@ Manually entered flights, hotels, activities, rail, restaurants, notes and docum
 
 Customer-relevant events such as trip creation, booking/payment confirmation, an approaching check-in, a supplier change, cancellation/refund completion, document addition and future traveller invitations come from durable domain events or records rather than diagnostic logs.
 
+## Support Ticket
+
+A support ticket is owned by the support module and may refer to a customer, trip or booking without becoming part of the booking aggregate. It records an internal UUIDv7 identifier, customer or guest contact details, optional reference, category, current state, immutable message thread, private attachment references, notification history and audit metadata.
+
+Tickets begin as `New`. The latest accepted customer message produces `Waiting on Support`; the latest accepted support response produces `Waiting on Customer`; an authorised support action produces `Closed`. Guest access uses a separate high-entropy bearer token stored only as a hash, not the UUIDv7 identifier. Attachments remain private S3-compatible objects and require ticket authorisation before short-lived access is issued.
+
 ## Sharing
 
 Future sharing may introduce owner, editor, viewer and traveller capabilities. Sharing never implicitly grants access to passport, payment or account data and must be added through an explicit authorisation design rather than inferred from trip participation.

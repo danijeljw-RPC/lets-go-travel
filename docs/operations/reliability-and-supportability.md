@@ -34,6 +34,20 @@ Measure request latency/errors, supplier errors, quota use, search-to-prebook an
 
 Support needs platform and supplier references, current booking/payment/cancellation state, last supplier check, version timeline, meaningful diffs, failed operations, correlation IDs, notification history and permitted next actions with sensitive values masked.
 
+## Ticket Support
+
+The initial customer-support channel is the first-party asynchronous ticket model accepted in closed [OI-0012](../issues/closed/OI-0012-customer-support-model.md). Authenticated customers and guests can create tickets containing name, email, optional booking/customer reference, a required category, an initial message and permitted attachments. For an authenticated customer, the form uses the authoritative account email and does not allow it to be edited.
+
+Every ticket starts as `New`. An accepted customer reply changes `New` or `Waiting on Customer` to `Waiting on Support`. An accepted support response changes `New` or `Waiting on Support` to `Waiting on Customer`. An authorised support user explicitly sets `Closed`. Whether a later customer reply reopens a closed ticket or creates a linked follow-up ticket must be selected and tested before shipment; no implementation may choose silently.
+
+Each ticket has an internal UUIDv7 identifier and a separate cryptographically random bearer token for guest access. Only a one-way hash of the bearer token is stored. The UUIDv7 is not an access secret. The emailed magic link can be revoked or rotated, grants access only to its ticket and returns no ticket existence or customer information when it is invalid, expired or revoked.
+
+Ticket messages form an immutable thread. Every accepted customer or support update persists before it queues a durable, retryable and deduplicated email notification to the ticket email address. Email failure remains visible to support and does not roll back the thread entry. Messages must not place sensitive attachments, passport data or unnecessary booking details in email.
+
+Attachments are private objects in an S3-compatible store. Thread entries retain an object reference and safe display metadata rather than a permanently public URL. After ticket authorisation, the platform returns short-lived signed access or streams the object. Upload handling enforces allowlisted types, size/count limits, non-executable content disposition and malware scanning or quarantine before download. A failed attachment does not discard an otherwise accepted text message and can be retried safely.
+
+Published service hours, urgent-travel criteria, supplier escalation contacts and SLAs remain production-readiness configuration informed by OI-0002 and OI-0004. A later third-party live-chat adapter may append to or create tickets through a controlled support contract, but live chat is not part of the initial product and cannot replace ticket history.
+
 ## Recovery Scenarios
 
 Required runbooks eventually cover supplier outage, pending booking, payment success with booking failure, cancellation/refund delay, webhook/reconciliation backlog, compromised supplier key, compromised customer account, Keycloak outage and database restore.

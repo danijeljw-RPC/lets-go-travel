@@ -24,6 +24,12 @@ An approved offline trip pack may contain booking references, itinerary summarie
 
 In-app, email, push and any later critical SMS notifications support preferences, urgency, deduplication, retry, language, timezone, quiet hours where appropriate, lock-screen privacy, acknowledgement and a link to the affected booking.
 
+## Ticket Support
+
+The web client provides first-party asynchronous ticket creation and thread access for authenticated customers and guests. The form collects name, email, optional booking/customer reference, required category, message and permitted attachments. An authenticated customer's account email is prepopulated and read-only.
+
+Guest ticket links use a UUIDv7 route identifier plus a separate high-entropy secret token; the UUIDv7 alone never authorises access. Attachments are not public URLs. The client obtains authorised, short-lived download access after the platform validates the account owner or magic-link token. Every accepted update is persisted before an email is queued, and the UI shows notification or attachment failure without losing the thread message.
+
 ## Time, Locale and Currency
 
 Preserve local date/time and timezone identifiers for travel schedules, plus UTC instants where determinable. Retain supplier original, transaction and charged currency separately from display conversion.
