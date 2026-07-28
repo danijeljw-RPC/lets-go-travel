@@ -1,8 +1,10 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/ReadyToGoTravel.Api/ReadyToGoTravel.Api.csproj" />
     <Project Path="src/ReadyToGoTravel.BuildingBlocks/ReadyToGoTravel.BuildingBlocks.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ReadyToGoTravel.Api.Tests/ReadyToGoTravel.Api.Tests.csproj" />
     <Project Path="tests/ReadyToGoTravel.Architecture.Tests/ReadyToGoTravel.Architecture.Tests.csproj" />
   </Folder>
 </Solution>
