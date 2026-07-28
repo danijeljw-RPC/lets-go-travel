@@ -47,7 +47,7 @@ scope:
 
 ## Status
 
-Implementation-ready. Product, architecture, operational and technical direction is sufficient for MVP code. This plan remains active only as the production supplier/legal evidence tracker; those gates do not block supplier-neutral implementation or sandbox work. OI-0010 is a non-blocking post-MVP wishlist item.
+Implementation underway. The verified application foundation is complete under PLAN-0002. This plan remains active only as the production supplier/legal evidence tracker; those gates do not block supplier-neutral implementation or sandbox work. OI-0010 is a non-blocking post-MVP wishlist item.
 
 ## Purpose
 
@@ -164,6 +164,7 @@ The [Remaining Review Register](../../decisions/review-register.md) is the conso
 
 ## Change Log
 
+- 2026-07-29: Recorded completion of the verified, supplier-neutral Slice 1 application foundation; outstanding items remain production activation gates rather than an MVP-code-start blocker.
 - 2026-07-29: Reconciled the supplied LiteAPI and Australian legal evidence; closed OI-0004/OI-0011 as design decisions; accepted ADR-0009/ADR-0010; fixed operational defaults; approved MVP code start; and created the MVP delivery design and foundation plan.
 - 2026-07-28: Completed the repository-wide review, approved the exact retention/legal-hold baseline, deferred non-transactional product extras, selected ticket reopening behaviour and added the consolidated remaining-review register.
 - 2026-07-28: Selected OI-0011 Option A and moved it to in review; distinguished seven-year corporate financial records, general five-year tax records, privacy deletion and matter-specific legal holds from raw supplier payload retention.

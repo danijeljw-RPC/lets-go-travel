@@ -1,5 +1,7 @@
 # MVP Foundation Implementation Plan
 
+**Status:** Completed and verified on 2026-07-29.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Create the buildable, testable .NET 10 application foundation for the `readytogo.travel` API, Blazor SSR web app, general worker and dedicated flight-reconciliation worker.
@@ -38,7 +40,7 @@
 - Consumes: .NET 10 SDK.
 - Produces: repository-wide build settings and a solution that later tasks extend.
 
-- [ ] **Step 1: Create the solution and projects**
+- [x] **Step 1: Create the solution and projects**
 
 ```bash
 dotnet new sln --format slnx --name ReadyToGoTravel
@@ -47,7 +49,7 @@ dotnet new xunit --framework net10.0 --name ReadyToGoTravel.Architecture.Tests -
 dotnet sln ReadyToGoTravel.slnx add src/ReadyToGoTravel.BuildingBlocks/ReadyToGoTravel.BuildingBlocks.csproj tests/ReadyToGoTravel.Architecture.Tests/ReadyToGoTravel.Architecture.Tests.csproj
 ```
 
-- [ ] **Step 2: Write failing convention tests**
+- [x] **Step 2: Write failing convention tests**
 
 ```csharp
 [Fact]
@@ -65,23 +67,23 @@ public void ProjectNamesUseReadyToGoTravelPrefix()
 }
 ```
 
-- [ ] **Step 3: Run the tests and confirm the convention failure**
+- [x] **Step 3: Run the tests and confirm the convention failure**
 
 Run: `dotnet test tests/ReadyToGoTravel.Architecture.Tests/ReadyToGoTravel.Architecture.Tests.csproj`
 
 Expected: FAIL until the repository root resolver and exact convention files are implemented.
 
-- [ ] **Step 4: Add exact build conventions**
+- [x] **Step 4: Add exact build conventions**
 
 `global.json` pins SDK `10.0.300` with `rollForward: latestPatch`. `Directory.Build.props` sets `net10.0`, `Nullable=enable`, `ImplicitUsings=enable`, `TreatWarningsAsErrors=true`, deterministic builds and generated documentation only where explicitly enabled. `Directory.Packages.props` enables central package management and pins all test/OpenAPI packages.
 
-- [ ] **Step 5: Run the architecture tests**
+- [x] **Step 5: Run the architecture tests**
 
 Run: `dotnet test tests/ReadyToGoTravel.Architecture.Tests/ReadyToGoTravel.Architecture.Tests.csproj`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .editorconfig .gitignore Directory.Build.props Directory.Packages.props ReadyToGoTravel.slnx global.json src/ReadyToGoTravel.BuildingBlocks tests/ReadyToGoTravel.Architecture.Tests
@@ -105,7 +107,7 @@ git commit -m "build: create dotnet solution foundation"
 - Consumes: ASP.NET Core hosting and the shared build conventions.
 - Produces: `GET /api/v1/platform`, `GET /health/live`, `GET /health/ready`, development OpenAPI and the `X-Correlation-ID` response contract.
 
-- [ ] **Step 1: Scaffold the API and integration-test project**
+- [x] **Step 1: Scaffold the API and integration-test project**
 
 ```bash
 dotnet new webapi --framework net10.0 --use-controllers false --no-https --name ReadyToGoTravel.Api --output src/ReadyToGoTravel.Api
@@ -114,7 +116,7 @@ dotnet add tests/ReadyToGoTravel.Api.Tests/ReadyToGoTravel.Api.Tests.csproj refe
 dotnet sln ReadyToGoTravel.slnx add src/ReadyToGoTravel.Api/ReadyToGoTravel.Api.csproj tests/ReadyToGoTravel.Api.Tests/ReadyToGoTravel.Api.Tests.csproj
 ```
 
-- [ ] **Step 2: Write failing API contract tests**
+- [x] **Step 2: Write failing API contract tests**
 
 ```csharp
 [Fact]
@@ -138,13 +140,13 @@ public async Task CorrelationIdIsEchoed()
 }
 ```
 
-- [ ] **Step 3: Run the tests and confirm failure**
+- [x] **Step 3: Run the tests and confirm failure**
 
 Run: `dotnet test tests/ReadyToGoTravel.Api.Tests/ReadyToGoTravel.Api.Tests.csproj`
 
 Expected: FAIL because the platform endpoint and correlation middleware do not exist.
 
-- [ ] **Step 4: Implement the minimal API contract**
+- [x] **Step 4: Implement the minimal API contract**
 
 ```csharp
 var v1 = app.MapGroup("/api/v1");
@@ -158,17 +160,17 @@ Correlation middleware validates a printable identifier up to 128 characters, ot
 
 Unknown API routes and framework failures return `application/problem+json`; the customization callback adds `code` and `correlationId` without exposing exception details outside development.
 
-- [ ] **Step 5: Apply built-in rate limits and OpenAPI**
+- [x] **Step 5: Apply built-in rate limits and OpenAPI**
 
 The public API has a global safety limiter plus named policies for future search and command groups. `AddOpenApi` and `MapOpenApi` run only in development; CI generates the document through the supported .NET build path.
 
-- [ ] **Step 6: Run API and full tests**
+- [x] **Step 6: Run API and full tests**
 
 Run: `dotnet test ReadyToGoTravel.slnx`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add ReadyToGoTravel.slnx Directory.Packages.props src/ReadyToGoTravel.Api tests/ReadyToGoTravel.Api.Tests
@@ -192,14 +194,14 @@ git commit -m "feat: add versioned api contract foundation"
 - Consumes: `GET /api/v1/platform` through `PlatformApiClient`.
 - Produces: a Blazor SSR host with no direct product-domain project dependency.
 
-- [ ] **Step 1: Scaffold the Blazor Web App**
+- [x] **Step 1: Scaffold the Blazor Web App**
 
 ```bash
 dotnet new blazor --framework net10.0 --interactivity Server --empty --name ReadyToGoTravel.Web --output src/ReadyToGoTravel.Web
 dotnet sln ReadyToGoTravel.slnx add src/ReadyToGoTravel.Web/ReadyToGoTravel.Web.csproj
 ```
 
-- [ ] **Step 2: Write the failing web-boundary test**
+- [x] **Step 2: Write the failing web-boundary test**
 
 ```csharp
 [Fact]
@@ -210,23 +212,23 @@ public void WebProjectReferencesNoProductModuleAssembly()
 }
 ```
 
-- [ ] **Step 3: Run the architecture test and confirm the missing convention support**
+- [x] **Step 3: Run the architecture test and confirm the missing convention support**
 
 Run: `dotnet test tests/ReadyToGoTravel.Architecture.Tests/ReadyToGoTravel.Architecture.Tests.csproj`
 
 Expected: FAIL until project-reference parsing and the new web project are included.
 
-- [ ] **Step 4: Implement the SSR host and API client boundary**
+- [x] **Step 4: Implement the SSR host and API client boundary**
 
 Use static SSR for the shell. Register a named `HttpClient` whose base URL comes from `PlatformApi:BaseUrl`. The home page renders product identity and readiness returned by the API, with an unavailable state on API failure. No product repository or module is injected into the web project.
 
-- [ ] **Step 5: Run tests and build**
+- [x] **Step 5: Run tests and build**
 
 Run: `dotnet test ReadyToGoTravel.slnx && dotnet build ReadyToGoTravel.slnx --no-restore`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add ReadyToGoTravel.slnx src/ReadyToGoTravel.Web tests/ReadyToGoTravel.Architecture.Tests
@@ -250,7 +252,7 @@ git commit -m "feat: add blazor ssr web host"
 - Consumes: `TimeProvider` and `CancellationToken`.
 - Produces: abstract `CooperativeWorker.ExecuteCycleAsync(CancellationToken)` used by both worker hosts; no public ingress.
 
-- [ ] **Step 1: Write the failing cancellation test**
+- [x] **Step 1: Write the failing cancellation test**
 
 ```csharp
 [Fact]
@@ -263,13 +265,13 @@ public async Task WorkerStopsPromptlyWhenCancellationIsRequested()
 }
 ```
 
-- [ ] **Step 2: Run the focused test and confirm failure**
+- [x] **Step 2: Run the focused test and confirm failure**
 
 Run: `dotnet test tests/ReadyToGoTravel.BuildingBlocks.Tests/ReadyToGoTravel.BuildingBlocks.Tests.csproj`
 
 Expected: FAIL because `CooperativeWorker` does not exist.
 
-- [ ] **Step 3: Implement cooperative worker base and hosts**
+- [x] **Step 3: Implement cooperative worker base and hosts**
 
 ```csharp
 protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -284,13 +286,13 @@ protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 
 The first cycle performs no domain work and logs one structured readiness event. Later slices replace `ExecuteCycleAsync` through injected services. Both hosts use health-check publishing and validate configuration at startup.
 
-- [ ] **Step 4: Run all tests and build**
+- [x] **Step 4: Run all tests and build**
 
 Run: `dotnet test ReadyToGoTravel.slnx && dotnet build ReadyToGoTravel.slnx --no-restore`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ReadyToGoTravel.slnx src/ReadyToGoTravel.BuildingBlocks src/ReadyToGoTravel.Worker src/ReadyToGoTravel.FlightReconciliation.Worker tests/ReadyToGoTravel.BuildingBlocks.Tests
@@ -314,11 +316,11 @@ git commit -m "feat: add cooperative worker hosts"
 - Consumes: the complete Slice 1 solution.
 - Produces: deterministic SDK build/test workflow and four non-root runtime images.
 
-- [ ] **Step 1: Add multi-stage non-root Dockerfiles**
+- [x] **Step 1: Add multi-stage non-root Dockerfiles**
 
 Each Dockerfile restores the solution/project using `mcr.microsoft.com/dotnet/sdk:10.0`, publishes the exact deployable and runs on `mcr.microsoft.com/dotnet/aspnet:10.0` (web/API) or `mcr.microsoft.com/dotnet/runtime:10.0` (workers) as the image-provided non-root user. No secret is copied into an image.
 
-- [ ] **Step 2: Add CI**
+- [x] **Step 2: Add CI**
 
 ```yaml
 - uses: actions/setup-dotnet@v5
@@ -331,11 +333,11 @@ Each Dockerfile restores the solution/project using `mcr.microsoft.com/dotnet/sd
 
 CI also runs `dotnet format --verify-no-changes`, checks documentation links/structure with the repository validator and builds all four Dockerfiles.
 
-- [ ] **Step 3: Update project navigation and plan state**
+- [x] **Step 3: Update project navigation and plan state**
 
 Document the four deployables, local build/test commands and production-gate rule. PLAN-0001 records implementation readiness; PLAN-0002 sequences the remaining six MVP slices.
 
-- [ ] **Step 4: Run fresh verification**
+- [x] **Step 4: Run fresh verification**
 
 Run:
 
@@ -352,7 +354,7 @@ docker build -f src/ReadyToGoTravel.FlightReconciliation.Worker/Dockerfile .
 
 Expected: every command exits zero; no production secret or supplier dependency is required.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .dockerignore .github README.md docs/plans src/*/Dockerfile

@@ -45,7 +45,7 @@ scope:
 
 ## Status
 
-Active. Slice 1 application foundation is approved for implementation. Production supplier/payment capabilities remain disabled until their review-register gates are approved.
+Active. Slice 1 application foundation is implemented and verified. Slice 2 is next. Production supplier/payment capabilities remain disabled until their review-register gates are approved.
 
 ## Purpose
 
@@ -53,7 +53,7 @@ Deliver the consumer MVP through independently testable vertical slices while pr
 
 ## Slice Sequence
 
-- [ ] Slice 1: .NET 10 solution, API contract, Blazor SSR, workers, containers and CI.
+- [x] Slice 1: .NET 10 solution, API contract, Blazor SSR, workers, containers and CI.
 - [ ] Slice 2: Keycloak identity, locale, customers, trips and travellers.
 - [ ] Slice 3: supplier-neutral hotel/flight search, pricing and capability registry.
 - [ ] Slice 4: checkout, LiteAPI hosted payment, hotel/flight booking and combined journeys.
@@ -71,7 +71,11 @@ Deliver the consumer MVP through independently testable vertical slices while pr
 
 ## Current Plan
 
-[MVP Foundation Implementation Plan](../../superpowers/plans/2026-07-29-mvp-foundation.md)
+Slice 1 followed the completed [MVP Foundation Implementation Plan](../../superpowers/plans/2026-07-29-mvp-foundation.md). The next implementation plan must cover Slice 2 only: Keycloak identity, locale, customers, trips and travellers.
+
+## Change Log
+
+- 2026-07-29: Completed Slice 1 with the .NET 10 solution, public API contract, Blazor SSR host, cooperative workers, non-root containers, locked CI and automated documentation validation.
 
 ## Production Gates
 

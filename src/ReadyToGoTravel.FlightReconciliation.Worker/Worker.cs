@@ -1,9 +1,12 @@
+using Microsoft.Extensions.Options;
 using ReadyToGoTravel.BuildingBlocks.Hosting;
 
 namespace ReadyToGoTravel.FlightReconciliation.Worker;
 
-public sealed partial class Worker(ILogger<Worker> logger)
-    : CooperativeWorker(TimeProvider.System, TimeSpan.FromMinutes(1))
+public sealed partial class Worker(
+    ILogger<Worker> logger,
+    IOptions<CooperativeWorkerOptions> options)
+    : CooperativeWorker(TimeProvider.System, options.Value.IdleDelay)
 {
     protected override Task ExecuteCycleAsync(CancellationToken cancellationToken)
     {
