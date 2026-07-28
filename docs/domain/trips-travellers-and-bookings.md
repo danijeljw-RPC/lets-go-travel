@@ -1,0 +1,29 @@
+# Trips, Travellers and Bookings
+
+## Trip
+
+A trip is the customer-facing aggregate for travel planning and management. It may exist before any supplier booking and may include supplier-managed bookings, manually added items, notes, documents, reminders and notifications.
+
+Likely trip attributes include platform ID, owning customer, title, destinations, start/end dates, timezone context, status, travellers and timestamps. Sharing is deferred and must not be assumed in initial authorisation.
+
+## Customer and Traveller
+
+The customer owns the account, trip and booking. A traveller is a person participating in travel. A customer may maintain travellers for themselves, family or friends, subject to [OI-0008](../issues/open/OI-0008-saved-traveller-and-passport-data.md).
+
+Booking-time traveller details are snapshotted because later profile changes must not rewrite what was supplied for an existing booking.
+
+## Booking
+
+A booking is the platform's durable representation of an external reservation. It has a platform ID, customer and trip ownership, product category, supplier mappings, external references, current platform and supplier status, price records, cancellation/refund state, current normalised travel detail, reconciliation state and version history.
+
+## Product-specific Detail
+
+Accommodation and flights share lifecycle concepts but should not be forced into one universal detail model. Accommodation needs property, room, occupancy, stay, meal and cancellation concepts. Flights need journey, leg, segment, airport, local time, carrier, cabin, fare, baggage, seat, PNR and ticket concepts.
+
+## Manual Items
+
+Manually entered flights, hotels, activities, rail, restaurants, notes and documents must be clearly distinguished from supplier-managed bookings because the platform cannot necessarily reconcile, cancel or service them.
+
+## Retention
+
+Removing a trip from the customer view does not automatically delete confirmed bookings, financial evidence, support records or legally retained data. Retention and anonymisation rules remain an open privacy/commercial decision.
