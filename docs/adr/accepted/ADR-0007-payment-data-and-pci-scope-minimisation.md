@@ -26,6 +26,8 @@ related_docs:
   - docs/integrations/duffel.md
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # ADR-0007 — Payment Data and PCI Scope Minimisation
 
 ## Status

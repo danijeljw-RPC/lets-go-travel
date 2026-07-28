@@ -22,6 +22,8 @@ related_docs:
   - docs/domain/booking-reconciliation-and-version-history.md
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # ADR-0004 — Booking Current State and Immutable History
 
 ## Status

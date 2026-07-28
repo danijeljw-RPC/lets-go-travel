@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Trust and Data Boundaries
 
 ## Identity Boundary

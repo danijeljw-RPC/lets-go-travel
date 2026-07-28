@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # `.travel` Domain Discovery Tool Design
 
 ## Purpose

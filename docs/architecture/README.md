@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Architecture
 
 The accepted architecture is a small-product baseline, not an enterprise platform design. It uses a containerised modular monolith, explicit module and data ownership, managed Azure PostgreSQL and a private general-purpose worker while the product and supplier model continue to be discovered.

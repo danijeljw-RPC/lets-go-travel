@@ -18,6 +18,8 @@ related_docs:
 blocked_by: []
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # OI-0001 — Decide the First Sellable Product Scope
 
 ## Summary

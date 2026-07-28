@@ -36,6 +36,8 @@ scope:
   - supplier-validation
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # PLAN-0001 — Project Planning Readiness
 
 ## Status

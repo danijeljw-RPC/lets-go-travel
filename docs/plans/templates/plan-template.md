@@ -12,6 +12,8 @@ scope:
   - docs
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # PLAN-0000 — Title
 
 ## Status

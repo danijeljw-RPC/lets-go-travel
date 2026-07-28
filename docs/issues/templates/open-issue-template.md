@@ -14,6 +14,8 @@ related_docs: []
 blocked_by: []
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # OI-0000 — Title
 
 ## Summary

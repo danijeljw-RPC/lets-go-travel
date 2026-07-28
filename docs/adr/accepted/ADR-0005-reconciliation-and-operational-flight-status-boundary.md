@@ -22,6 +22,8 @@ related_docs:
   - docs/domain/booking-reconciliation-and-version-history.md
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # ADR-0005 — Reconciliation and Operational Flight Status Boundary
 
 ## Status

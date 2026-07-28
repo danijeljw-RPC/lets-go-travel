@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Payments and Pricing
 
 ## Status

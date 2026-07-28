@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Open Issues
 
 Open issues capture questions that must not be answered implicitly during implementation. Each issue provides options, a recommendation, evidence needed, and closure criteria.

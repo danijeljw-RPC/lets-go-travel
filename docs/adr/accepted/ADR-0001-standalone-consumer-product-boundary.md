@@ -22,6 +22,8 @@ related_docs:
   - docs/product/consumer-mvp-scope.md
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # ADR-0001 — Standalone Consumer Product Boundary
 
 ## Status

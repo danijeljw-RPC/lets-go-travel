@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Architecture Decision Records
 
 ADRs record durable project decisions. New ADRs start under `proposed/` and are not binding until explicitly accepted.

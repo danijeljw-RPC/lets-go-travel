@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Security, Privacy and Data Ownership
 
 ## Data Classes

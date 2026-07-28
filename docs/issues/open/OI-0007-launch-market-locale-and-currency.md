@@ -21,6 +21,8 @@ blocked_by:
   - OI-0002
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # OI-0007 — Decide Launch Market Locale and Currency
 
 ## Summary

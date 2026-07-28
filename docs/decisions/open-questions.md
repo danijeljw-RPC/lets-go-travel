@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Open Questions
 
 The [Issue Index](../issues/index.md) is authoritative. The immediate planning questions are:

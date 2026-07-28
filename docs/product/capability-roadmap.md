@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Capability Roadmap
 
 ## Stage 0 — Evidence and Decisions

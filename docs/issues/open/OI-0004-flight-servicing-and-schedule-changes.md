@@ -22,6 +22,8 @@ blocked_by:
   - OI-0003
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # OI-0004 — Verify Flight Servicing and Schedule-Change Behaviour
 
 ## Summary

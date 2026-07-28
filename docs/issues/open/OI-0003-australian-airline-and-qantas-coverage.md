@@ -20,6 +20,8 @@ related_docs:
 blocked_by: []
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # OI-0003 — Verify Australian Airline and Qantas Coverage
 
 ## Summary

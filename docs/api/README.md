@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # API Documentation
 
 The ASP.NET Core Web API is the proposed public application boundary for web and future mobile clients. It exposes platform concepts and hides supplier credentials, contracts, errors and selection logic.

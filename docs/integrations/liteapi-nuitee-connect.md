@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # LiteAPI/Nuitee Connect Integration
 
 ## Status

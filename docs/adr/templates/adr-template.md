@@ -15,6 +15,8 @@ related_plans: []
 related_docs: []
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # ADR-0000 — Title
 
 ## Status

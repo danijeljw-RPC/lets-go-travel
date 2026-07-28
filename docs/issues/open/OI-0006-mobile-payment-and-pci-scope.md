@@ -22,6 +22,8 @@ blocked_by:
   - OI-0002
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # OI-0006 — Select Web and Mobile Payment Integration and Confirm PCI Scope
 
 ## Summary

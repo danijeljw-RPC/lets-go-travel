@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Plans
 
 Plans sequence documentation, research and later implementation work. A plan does not accept an ADR or resolve an issue.

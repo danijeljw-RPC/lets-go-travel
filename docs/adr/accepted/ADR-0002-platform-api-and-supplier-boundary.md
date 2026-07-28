@@ -23,6 +23,8 @@ related_docs:
   - docs/integrations/supplier-integration-principles.md
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # ADR-0002 — Platform API and Private Supplier Boundary
 
 ## Status

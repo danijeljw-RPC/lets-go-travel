@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Working Assumptions
 
 This register distinguishes accepted decision baselines from discovery assumptions. Implementation may rely on accepted ADRs but must not silently resolve remaining proposed decisions or open issues.

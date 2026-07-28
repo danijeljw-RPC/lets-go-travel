@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Integrations
 
 Supplier integrations are private adapters behind the platform API. A supplier does not own customer identity, trips, preferences, the public contract or platform support history.

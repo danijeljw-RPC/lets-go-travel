@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Security and Privacy
 
 Security begins with explicit identity, ownership, supplier disclosure, payment and retention boundaries.

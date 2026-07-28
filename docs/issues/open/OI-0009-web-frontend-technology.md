@@ -20,6 +20,8 @@ blocked_by:
   - OI-0001
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # OI-0009 — Select the Web Frontend Technology
 
 ## Summary

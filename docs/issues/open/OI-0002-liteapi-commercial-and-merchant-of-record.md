@@ -21,6 +21,8 @@ related_docs:
 blocked_by: []
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # OI-0002 — Confirm LiteAPI Commercial and Merchant-of-Record Model
 
 ## Summary

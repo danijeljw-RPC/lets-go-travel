@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Product Documentation
 
 `readytogo.travel` is a standalone consumer product intended to help a customer organise and manage a trip through one account and one consistent experience. It is not a thin supplier frontend: supplier inventory is private fulfilment capability behind the product API.

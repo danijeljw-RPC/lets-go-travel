@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # readytogo.travel Documentation
 
 This directory contains the planning and design documentation for `readytogo.travel`, a standalone consumer travel product focused on customer-owned trips and bookings. Use `RTGT` as the product shortcode and `ReadyToGoTravel` as the default root namespace or package prefix for all code; apply the language's normal casing conventions where a package ecosystem requires lowercase names.

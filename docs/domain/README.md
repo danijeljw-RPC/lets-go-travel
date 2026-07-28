@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Domain Documentation
 
 The domain is organised around customer-owned trips and durable platform bookings, not supplier endpoint models.

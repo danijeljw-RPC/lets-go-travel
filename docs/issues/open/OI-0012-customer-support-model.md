@@ -20,6 +20,8 @@ blocked_by:
   - OI-0002
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # OI-0012 — Decide the MVP Customer Support Model
 
 ## Summary

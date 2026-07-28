@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Operations
 
 Operational planning covers external failure, durable work, reconciliation, observability, recovery and customer support.

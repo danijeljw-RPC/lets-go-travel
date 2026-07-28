@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Decisions and Assumptions
 
 This directory provides compact registers for discovery-stage direction. ADRs remain authoritative for accepted architecture decisions and open issues remain authoritative for unresolved questions.

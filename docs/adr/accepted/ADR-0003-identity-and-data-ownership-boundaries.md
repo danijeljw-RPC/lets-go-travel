@@ -24,6 +24,8 @@ related_docs:
   - docs/security/identity-and-access.md
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # ADR-0003 — Identity and Data Ownership Boundaries
 
 ## Status

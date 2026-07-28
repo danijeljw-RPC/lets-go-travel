@@ -22,6 +22,8 @@ related_docs:
   - docs/architecture/target-architecture.md
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # ADR-0006 — Application and Deployment Baseline
 
 ## Status

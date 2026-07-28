@@ -21,6 +21,8 @@ related_docs:
 blocked_by: []
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # OI-0008 — Decide Saved Traveller and Passport Data Policy
 
 ## Summary

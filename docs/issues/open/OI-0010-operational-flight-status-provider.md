@@ -21,6 +21,8 @@ blocked_by:
   - OI-0004
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # OI-0010 — Decide the Operational Flight Status Boundary and Provider
 
 ## Summary
