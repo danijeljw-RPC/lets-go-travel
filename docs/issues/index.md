@@ -26,7 +26,7 @@
 | [OI-0004](open/OI-0004-flight-servicing-and-schedule-changes.md) | Dedicated durable reconciliation with customer notifications. | Retrieval freshness, schedule propagation, servicing and escalation matrix. |
 | [OI-0005](open/OI-0005-liteapi-webhook-coverage.md) | Durable webhook inbox plus scheduled safety net. | Account event set, authentication, retries, ordering, retention and replay. |
 | [OI-0006](open/OI-0006-mobile-payment-and-pci-scope.md) | Official LiteAPI hosted/SDK component where supported. | Platform support, return behaviour and qualified PCI scope. |
-| [OI-0011](open/OI-0011-supplier-payload-retention.md) | Canonical history plus selective protected raw evidence. | LiteAPI terms, record classification, exact periods, backup expiry and legal-hold procedure. |
+| [OI-0011](open/OI-0011-supplier-payload-retention.md) | Seven-year canonical evidence, short-lived allowlisted raw payloads and matter-specific legal holds. | LiteAPI terms and Australian legal/privacy validation of classification and trigger dates. |
 
 ## Closed
 

@@ -28,6 +28,8 @@ Use relational structures for current operational state. Use controlled JSONB fo
 
 Object storage is the expected home for vouchers, invoices, receipts, itinerary documents, approved customer uploads, generated trip packs and supplier documents whose retention is permitted. Large binary content should not normally be stored directly in PostgreSQL.
 
+Every persistent record class follows [Data Retention and Legal Hold](../security/data-retention-and-legal-hold.md). Raw supplier payload retention is disabled by default, primary expiry processing runs at least daily, ordinary backup copies expire within 35 days and any matter-specific legal hold uses a separate protected hold process rather than indefinite routine backups.
+
 Support ticket state and immutable message threads belong to the support module's PostgreSQL boundary. Each ticket uses an internal UUIDv7 identifier plus a separately generated high-entropy guest bearer token whose one-way hash is stored. Ticket attachments are private S3-compatible objects; authorised requests use short-lived signed access or application streaming rather than permanent public URLs.
 
 Introduce distributed caching only when measurements justify it. Suitable candidates include static supplier content, airport/airline/country/city reference data, destination metadata, short-lived search responses, supplier capability metadata and display exchange rates. Durable booking state, payment decisions and authoritative cancellation state never use a cache as their source of truth.

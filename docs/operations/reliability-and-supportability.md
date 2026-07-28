@@ -38,7 +38,7 @@ Support needs platform and supplier references, current booking/payment/cancella
 
 The initial customer-support channel is the first-party asynchronous ticket model accepted in closed [OI-0012](../issues/closed/OI-0012-customer-support-model.md). Authenticated customers and guests can create tickets containing name, email, optional booking/customer reference, a required category, an initial message and permitted attachments. For an authenticated customer, the form uses the authoritative account email and does not allow it to be edited.
 
-Every ticket starts as `New`. An accepted customer reply changes `New` or `Waiting on Customer` to `Waiting on Support`. An accepted support response changes `New` or `Waiting on Support` to `Waiting on Customer`. An authorised support user explicitly sets `Closed`. Whether a later customer reply reopens a closed ticket or creates a linked follow-up ticket must be selected and tested before shipment; no implementation may choose silently.
+Every ticket starts as `New`. An accepted customer reply changes `New` or `Waiting on Customer` to `Waiting on Support`. An accepted support response changes `New` or `Waiting on Support` to `Waiting on Customer`. An authorised support user explicitly sets `Closed`. An accepted customer reply to a closed ticket reopens the same thread as `Waiting on Support`, preserves the closure event and queues the ordinary support notification.
 
 Each ticket has an internal UUIDv7 identifier and a separate cryptographically random bearer token for guest access. Only a one-way hash of the bearer token is stored. The UUIDv7 is not an access secret. The emailed magic link can be revoked or rotated, grants access only to its ticket and returns no ticket existence or customer information when it is invalid, expired or revoked.
 
@@ -53,6 +53,8 @@ Published service hours, urgent-travel criteria, supplier escalation contacts an
 Required runbooks eventually cover supplier outage, pending booking, payment success with booking failure, cancellation/refund delay, webhook/reconciliation backlog, compromised supplier key, compromised customer account, Keycloak outage and database restore.
 
 Disaster-recovery planning covers PostgreSQL restoration, object storage, Keycloak data/configuration, secrets, provider-key rotation, notification replay, post-outage reconciliation, recovery objectives and tested recovery exercises. After an outage, target bookings whose external state may have changed rather than blindly replaying every operation.
+
+Expiry and recovery follow [Data Retention and Legal Hold](../security/data-retention-and-legal-hold.md). Restore procedures reapply deletion tombstones so expired personal data does not return to active use. Legal-hold evidence uses a separate protected repository when it must outlive the ordinary 35-day backup window.
 
 ## Feature Control and Environments
 

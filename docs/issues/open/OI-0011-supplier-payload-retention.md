@@ -53,13 +53,13 @@ Choose Option A. It balances explainability with minimisation and supplier licen
 
 ## Selected Direction
 
-The product owner selected Option A on 2026-07-28. The platform retains supplier-neutral canonical booking versions and the minimum financial/support evidence required for the customer, dispute resolution and applicable law. Complete LiteAPI payloads are retained only for allowlisted troubleshooting, ambiguous-operation, incident or dispute purposes, for a shorter configured period where LiteAPI terms permit.
+The product owner selected Option A on 2026-07-28. [Data Retention and Legal Hold](../../security/data-retention-and-legal-hold.md) is the approved project schedule. It retains supplier-neutral canonical booking/financial evidence for seven years; successful allowlisted raw payloads for 90 days; ambiguous-operation, mapping-failure, incident or dispute payloads for 12 months after resolution; ordinary backups for 35 days; and general non-booking support tickets for two years. A matter-specific legal hold overrides deletion only for its scoped records.
 
 No seven-year blanket applies to every booking field or supplier payload. Section 286 of the Australian Corporations Act requires qualifying company financial records to be retained for seven years after the covered transactions are completed. Australian tax records are generally retained for five years, subject to longer special cases. Personal information that is no longer needed must be destroyed or de-identified unless an Australian law or court/tribunal order requires retention.
 
 A legal hold suspends the ordinary deletion schedule only for records relevant to an actual or reasonably anticipated dispute, litigation, investigation, audit, subpoena or regulator/court requirement. It is matter-specific and remains until an authorised legal/compliance owner releases it; it is not a default seven-year retention category.
 
-This issue is in review until the LiteAPI agreement, record classification, exact periods, backup expiry and hold/release procedure are approved.
+This issue is in review until the LiteAPI agreement and Australian legal/privacy reviewers validate the approved classification, periods and trigger dates. It no longer requires a product-owner retention choice.
 
 ## Evidence Reviewed
 
@@ -74,7 +74,7 @@ This issue is in review until the LiteAPI agreement, record classification, exac
 - Supplier contractual retention/licensing terms.
 - Legal, dispute, refund and financial recordkeeping requirements.
 - Field-level payload classification.
-- Storage, backup and deletion design.
+- Verification that the selected storage, 35-day backup lifecycle, deletion receipts and hold repository enforce the approved policy.
 - Support and incident-investigation need.
 
 ## Decision Impact
@@ -83,11 +83,14 @@ Controls data storage, privacy risk, support evidence, canonicalisation testing 
 
 ## Acceptance Criteria
 
-- [ ] Retention schedule exists by record type.
-- [ ] Raw-payload allowlist and protection are defined.
-- [ ] Backup/deletion behaviour is defined.
-- [ ] ADR-0004 and privacy docs are updated.
+- [x] Retention schedule exists by record type.
+- [x] Raw-payload allowlist and protection are defined.
+- [x] Backup/deletion and legal-hold behaviour are defined.
+- [x] ADR-0004 and privacy docs are updated.
+- [ ] LiteAPI contractual retention/licensing terms are recorded.
+- [ ] Australian legal/privacy review approves the classification, periods and trigger dates.
 
 ## Related Documents
 
 - [Booking Reconciliation and Version History](../../domain/booking-reconciliation-and-version-history.md)
+- [Data Retention and Legal Hold](../../security/data-retention-and-legal-hold.md)

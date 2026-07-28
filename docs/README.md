@@ -17,11 +17,11 @@ The accepted direction is a web-first consumer experience organised around trips
 | [ADRs](adr/README.md) | Proposed, accepted, rejected and superseded architecture decisions. |
 | [Issues](issues/README.md) | Open, in-review and closed product, vendor, commercial, legal or technical questions. |
 | [Plans](plans/README.md) | Dependency-ordered documentation and delivery planning. |
-| [Decisions](decisions/README.md) | Current assumptions, constraints and question summaries. |
+| [Decisions](decisions/README.md) | Current assumptions, constraints, question summaries and remaining review register. |
 | [Domain](domain/README.md) | Trips, travellers, bookings, lifecycle and version history. |
 | [Integrations](integrations/README.md) | Supplier boundaries and LiteAPI/Nuitee Connect evidence. |
 | [API](api/README.md) | Public application API principles and client contract. |
-| [Security](security/README.md) | Identity, privacy, payment scope and data protection. |
+| [Security](security/README.md) | Identity, privacy, payment scope, retention, legal hold and data protection. |
 | [Operations](operations/README.md) | Reliability, reconciliation, observability and recovery. |
 | [Applications](applications/README.md) | Web and future mobile client responsibilities. |
 

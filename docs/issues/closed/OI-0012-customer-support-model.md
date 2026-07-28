@@ -54,7 +54,7 @@ Option A was selected on 2026-07-28. The initial product uses first-party asynch
 
 Authenticated customers and guests can create support tickets with name, email, optional booking/customer reference, required category, message and permitted attachments. An authenticated customer's email is populated from the account authority and cannot be edited in the form.
 
-Every ticket starts as `New`. An accepted customer reply makes the ticket `Waiting on Support`; an accepted support response makes it `Waiting on Customer`; an authorised support user can set `Closed`. Whether a later customer reply reopens a closed ticket or creates a linked follow-up ticket must be selected and tested during implementation planning.
+Every ticket starts as `New`. An accepted customer reply makes the ticket `Waiting on Support`; an accepted support response makes it `Waiting on Customer`; an authorised support user can set `Closed`. An accepted customer reply to a closed ticket reopens the same thread as `Waiting on Support` while preserving the closure event.
 
 Each ticket uses an internal UUIDv7 identifier plus a separate cryptographically random bearer token for guest access. Only the token hash is stored. UUIDv7 is not the access secret. The emailed magic link can be revoked or rotated and grants access only to its ticket.
 

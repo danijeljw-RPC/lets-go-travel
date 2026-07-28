@@ -11,7 +11,7 @@ The [Issue Index](../issues/index.md) is authoritative.
 3. OI-0004: durable daily and proximity flight reconciliation is accepted, but supplier retrieval freshness and servicing boundaries remain unverified.
 4. OI-0005: webhook-first processing with scheduled reconciliation fallback is selected, but account event coverage and delivery guarantees remain unverified.
 5. OI-0006: officially supported LiteAPI hosted/SDK payment components are selected, but platform support and qualified PCI scope remain unverified.
-6. OI-0011: canonical history with selective protected raw evidence is selected, but LiteAPI terms, record classification, exact periods, backup expiry and the legal-hold procedure remain unverified.
+6. OI-0011: the exact project retention/legal-hold schedule is approved, but LiteAPI contractual terms and Australian legal/privacy validation remain outstanding.
 
 ## Open Decisions
 

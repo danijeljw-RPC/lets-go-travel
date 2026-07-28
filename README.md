@@ -4,7 +4,7 @@
 
 `readytogo.travel` is a standalone consumer travel product centred on customer-owned trips, travellers and bookings. The product shortcode is `RTGT`, and `ReadyToGoTravel` is the default root namespace/package prefix where ecosystem conventions permit it.
 
-The repository is currently documentation-first. Start with the [documentation index](docs/README.md) for product direction, architecture, accepted decisions, open issues and active plans.
+The repository is currently documentation-first. Start with the [documentation index](docs/README.md) for product direction, architecture, accepted decisions, issue lifecycle, remaining reviews and active plans.
 
 ## Repository Layout
 

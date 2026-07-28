@@ -31,6 +31,8 @@ related_docs:
   - docs/product/consumer-mvp-scope.md
   - docs/integrations/liteapi-nuitee-connect.md
   - docs/architecture/target-architecture.md
+  - docs/security/data-retention-and-legal-hold.md
+  - docs/decisions/review-register.md
 scope:
   - docs
   - product-discovery
@@ -51,7 +53,7 @@ Turn the consumer travel foundation into an evidence-backed set of product and a
 
 ## Background
 
-The repository contains a compact consumer-project documentation system. Eight ADRs are accepted. Five issues are closed, five selected LiteAPI directions are in review for external evidence and two issues remain open by explicit product-owner deferral.
+The repository contains a compact consumer-project documentation system. Eight ADRs are accepted. Five issues are closed, six selected directions are in review for external evidence and one open issue is an explicitly non-blocking post-MVP wishlist item.
 
 ## Scope
 
@@ -60,7 +62,7 @@ The repository contains a compact consumer-project documentation system. Eight A
 - Maintain the accepted hotel, flight and combined hotel-plus-flight product scope and Australia-first global-access boundary.
 - Obtain LiteAPI commercial, hotel, flight, servicing, webhook and payment evidence.
 - Carry the accepted sensitive-traveller opt-in, Blazor SSR and ticket-support policies into implementation-ready inputs.
-- Maintain the accepted ADR baseline as open issues and supplier evidence are resolved.
+- Maintain the accepted ADR baseline as in-review supplier/legal evidence is resolved.
 - Produce an implementation-ready MVP scope and dependency map.
 
 ### Out of Scope
@@ -86,7 +88,7 @@ The repository contains a compact consumer-project documentation system. Eight A
 - [x] Resolve OI-0007: Australia-first global access, `en-AU`/AUD defaults and selectable locale.
 - [ ] Complete OI-0002 review: obtain written commercial and merchant-of-record evidence for the selected LiteAPI route.
 - [x] Resolve OI-0012: first-party ticket support with email updates, guest magic links and private attachments.
-- [ ] Decide whether manual trip items, sharing, loyalty, offline access and each notification channel belong in the selected release or a named later stage.
+- [x] Defer manual itinerary items, sharing, loyalty, native offline access, push and SMS; initial notifications use email and in-app records.
 - [x] Review ADR-0001.
 
 ### Milestone 2 — Supplier Evidence
@@ -102,7 +104,8 @@ The repository contains a compact consumer-project documentation system. Eight A
 
 - [ ] Complete OI-0006 review: prove the selected hosted/SDK integration and qualified PCI scope.
 - [x] Resolve OI-0008: reusable sensitive traveller data requires granular opt-in and is off by default.
-- [ ] Complete OI-0011 review: classify records and approve LiteAPI terms, exact retention periods, backup expiry and the legal-hold procedure for selected Option A.
+- [x] Define the OI-0011 project schedule, raw-payload allowlist, 35-day backup expiry and matter-specific legal-hold procedure.
+- [ ] Complete OI-0011 review: obtain LiteAPI terms and Australian legal/privacy approval of the classification, periods and trigger dates.
 - [ ] Obtain applicable privacy, consumer-law/pricing, payment/acquiring, travel-selling/licensing, insolvency/trust, cross-border/data-residency, minor-traveller and breach-response advice.
 - [ ] Define the terms/privacy notices, consent and supplier-term disclosures required for the chosen market and product.
 - [x] Review ADR-0003, ADR-0004 and ADR-0007.
@@ -124,7 +127,7 @@ The repository contains a compact consumer-project documentation system. Eight A
 - [ ] Produce the domain and API inputs, including identifier strategy, booking state machine, supplier capabilities, canonical money/time rules, API versioning/deprecation, reconciliation frequency, canonicalisation/`DiffJson` versioning and old-client compatibility.
 - [ ] Select implementation mechanisms for durable scheduling, background jobs, outbox polling or messaging, caching, private object storage, secret management, monitoring, support tooling and privileged administration without changing the accepted architecture boundary.
 - [ ] Define anonymous-cookie and authenticated-profile locale resolution, .NET localisation resource fallback and localised notification-template validation.
-- [ ] Select and test whether a customer response to a closed ticket reopens it or creates a linked follow-up ticket.
+- [x] Define customer response to a closed ticket: reopen the same thread as `Waiting on Support` and preserve the closure event.
 - [ ] Define test strategy and local/test/sandbox/staging/production environment boundaries.
 - [ ] Define CI/CD, observability, sandbox certification, production-readiness and launch planning inputs.
 - [ ] Create the first implementation plan only after all P0 blockers for its scope are resolved.
@@ -144,9 +147,9 @@ The repository contains a compact consumer-project documentation system. Eight A
 - Product scope may expand faster than decisions are resolved.
 - Privacy/security work may reveal that proposed traveller features are unsuitable for the MVP.
 
-## Open Questions
+## Remaining Reviews
 
-All current questions are indexed in [Open Issues](../../issues/index.md).
+The [Remaining Review Register](../../decisions/review-register.md) is the consolidated report for production activation, operational and technical reviews. The [Issue Index](../../issues/index.md) remains authoritative for issue lifecycle.
 
 ## Completion Criteria
 
@@ -159,6 +162,7 @@ All current questions are indexed in [Open Issues](../../issues/index.md).
 
 ## Change Log
 
+- 2026-07-28: Completed the repository-wide review, approved the exact retention/legal-hold baseline, deferred non-transactional product extras, selected ticket reopening behaviour and added the consolidated remaining-review register.
 - 2026-07-28: Selected OI-0011 Option A and moved it to in review; distinguished seven-year corporate financial records, general five-year tax records, privacy deletion and matter-specific legal holds from raw supplier payload retention.
 - 2026-07-28: Recorded OI-0010 as an explicitly non-blocking post-MVP wishlist item; launch uses reconciled itinerary data and directs customers to the airline for live operational status.
 - 2026-07-28: Closed OI-0001, OI-0007, OI-0008, OI-0009 and OI-0012; moved OI-0002 through OI-0006 to in review; retained OI-0010/OI-0011 as open deferrals; accepted ADR-0008 and synchronised the product, locale, traveller, payment, reconciliation and ticket-support direction.

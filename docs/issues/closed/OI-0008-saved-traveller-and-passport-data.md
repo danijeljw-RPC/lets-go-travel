@@ -57,7 +57,7 @@ Customers enter date of birth, passport and identity-document data for each book
 
 Saving date of birth or identity documents for future bookings requires an unchecked, affirmative control that names the saved categories and purpose. Consent is recorded separately and the customer can remove future-use storage without rewriting evidence required for an existing booking. Activation requires field-level protection, masking, least-privilege access, audit, key management, retention and deletion controls.
 
-Booking-time snapshots and reusable profile storage are separate data purposes. OI-0011 remains open for supplier payload and booking-evidence retention.
+Booking-time snapshots and reusable profile storage are separate data purposes. OI-0011 is in review for contractual/legal validation of the selected [retention baseline](../../security/data-retention-and-legal-hold.md).
 
 ## Evidence Required
 

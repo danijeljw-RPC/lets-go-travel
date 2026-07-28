@@ -28,7 +28,7 @@ Do not log tokens, passwords, supplier keys, full passport numbers, full payment
 
 ## Privacy Lifecycle
 
-Planning must address access, correction, export, account closure, deletion, consent withdrawal, active bookings, refunds, disputes, legally retained records, cross-border disclosure and backup retention. OI-0011 remains open for the supplier-payload and booking-evidence retention schedule.
+Planning must address access, correction, export, account closure, deletion, consent withdrawal, active bookings, refunds, disputes, legally retained records and cross-border disclosure. [Data Retention and Legal Hold](data-retention-and-legal-hold.md) defines the record-class schedule, 35-day ordinary backup expiry, deletion receipts and matter-specific legal holds. OI-0011 remains in review for LiteAPI contractual and Australian legal/privacy validation rather than an unanswered product direction.
 
 Keycloak and the application need an explicit authority/synchronisation rule for overlapping fields such as email, display name, phone and locale. The authenticated BCP 47 locale preference belongs to the PostgreSQL customer profile; anonymous locale belongs to a secure same-site cookie. Removing identity access does not silently rewrite or erase retained booking evidence.
 

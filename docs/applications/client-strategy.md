@@ -30,6 +30,8 @@ The web client provides first-party asynchronous ticket creation and thread acce
 
 Guest ticket links use a UUIDv7 route identifier plus a separate high-entropy secret token; the UUIDv7 alone never authorises access. Attachments are not public URLs. The client obtains authorised, short-lived download access after the platform validates the account owner or magic-link token. Every accepted update is persisted before an email is queued, and the UI shows notification or attachment failure without losing the thread message.
 
+If a customer replies to a closed ticket, the accepted reply reopens the same thread as `Waiting on Support` and displays the prior closure event in history.
+
 ## Time, Locale and Currency
 
 Preserve local date/time and timezone identifiers for travel schedules, plus UTC instants where determinable. Retain supplier original, transaction and charged currency separately from display conversion.

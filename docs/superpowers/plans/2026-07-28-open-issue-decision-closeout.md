@@ -281,3 +281,14 @@ git diff --check HEAD~5..HEAD
 ```
 
 Expected: the only unrelated working-tree entry is `?? domain-results/`; the five documentation commits plus the prior design commit are visible; the committed range passes whitespace validation.
+
+## Post-execution Decisions
+
+The executed plan preserved OI-0010/OI-0011 and closed-ticket reply behaviour because they were undecided at that checkpoint. Later product-owner decisions on 2026-07-28 established:
+
+- OI-0010 as a non-blocking post-MVP wishlist item;
+- OI-0011 Option A with the exact [Data Retention and Legal Hold](../../security/data-retention-and-legal-hold.md) baseline;
+- reopening the same ticket as `Waiting on Support` when a customer replies after closure;
+- deferral of manual itinerary items, sharing, loyalty, native offline capability, push and SMS from the initial release.
+
+The canonical issue, product and PLAN-0001 records contain the current state.

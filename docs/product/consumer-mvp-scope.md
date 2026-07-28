@@ -41,6 +41,7 @@ If a route, carrier, rate or payment plan is not approved, feature controls supp
 
 - Native Android and iOS applications.
 - Push notifications and offline trip packs.
+- Manually added itinerary items.
 - Live gate, terminal, aircraft, diversion and actual-movement status.
 - Trip sharing and collaboration.
 - Loyalty and rewards.

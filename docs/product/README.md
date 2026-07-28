@@ -17,4 +17,4 @@ The organising concept is a trip. A trip may exist before a booking and may even
 
 ## Current Decision State
 
-Hotel, flight and combined hotel-plus-flight journeys are the accepted MVP product mix under closed [OI-0001](../issues/closed/OI-0001-mvp-product-scope.md). Australia is the operating focus with global access, `en-AU`/AUD defaults and selectable locale under closed [OI-0007](../issues/closed/OI-0007-launch-market-locale-and-currency.md). LiteAPI commercial, carrier, servicing, webhook and payment evidence remains in review under OI-0002 through OI-0006.
+Hotel, flight and combined hotel-plus-flight journeys are the accepted MVP product mix under closed [OI-0001](../issues/closed/OI-0001-mvp-product-scope.md). Australia is the operating focus with global access, `en-AU`/AUD defaults and selectable locale under closed [OI-0007](../issues/closed/OI-0007-launch-market-locale-and-currency.md). LiteAPI commercial, carrier, servicing, webhook and payment evidence remains in review under OI-0002 through OI-0006; retention uses an approved baseline while OI-0011 awaits contractual/legal validation.

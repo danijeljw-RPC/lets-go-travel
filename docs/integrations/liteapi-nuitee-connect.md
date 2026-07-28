@@ -32,7 +32,7 @@ Official documentation currently describes REST authentication using a confident
 - [Flight booking](https://docs.liteapi.travel/reference/post_flights-bookings)
 - [Flight booking list](https://docs.liteapi.travel/reference/get_flights-bookings)
 
-## Unresolved Critical Questions
+## Production Evidence Gates
 
 - Production agreement, merchant of record, settlement, markup, commission, parity, chargeback and refund responsibilities.
 - Australian hotel and airline coverage, especially Qantas, Jetstar and Virgin Australia.
@@ -42,6 +42,7 @@ Official documentation currently describes REST authentication using a confident
 - Whether schedule-change-specific events exist beyond documented booking lifecycle events.
 - Supported mobile payment approach, Australian payment methods and PCI evidence.
 - Webhook authentication strength, ordering, retry, retention and replay.
+- Contractual payload retention, content licensing, deletion and dispute-evidence permissions needed to validate OI-0011.
 
 ## Related Issues
 

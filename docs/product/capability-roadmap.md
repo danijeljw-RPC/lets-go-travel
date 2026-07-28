@@ -24,4 +24,4 @@ Android and iOS clients using the same platform API, secure native authenticatio
 
 ## Later Options
 
-Additional suppliers, activities, rail, transfers, insurance, sharing, loyalty, AI planning and a dedicated operational flight-status provider remain optional product investments.
+Additional suppliers, manually added itinerary items, activities, rail, transfers, insurance, sharing, loyalty, AI planning and a dedicated operational flight-status provider remain optional product investments.

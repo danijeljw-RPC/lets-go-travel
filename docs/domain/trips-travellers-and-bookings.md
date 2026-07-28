@@ -14,7 +14,7 @@ The customer owns the account, trip and booking. A traveller is a person partici
 
 Booking-time traveller details are snapshotted because later profile changes must not rewrite what was supplied for an existing booking.
 
-Date of birth, passport and identity-document data is entered per booking by default. Saving any of those categories for future bookings requires a separate unchecked, affirmative and revocable opt-in. General account registration, booking acceptance or saving a low-risk traveller profile cannot imply that consent. Reusable sensitive storage and booking-evidence retention are distinct purposes; OI-0011 continues to govern the unresolved evidence-retention schedule.
+Date of birth, passport and identity-document data is entered per booking by default. Saving any of those categories for future bookings requires a separate unchecked, affirmative and revocable opt-in. General account registration, booking acceptance or saving a low-risk traveller profile cannot imply that consent. Reusable sensitive storage and booking evidence are distinct purposes; full identity-document values do not enter the seven-year canonical evidence set by default. See [Data Retention and Legal Hold](../security/data-retention-and-legal-hold.md).
 
 ## Booking
 
@@ -44,6 +44,6 @@ Future sharing may introduce owner, editor, viewer and traveller capabilities. S
 
 ## Retention
 
-Removing a trip from the customer view does not automatically delete confirmed bookings, financial evidence, support records or legally retained data. Retention and anonymisation rules remain an open privacy/commercial decision.
+Removing a trip from the customer view does not automatically delete confirmed bookings, financial evidence, support records or legally retained data. [Data Retention and Legal Hold](../security/data-retention-and-legal-hold.md) defines the approved record-class periods, de-identification, backup expiry and matter-specific legal-hold process.
 
 The product distinguishes hiding/archiving, removing an item from a trip, deleting a draft, deleting a preference, closing an account, retaining required booking evidence and anonymising eligible records.

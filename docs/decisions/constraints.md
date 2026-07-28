@@ -25,6 +25,8 @@
 - Current booking state and immutable booking history remain distinct.
 - Original transaction/supplier currency is retained independently of display conversion.
 - Travel times preserve local timezone context.
+- Raw supplier payload retention is disabled by default and uses the approved short-lived allowlist.
+- Legal holds suspend deletion only for explicitly scoped records and do not create blanket retention.
 
 ## Delivery Constraints
 

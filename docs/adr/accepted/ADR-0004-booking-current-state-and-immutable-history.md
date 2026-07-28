@@ -20,6 +20,7 @@ related_plans:
   - PLAN-0001
 related_docs:
   - docs/domain/booking-reconciliation-and-version-history.md
+  - docs/security/data-retention-and-legal-hold.md
 ---
 
 <!-- markdownlint-disable MD013 MD025 -->
@@ -82,8 +83,9 @@ Volatile supplier fields can create false versions; overly aggressive normalisat
 
 ## Dependencies
 
-Supplier retrieval freshness and [OI-0011](../../issues/open/OI-0011-supplier-payload-retention.md).
+Supplier retrieval freshness and the contractual/legal review retained by [OI-0011](../../issues/open/OI-0011-supplier-payload-retention.md). The selected retention baseline is [Data Retention and Legal Hold](../../security/data-retention-and-legal-hold.md).
 
 ## Related Documents
 
 - [Booking Reconciliation and Version History](../../domain/booking-reconciliation-and-version-history.md)
+- [Data Retention and Legal Hold](../../security/data-retention-and-legal-hold.md)

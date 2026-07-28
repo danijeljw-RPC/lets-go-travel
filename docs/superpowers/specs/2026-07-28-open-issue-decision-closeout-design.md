@@ -177,3 +177,14 @@ Only the following named decisions remain intentionally unresolved by this desig
 - whether a customer reply reopens a closed support ticket or creates a linked follow-up ticket.
 
 These deferrals do not permit implementation to select an answer silently.
+
+## Subsequent Decisions
+
+After this design was implemented, the product owner supplied the remaining directions on 2026-07-28:
+
+- OI-0010 is excluded from launch and retained only as a non-blocking post-MVP live-flight-status wishlist item.
+- OI-0011 uses Option A with the exact baseline in [Data Retention and Legal Hold](../../security/data-retention-and-legal-hold.md); only LiteAPI contractual and Australian legal/privacy validation remains in review.
+- A customer reply to a closed support ticket reopens the same thread as `Waiting on Support` and preserves the closure event.
+- Manually added itinerary items, sharing, loyalty, offline/native features, push and SMS remain outside the initial transactional release.
+
+These later records supersede the design-time deferrals above without rewriting the historical decision process.

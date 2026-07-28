@@ -7,3 +7,4 @@ This directory provides compact registers for discovery-stage direction. ADRs re
 - [Assumptions](assumptions.md)
 - [Constraints](constraints.md)
 - [Open Questions](open-questions.md)
+- [Remaining Review Register](review-register.md)

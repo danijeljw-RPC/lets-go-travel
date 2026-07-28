@@ -23,3 +23,4 @@ This register distinguishes accepted decision baselines from discovery assumptio
 | The web application uses .NET 10 Blazor SSR and ASP.NET Core Web API. | Accepted | OI-0009, ADR-0002 |
 | A containerised modular monolith uses a general worker plus a dedicated flight-reconciliation worker. | Accepted | ADR-0006, ADR-0008 |
 | The initial support channel is first-party asynchronous ticket support with email updates. | Accepted | OI-0012 |
+| Canonical booking/financial evidence uses a seven-year baseline; raw supplier payloads are allowlisted and short-lived; legal holds are matter-specific. | In review | OI-0011 |
