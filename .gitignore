@@ -5,6 +5,12 @@
 
 # dotenv files
 .env
+.env.*
+!.env.example
+
+# Local .NET secrets and generated HTTPS development certificates
+secrets.json
+*.pfx
 
 # User-specific files
 *.rsuser
