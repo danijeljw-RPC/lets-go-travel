@@ -26,6 +26,10 @@ Payment success is not booking confirmation, and supplier settlement is not cust
 
 The platform should retain supplier amount, taxes, supplier fees, platform markup or fee, each discount and funding source, final customer total, transaction currency, displayed currency if different, rounding and the customer-approved terms at prebook and confirmation.
 
+Each discount records its rule or campaign, funding party, gross amount, currency, eligibility reason, application order, stacking behaviour, expiry, approval/override context and effect on platform margin. Shared funding records each contribution separately.
+
+Price snapshots preserve the customer-approved components, currency, terms, time and source references at prebook, payment initiation, booking confirmation, cancellation quotation and refund confirmation; search presentation is also snapshotted where evidence requirements justify it.
+
 ## Commercial Questions
 
 Merchant of record, chargebacks, refund responsibility, tax, settlement, commission, markup limits, parity restrictions and discount funding are commercial decisions. They cannot be inferred from the presence of a payment SDK.
@@ -34,8 +38,8 @@ Merchant of record, chargebacks, refund responsibility, tax, settlement, commiss
 
 - Authoritative pricing and discount calculation stays server-side.
 - Discounts record funding source and margin impact.
-- A configurable margin floor prevents unintended negative margin.
+- A configurable margin floor prevents unintended negative margin and unintended stacking of coupons, loyalty credits, campaigns, referrals and manual adjustments unless an authorised loss-leading promotion explicitly permits it.
 - Cancellation acceptance and refund completion remain distinct.
 - Provider references remain opaque and scoped to the provider that created them.
 - A supplier refund and customer refund are reconciled as separate legs when the platform is merchant of record.
-- Display conversion never overwrites transaction, settlement or refund amounts.
+- Supplier original, customer display, customer charge, platform revenue, settlement and refund amounts remain distinguishable. Display conversion never overwrites transaction, settlement or refund amounts.

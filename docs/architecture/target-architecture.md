@@ -26,6 +26,10 @@ Customers, travellers, trips, search, accommodation, flights, pricing, bookings,
 
 Use relational structures for current operational state. Use controlled JSONB for supplier payload evidence where retention is permitted, canonical snapshots, structured differences and versioned extension data. Large binary documents belong in object storage if introduced.
 
+Object storage is the expected home for vouchers, invoices, receipts, itinerary documents, approved customer uploads, generated trip packs and supplier documents whose retention is permitted. Large binary content should not normally be stored directly in PostgreSQL.
+
+Introduce distributed caching only when measurements justify it. Suitable candidates include static supplier content, airport/airline/country/city reference data, destination metadata, short-lived search responses, supplier capability metadata and display exchange rates. Durable booking state, payment decisions and authoritative cancellation state never use a cache as their source of truth.
+
 ## Background Work
 
 Reconciliation, webhook processing, notification delivery, scheduled reminders, retryable supplier operations and cleanup do not extend customer-facing request latency unnecessarily. The general worker processes durable work through transactional outbox and inbox patterns with idempotency, bounded concurrency and inspectable failure states.
@@ -37,3 +41,5 @@ The frontend, API, worker and Keycloak are container workloads. Workers accept n
 ## Scaling Direction
 
 Search is high-volume and replaceable; booking is low-volume, durable and financially sensitive. Monitor and scale them according to their different risk profiles. Split worker deployments or extract a microservice only for measured scaling, isolation, security, availability or ownership needs, and only after establishing exclusive data ownership and a versioned contract.
+
+Supplier APIs remain external, fallible fulfilment systems. The platform contract must remain stable through supplier field changes, expired offers, pending outcomes, duplicate webhooks, unexpected payloads, provider outages and the introduction of another supplier.

@@ -26,6 +26,16 @@ Accommodation and flights share lifecycle concepts but should not be forced into
 
 Manually entered flights, hotels, activities, rail, restaurants, notes and documents must be clearly distinguished from supplier-managed bookings because the platform cannot necessarily reconcile, cancel or service them.
 
+## Trip Timeline
+
+Customer-relevant events such as trip creation, booking/payment confirmation, an approaching check-in, a supplier change, cancellation/refund completion, document addition and future traveller invitations come from durable domain events or records rather than diagnostic logs.
+
+## Sharing
+
+Future sharing may introduce owner, editor, viewer and traveller capabilities. Sharing never implicitly grants access to passport, payment or account data and must be added through an explicit authorisation design rather than inferred from trip participation.
+
 ## Retention
 
 Removing a trip from the customer view does not automatically delete confirmed bookings, financial evidence, support records or legally retained data. Retention and anonymisation rules remain an open privacy/commercial decision.
+
+The product distinguishes hiding/archiving, removing an item from a trip, deleting a draft, deleting a preference, closing an account, retaining required booking evidence and anonymising eligible records.

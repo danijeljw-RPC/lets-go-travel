@@ -6,9 +6,13 @@
 
 Provider capability is explicit by supplier, account, environment, product and market. The platform must not pretend all suppliers support the same searches, ancillaries, changes, cancellations, refunds, payments or events.
 
+Capabilities include accommodation content/availability/booking, flight shopping/booking, retrieval, cancellation, payment-session creation, webhook verification and document retrieval. Product details such as refundable rates, multi-room/child rules, seats, baggage, frequent-flyer numbers, exchanges, schedule changes, currencies, pay-now/pay-later and hosted checkout remain independently discoverable rather than implied by a provider name.
+
 ## Mapping
 
 Adapters map supplier responses into platform-owned models while retaining original identifiers, statuses, currency, terms, timestamps and permitted evidence. Unknown fields do not silently corrupt normalised state.
+
+Search results are provisional. Offers retain expiry, revalidation requirements, currency, occupancy, room/fare conditions and the terms needed to detect price, availability, tax/fee or cancellation-policy changes. Prebook is a distinct confirmation stage before final payment and booking.
 
 ## Credentials
 

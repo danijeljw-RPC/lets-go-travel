@@ -72,7 +72,6 @@ The repository now contains a compact consumer-project documentation system. All
 
 ## Inputs
 
-- Root foundation pack.
 - Structured documentation under `docs/`.
 - LiteAPI official documentation and sandbox.
 - Commercial agreement or written commercial responses.
@@ -86,13 +85,16 @@ The repository now contains a compact consumer-project documentation system. All
 - [ ] Resolve OI-0007: launch market, locale and currency.
 - [ ] Resolve OI-0002: commercial and merchant-of-record model.
 - [ ] Resolve OI-0012: customer support model.
+- [ ] Decide whether manual trip items, sharing, loyalty, offline access and each notification channel belong in the selected release or a named later stage.
 - [x] Review ADR-0001.
 
 ### Milestone 2 — Supplier Evidence
 
-- [ ] Validate hotel search, prebook, payment, booking, retrieval and cancellation/refund behaviour in sandbox.
+- [ ] Validate account access plus hotel search/content, rates, occupancy, prebook, payment, booking, retrieval, cancellation/refund and content-licensing behaviour in sandbox and commercial evidence.
+- [ ] Validate request/look-to-book limits, data-retention permissions, markup/commission rules and settlement behaviour.
+- [ ] Validate taxes/fees, pay-at-property and multi-room/child-occupancy behaviour plus hotel booking-change and relocation handling.
 - [ ] Resolve OI-0005: webhook catalogue and guarantees.
-- [ ] Resolve OI-0003 and OI-0004 for the flight roadmap without blocking a hotel-first MVP.
+- [ ] Resolve OI-0003 and OI-0004 for fare sources, brands, baggage, seats, loyalty numbers, ticketing, servicing, schedule changes, cancellations/refunds and Australian carrier coverage without blocking a hotel-first MVP.
 - [ ] Update the LiteAPI evidence register with dates and evidence.
 
 ### Milestone 3 — Security, Data and Payment
@@ -100,6 +102,8 @@ The repository now contains a compact consumer-project documentation system. All
 - [ ] Resolve OI-0006: payment integration and PCI scope.
 - [ ] Resolve OI-0008: traveller/passport data policy.
 - [ ] Resolve OI-0011: payload/evidence retention.
+- [ ] Obtain applicable privacy, consumer-law/pricing, payment/acquiring, travel-selling/licensing, insolvency/trust, cross-border/data-residency, minor-traveller and breach-response advice.
+- [ ] Define the terms/privacy notices, consent and supplier-term disclosures required for the chosen market and product.
 - [x] Review ADR-0003, ADR-0004 and ADR-0007.
 
 ### Milestone 4 — Architecture Acceptance
@@ -113,8 +117,11 @@ The repository now contains a compact consumer-project documentation system. All
 ### Milestone 5 — Implementation Planning Gate
 
 - [ ] Freeze an explicitly versioned MVP scope.
-- [ ] Define end-to-end workflows and failure outcomes.
-- [ ] Produce the domain/API/test/environment planning inputs.
+- [ ] Define registration/login, hotel booking, any approved flight booking, price change, payment challenge, payment/booking mismatch, pending booking, webhook, reconciliation, schedule change, cancellation, refund, support escalation and account-deletion workflows with failure outcomes.
+- [ ] Produce the domain and API inputs, including identifier strategy, booking state machine, supplier capabilities, canonical money/time rules, API versioning/deprecation, reconciliation frequency, canonicalisation/`DiffJson` versioning and old-client compatibility.
+- [ ] Select implementation mechanisms for background jobs, outbox polling or messaging, caching, object storage, secret management, monitoring, support tooling and privileged administration without changing the accepted architecture boundary.
+- [ ] Define test strategy and local/test/sandbox/staging/production environment boundaries.
+- [ ] Define CI/CD, observability, sandbox certification, production-readiness and launch planning inputs.
 - [ ] Create the first implementation plan only after all P0 blockers for its scope are resolved.
 
 ## Validation
@@ -146,5 +153,6 @@ All current questions are indexed in [Open Issues](../../issues/index.md).
 
 ## Change Log
 
+- 2026-07-28: Consolidated the root discovery pack into canonical documents under `docs/` and removed the duplicate source files.
 - 2026-07-28: Recorded acceptance of ADR-0001 through ADR-0007 while retaining unresolved commercial, PCI and supplier evidence as open-issue production gates.
 - 2026-07-27: Created the consumer-project planning-readiness plan after replacing unrelated documentation.

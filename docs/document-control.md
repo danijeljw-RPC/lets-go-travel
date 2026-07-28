@@ -35,7 +35,8 @@ Use **proposed** for a recommended direction awaiting approval, **accepted** onl
 - Do not delete rejected or superseded decisions; retain them as history.
 - Do not close an issue without recording the answer and evidence.
 - Keep ADR, issue and plan indexes current.
-- Keep the root discovery pack until the structured documentation has been reviewed.
+- Keep only the project `README.md` at repository root; place durable documentation in the appropriate `docs/` category.
+- Treat Git history as the provenance record for superseded discovery material rather than retaining duplicate working copies.
 - Do not claim legal, privacy, security or PCI compliance without the applicable evidence.
 
 ## Review Checklist

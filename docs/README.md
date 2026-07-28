@@ -29,10 +29,12 @@ The accepted direction is a web-first consumer experience organised around trips
 
 Documentation may describe a recommendation without making it binding. Only accepted ADRs are decisions. All seven initial ADRs are accepted; unresolved vendor, commercial, compliance and product questions remain tracked as open issues with options, recommendations and evidence gates.
 
-## Source Material
+## Source of Truth
 
-The Markdown files in the repository root are the preserved discovery pack. Keep them until this structured documentation is reviewed and the active foundation plan is complete.
+The structured documentation under `docs/` contains the product's durable planning, decisions, open issues and delivery records. The original numbered discovery pack was consolidated into these canonical documents and removed; Git history preserves its provenance.
 
 ## Contribution Rules
 
 Follow [Document Control](document-control.md). Use relative links for repository Markdown, keep one H1 per file, write prose paragraphs on one physical line, and update relevant indexes whenever an ADR, issue or plan is added or changes state.
+
+Keep only the conventional project `README.md` at repository root. Put all other durable Markdown in the appropriate `docs/` category.

@@ -14,9 +14,13 @@ Everything about my trip lives here.
 
 Inventory enables a transaction, but the durable product value is the customer relationship, trip organisation, traveller profiles, booking history, notifications, documents, support context and consistent web/mobile experience.
 
+The primary customer-facing object is a trip rather than a supplier booking type. A trip can organise accommodation, flights, ground transport, activities, restaurant plans, notes, documents, reminders, notifications, expenses and travellers without forcing those concepts into supplier-specific silos.
+
 ## Target Customer
 
 The initial target is an individual consumer organising travel for themselves and possibly other travellers such as family or friends. A customer owns the account, trips and bookings. A traveller is a person participating in travel and may not be the customer.
+
+The experience should optimise for simple onboarding, fast destination/date search, transparent pricing, trustworthy checkout, clear cancellation conditions, accessible support, useful pre-trip reminders, resilient in-trip access, privacy controls, self-service account management and a mobile-ready API.
 
 ## Initial Capability Direction
 
@@ -45,3 +49,5 @@ The initial target is an individual consumer organising travel for themselves an
 ## Success Measures for Planning
 
 Planning can proceed when the product can state its first sellable scope, verified supplier capabilities, payment and merchant-of-record responsibilities, customer/traveller data policy, booking lifecycle, reconciliation behaviour, support path and launch market.
+
+The resulting architecture must also allow suppliers to be added or replaced without redesigning clients, prevent duplicate financial and reservation operations, explain price composition and discount funding, support auditable customer-support workflows, scale search separately from durable booking work and evolve without forcing immediate mobile-client upgrades.
