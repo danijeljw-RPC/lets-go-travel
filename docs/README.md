@@ -18,6 +18,8 @@ The accepted direction is a web-first consumer experience organised around trips
 | [Issues](issues/README.md) | Open, in-review and closed product, vendor, commercial, legal or technical questions. |
 | [Plans](plans/README.md) | Dependency-ordered documentation and delivery planning. |
 | [Decisions](decisions/README.md) | Current assumptions, constraints, question summaries and remaining review register. |
+| [Evidence](evidence/README.md) | Dated supplier, regulatory and account evidence supporting decisions and production gates. |
+| [Australian legal pack](australian-market-legal-pack/00-README.md) | Australia-first legal/compliance implementation baseline and launch approval checklist. |
 | [Domain](domain/README.md) | Trips, travellers, bookings, lifecycle and version history. |
 | [Integrations](integrations/README.md) | Supplier boundaries and LiteAPI/Nuitee Connect evidence. |
 | [API](api/README.md) | Public application API principles and client contract. |
@@ -27,7 +29,7 @@ The accepted direction is a web-first consumer experience organised around trips
 
 ## Decision State
 
-Documentation may describe a recommendation without making it binding. Accepted ADRs and closed product issues record approved direction. Eight ADRs are accepted; five issues are closed, six LiteAPI-dependent directions are in review and OI-0010 is the only open issue because it remains a non-blocking post-MVP wishlist item.
+Documentation may describe a recommendation without making it binding. Accepted ADRs and closed product issues record approved direction. Ten ADRs are accepted; seven issues are closed, four LiteAPI-dependent directions are in review for production evidence and OI-0010 is the only open issue because it remains a non-blocking post-MVP wishlist item.
 
 ## Source of Truth
 

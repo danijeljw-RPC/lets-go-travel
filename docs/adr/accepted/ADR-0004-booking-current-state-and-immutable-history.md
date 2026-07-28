@@ -83,7 +83,7 @@ Volatile supplier fields can create false versions; overly aggressive normalisat
 
 ## Dependencies
 
-Supplier retrieval freshness and the contractual/legal review retained by [OI-0011](../../issues/open/OI-0011-supplier-payload-retention.md). The selected retention baseline is [Data Retention and Legal Hold](../../security/data-retention-and-legal-hold.md).
+Supplier retrieval freshness and the production contract/legal gates retained by closed [OI-0011](../../issues/closed/OI-0011-supplier-payload-retention.md). The selected retention baseline is [Data Retention and Legal Hold](../../security/data-retention-and-legal-hold.md).
 
 ## Related Documents
 

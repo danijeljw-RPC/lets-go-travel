@@ -46,7 +46,7 @@ Ticket messages form an immutable thread. Every accepted customer or support upd
 
 Attachments are private objects in an S3-compatible store. Thread entries retain an object reference and safe display metadata rather than a permanently public URL. After ticket authorisation, the platform returns short-lived signed access or streams the object. Upload handling enforces allowlisted types, size/count limits, non-executable content disposition and malware scanning or quarantine before download. A failed attachment does not discard an otherwise accepted text message and can be retried safely.
 
-Published service hours, urgent-travel criteria, supplier escalation contacts and SLAs remain production-readiness configuration informed by OI-0002 and OI-0004. A later third-party live-chat adapter may append to or create tickets through a controlled support contract, but live chat is not part of the initial product and cannot replace ticket history.
+The [MVP Operational Policy](mvp-operational-policy.md) defines published service hours, urgent-travel criteria and internal response targets. Named staffing, supplier escalation contacts and contractual SLAs remain production evidence informed by OI-0002 and closed OI-0004. A later third-party live-chat adapter may append to or create tickets through a controlled support contract, but live chat is not part of the initial product and cannot replace ticket history.
 
 ## Recovery Scenarios
 

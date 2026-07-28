@@ -14,7 +14,7 @@ Web is first but not privileged. Supported customer operations and material busi
 
 ## Compatibility
 
-The versioning mechanism, deprecation window and supported mobile release window remain open. Prefer additive changes and stable errors; do not use versioning to normalise routine breaking changes.
+Public routes use a major path beginning with `/api/v1`. Within a major version, changes are additive and stable errors use ASP.NET Core `ProblemDetails` with platform `code`, `correlationId`, optional field errors and retry guidance. Once an external mobile client exists, a superseded major receives at least 12 months of security and compatibility support from its successor's general availability date unless a critical security or legal issue requires earlier withdrawal. See [ADR-0009](../adr/accepted/ADR-0009-mvp-application-contract-and-module-foundation.md).
 
 ## Rate Limiting
 

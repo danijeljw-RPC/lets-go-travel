@@ -44,7 +44,7 @@ A meaningful change updates current state and creates its immutable version in t
 
 A failed attempt records time, supplier, category, retry eligibility, next retry, correlation ID, last known state and whether customer/support action is required. Failure to reconcile never implies that the booking is unchanged.
 
-Canonical history and raw supplier evidence have different retention periods under [Data Retention and Legal Hold](../security/data-retention-and-legal-hold.md). Canonical booking/financial evidence uses the seven-year baseline. Successful allowlisted raw supplier payloads expire after 90 days; ambiguous-operation, mapping-failure, incident or dispute payloads expire 12 months after resolution unless a legal hold or stricter requirement applies. [OI-0011](../issues/open/OI-0011-supplier-payload-retention.md) remains in review only for LiteAPI contractual terms and Australian legal/privacy validation.
+Canonical history and raw supplier evidence have different retention periods under [Data Retention and Legal Hold](../security/data-retention-and-legal-hold.md). Canonical booking/financial evidence uses the seven-year baseline. Successful allowlisted raw supplier payloads expire after 90 days; ambiguous-operation, mapping-failure, incident or dispute payloads expire 12 months after resolution unless a legal hold or stricter requirement applies. Closed [OI-0011](../issues/closed/OI-0011-supplier-payload-retention.md) retains the LiteAPI contractual and Australian legal/privacy production gates.
 
 ## Critical Limit
 

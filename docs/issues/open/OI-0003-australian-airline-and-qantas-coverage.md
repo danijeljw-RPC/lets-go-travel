@@ -6,7 +6,7 @@ type: integration-question
 priority: p0
 severity: high
 created: 2026-07-27
-updated: 2026-07-28
+updated: 2026-07-29
 decision_owners:
   - Product
   - Architecture
@@ -17,6 +17,7 @@ related_plans:
   - PLAN-0001
 related_docs:
   - docs/integrations/liteapi-nuitee-connect.md
+  - docs/evidence/liteapi/OI-0003-australian-carrier-capability-review.md
 blocked_by: []
 ---
 
@@ -48,18 +49,18 @@ Launch hotel-first and keep flight content out of the transactional MVP.
 
 ## Recommendation
 
-Choose Option C as the planning default until production-level evidence supports A or B. Do not advertise Qantas or other carrier support based on generic API documentation.
+Proceed with Option A as a capability-gated integration. Implement carrier-neutral search and booking contracts, but do not advertise or enable a carrier in production until its entitlement and lifecycle evidence are recorded.
 
 ## Selected Direction
 
-Option A is the intended initial route if account-level evidence confirms it. On 2026-07-28, the product owner reported seeing Qantas, Jetstar and Virgin Australia in the LiteAPI developer portal. This is useful discovery evidence but is not treated as proof of production entitlement, bookable content, fare completeness, Australian point-of-sale approval or post-booking servicing.
+Option A is the selected initial route. On 2026-07-28, Qantas, Jetstar and Virgin Australia offers were observed through the LiteAPI API and console. This establishes search and search-fare capability for the tested account environment, routes, dates and point of sale. It is not proof of production entitlement, confirmed booking, ticketing or servicing.
 
 The issue is in review while the coverage matrix and production-like searches are completed. Flight scope remains accepted under closed OI-0001, but customer-facing inventory must be capability-gated.
 
 ## Evidence Reviewed
 
 - Product-owner observation of Qantas, Jetstar and Virgin Australia in the LiteAPI developer portal on 2026-07-28.
-- Existing public LiteAPI flight API documentation.
+- [Australian Carrier Capability Evidence Review](../../evidence/liteapi/OI-0003-australian-carrier-capability-review.md), including public LiteAPI flight-access and sandbox limitations.
 - No dated production-like search, booking, ticketing or servicing result has been recorded.
 
 ## Evidence Required
@@ -72,15 +73,17 @@ The issue is in review while the coverage matrix and production-like searches ar
 
 ## Decision Impact
 
-Controls MVP scope, supplier strategy, UI claims, support and roadmap.
+Allows carrier-neutral and capability-gated flight implementation. It blocks only production enablement and carrier-support claims that lack dated production evidence.
 
 ## Acceptance Criteria
 
-- [ ] Coverage matrix records evidence by carrier, market and capability.
-- [ ] Unsupported or uncertain content is explicit.
-- [ ] OI-0001 is updated with the result.
-- [ ] Supplier fallback need is decided.
+- [x] Coverage matrix records current search evidence and missing lifecycle evidence by carrier.
+- [x] Unsupported or uncertain content is explicit.
+- [x] OI-0001 remains flight-inclusive with capability-gated inventory.
+- [x] Provider-neutral implementation may proceed without a second launch supplier.
+- [ ] Production entitlement and dated end-to-end carrier evidence are recorded.
 
 ## Related Documents
 
 - [LiteAPI/Nuitee Connect](../../integrations/liteapi-nuitee-connect.md)
+- [Australian Carrier Capability Evidence Review](../../evidence/liteapi/OI-0003-australian-carrier-capability-review.md)

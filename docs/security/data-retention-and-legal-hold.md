@@ -4,7 +4,7 @@
 
 ## Status
 
-Approved project baseline on 2026-07-28 under the Option A direction in [OI-0011](../issues/open/OI-0011-supplier-payload-retention.md). Production activation remains subject to LiteAPI contractual terms and Australian legal/privacy review. A stricter applicable law, court/tribunal order, provider contract or matter-specific legal hold overrides the ordinary schedule only for the affected records.
+Approved project baseline on 2026-07-28 under the Option A direction in closed [OI-0011](../issues/closed/OI-0011-supplier-payload-retention.md). Production activation remains subject to LiteAPI contractual terms and Australian legal/privacy review. A stricter applicable law, court/tribunal order, provider contract or matter-specific legal hold overrides the ordinary schedule only for the affected records.
 
 ## Principles
 

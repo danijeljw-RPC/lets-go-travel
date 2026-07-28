@@ -42,8 +42,8 @@ Official documentation currently describes REST authentication using a confident
 - Whether schedule-change-specific events exist beyond documented booking lifecycle events.
 - Supported mobile payment approach, Australian payment methods and PCI evidence.
 - Webhook authentication strength, ordering, retry, retention and replay.
-- Contractual payload retention, content licensing, deletion and dispute-evidence permissions needed to validate OI-0011.
+- Contractual payload retention, content licensing, deletion and dispute-evidence permissions required before claiming production compliance under closed OI-0011.
 
 ## Related Issues
 
-[OI-0002](../issues/open/OI-0002-liteapi-commercial-and-merchant-of-record.md), [OI-0003](../issues/open/OI-0003-australian-airline-and-qantas-coverage.md), [OI-0004](../issues/open/OI-0004-flight-servicing-and-schedule-changes.md), [OI-0005](../issues/open/OI-0005-liteapi-webhook-coverage.md), and [OI-0006](../issues/open/OI-0006-mobile-payment-and-pci-scope.md).
+[OI-0002](../issues/open/OI-0002-liteapi-commercial-and-merchant-of-record.md), [OI-0003](../issues/open/OI-0003-australian-airline-and-qantas-coverage.md), closed [OI-0004](../issues/closed/OI-0004-flight-servicing-and-schedule-changes.md), [OI-0005](../issues/open/OI-0005-liteapi-webhook-coverage.md), and [OI-0006](../issues/open/OI-0006-mobile-payment-and-pci-scope.md).

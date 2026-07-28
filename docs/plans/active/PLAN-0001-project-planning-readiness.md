@@ -4,7 +4,7 @@ title: Project Planning Readiness
 status: active
 owner: Product and Architecture
 created: 2026-07-27
-updated: 2026-07-28
+updated: 2026-07-29
 related_issues:
   - OI-0001
   - OI-0002
@@ -27,6 +27,8 @@ related_adrs:
   - ADR-0006
   - ADR-0007
   - ADR-0008
+  - ADR-0009
+  - ADR-0010
 related_docs:
   - docs/product/consumer-mvp-scope.md
   - docs/integrations/liteapi-nuitee-connect.md
@@ -45,7 +47,7 @@ scope:
 
 ## Status
 
-Active. Product scope, market/locale, sensitive traveller opt-in, frontend, flight-reconciliation, support and retention directions are recorded. LiteAPI commercial, carrier, servicing, webhook, payment and retention evidence remains before production-ready implementation planning. OI-0010 is a non-blocking post-MVP wishlist item.
+Implementation-ready. Product, architecture, operational and technical direction is sufficient for MVP code. This plan remains active only as the production supplier/legal evidence tracker; those gates do not block supplier-neutral implementation or sandbox work. OI-0010 is a non-blocking post-MVP wishlist item.
 
 ## Purpose
 
@@ -53,7 +55,7 @@ Turn the consumer travel foundation into an evidence-backed set of product and a
 
 ## Background
 
-The repository contains a compact consumer-project documentation system. Eight ADRs are accepted. Five issues are closed, six selected directions are in review for external evidence and one open issue is an explicitly non-blocking post-MVP wishlist item.
+The repository contains a compact consumer-project documentation system. Ten ADRs are accepted. Seven issues are closed, four selected directions are in review for production evidence and one open issue is an explicitly non-blocking post-MVP wishlist item.
 
 ## Scope
 
@@ -67,7 +69,7 @@ The repository contains a compact consumer-project documentation system. Eight A
 
 ### Out of Scope
 
-- Application implementation.
+- Application implementation under PLAN-0002; this plan tracks discovery and production evidence only.
 - Database schema, endpoint or infrastructure design beyond decision-level architecture.
 - Production supplier onboarding.
 - Native mobile delivery.
@@ -97,17 +99,17 @@ The repository contains a compact consumer-project documentation system. Eight A
 - [ ] Validate request/look-to-book limits, data-retention permissions, markup/commission rules and settlement behaviour.
 - [ ] Validate taxes/fees, pay-at-property and multi-room/child-occupancy behaviour plus hotel booking-change and relocation handling.
 - [ ] Complete OI-0005 review: obtain the webhook catalogue and delivery guarantees for the selected inbox-plus-reconciliation model.
-- [ ] Complete OI-0003 and OI-0004 review for fare sources, brands, baggage, seats, loyalty numbers, ticketing, servicing, schedule changes, cancellations/refunds and Australian carrier coverage before exposing unsupported offers.
-- [ ] Update the LiteAPI evidence register with dates and evidence.
+- [x] Close OI-0004 with a partly manual, capability-gated servicing boundary; retain carrier lifecycle evidence under OI-0003 before production enablement.
+- [x] Add dated LiteAPI evidence reviews for OI-0002, OI-0003, OI-0005 and OI-0006.
 
 ### Milestone 3 — Security, Data and Payment
 
 - [ ] Complete OI-0006 review: prove the selected hosted/SDK integration and qualified PCI scope.
 - [x] Resolve OI-0008: reusable sensitive traveller data requires granular opt-in and is off by default.
 - [x] Define the OI-0011 project schedule, raw-payload allowlist, 35-day backup expiry and matter-specific legal-hold procedure.
-- [ ] Complete OI-0011 review: obtain LiteAPI terms and Australian legal/privacy approval of the classification, periods and trigger dates.
-- [ ] Obtain applicable privacy, consumer-law/pricing, payment/acquiring, travel-selling/licensing, insolvency/trust, cross-border/data-residency, minor-traveller and breach-response advice.
-- [ ] Define the terms/privacy notices, consent and supplier-term disclosures required for the chosen market and product.
+- [x] Close OI-0011 as a data-governance decision; retain executed-contract, Australian approval and control verification as production gates.
+- [x] Define the Australian privacy, consumer-law/pricing, travel-selling/licensing, insolvency/trust, cross-border/data-residency, minor-traveller and breach-response implementation baseline.
+- [x] Define the required terms/privacy notices, consent and supplier-term clause schedule; final documents remain a production approval.
 - [x] Review ADR-0003, ADR-0004 and ADR-0007.
 
 ### Milestone 4 — Architecture Acceptance
@@ -122,15 +124,15 @@ The repository contains a compact consumer-project documentation system. Eight A
 
 ### Milestone 5 — Implementation Planning Gate
 
-- [ ] Freeze an explicitly versioned MVP scope.
-- [ ] Define registration/login, hotel booking, flight booking, combined journey, price change, payment challenge, payment/booking mismatch, pending booking, webhook, reconciliation, schedule change, cancellation, refund, support escalation and account-deletion workflows with failure outcomes.
-- [ ] Produce the domain and API inputs, including identifier strategy, booking state machine, supplier capabilities, canonical money/time rules, API versioning/deprecation, reconciliation frequency, canonicalisation/`DiffJson` versioning and old-client compatibility.
-- [ ] Select implementation mechanisms for durable scheduling, background jobs, outbox polling or messaging, caching, private object storage, secret management, monitoring, support tooling and privileged administration without changing the accepted architecture boundary.
+- [x] Freeze the explicitly versioned MVP scope in the MVP delivery design.
+- [x] Define the implementation slices and failure boundaries for registration/login, hotel booking, flight booking, combined journey, price change, payment challenge/mismatch, pending booking, webhook, reconciliation, schedule change, cancellation, refund, support escalation and account deletion.
+- [x] Produce the domain/API inputs for identifiers, booking states, supplier capabilities, money/time, `/api/v1`, reconciliation, canonical versions and external-client compatibility.
+- [x] Select durable PostgreSQL work, no initial distributed cache, S3-compatible private storage, ClamAV, Azure Key Vault, OpenTelemetry, protected support administration and GitHub Actions.
 - [ ] Define anonymous-cookie and authenticated-profile locale resolution, .NET localisation resource fallback and localised notification-template validation.
 - [x] Define customer response to a closed ticket: reopen the same thread as `Waiting on Support` and preserve the closure event.
-- [ ] Define test strategy and local/test/sandbox/staging/production environment boundaries.
-- [ ] Define CI/CD, observability, sandbox certification, production-readiness and launch planning inputs.
-- [ ] Create the first implementation plan only after all P0 blockers for its scope are resolved.
+- [x] Define unit, contract, architecture, integration, sandbox and end-to-end test boundaries plus local/test/sandbox/staging/production separation.
+- [x] Define CI/CD, observability, sandbox certification, production-readiness and launch planning inputs.
+- [x] Create the first implementation plan for the unblocked application-foundation slice.
 
 ## Validation
 
@@ -154,14 +156,15 @@ The [Remaining Review Register](../../decisions/review-register.md) is the conso
 ## Completion Criteria
 
 - [x] ADR-0001 through ADR-0008 are accepted, rejected or revised with evidence.
-- [ ] All P0 issues relevant to the selected MVP are resolved.
+- [x] All P0 design issues relevant to starting MVP code are resolved or isolated as disabled production-activation gates.
 - [x] Product scope, launch market, data policy and support model are explicit.
 - [ ] Supplier/payment responsibilities are evidenced for production.
-- [ ] The project can describe every happy path, failure path and external owner needed for the first release.
-- [ ] A reviewable implementation plan can be written without inventing unresolved product behaviour.
+- [x] The project can describe every happy path, failure category and external owner needed for incremental MVP delivery; provider-specific production results remain evidence gates.
+- [x] A reviewable first implementation plan is written without inventing unresolved product behaviour.
 
 ## Change Log
 
+- 2026-07-29: Reconciled the supplied LiteAPI and Australian legal evidence; closed OI-0004/OI-0011 as design decisions; accepted ADR-0009/ADR-0010; fixed operational defaults; approved MVP code start; and created the MVP delivery design and foundation plan.
 - 2026-07-28: Completed the repository-wide review, approved the exact retention/legal-hold baseline, deferred non-transactional product extras, selected ticket reopening behaviour and added the consolidated remaining-review register.
 - 2026-07-28: Selected OI-0011 Option A and moved it to in review; distinguished seven-year corporate financial records, general five-year tax records, privacy deletion and matter-specific legal holds from raw supplier payload retention.
 - 2026-07-28: Recorded OI-0010 as an explicitly non-blocking post-MVP wishlist item; launch uses reconciled itinerary data and directs customers to the airline for live operational status.

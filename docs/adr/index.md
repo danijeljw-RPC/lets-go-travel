@@ -7,7 +7,7 @@
 | Status | Count |
 | --- | ---: |
 | Proposed | 0 |
-| Accepted | 8 |
+| Accepted | 10 |
 | Rejected | 0 |
 | Superseded | 0 |
 
@@ -27,6 +27,8 @@ None.
 | [ADR-0006](accepted/ADR-0006-application-and-deployment-baseline.md) | Application and Deployment Baseline | Architecture, Platform Engineering |
 | [ADR-0007](accepted/ADR-0007-payment-data-and-pci-scope-minimisation.md) | Payment Data and PCI Scope Minimisation | Finance, Security, Compliance |
 | [ADR-0008](accepted/ADR-0008-durable-flight-reconciliation-and-customer-notification.md) | Durable Flight Reconciliation and Customer Notification | Product, Architecture, Operations |
+| [ADR-0009](accepted/ADR-0009-mvp-application-contract-and-module-foundation.md) | MVP Application Contract and Module Foundation | Architecture, Engineering |
+| [ADR-0010](accepted/ADR-0010-mvp-runtime-storage-and-delivery-baseline.md) | MVP Runtime, Storage and Delivery Baseline | Architecture, Engineering, Operations |
 
 ## Rejected
 

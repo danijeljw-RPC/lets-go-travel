@@ -101,7 +101,7 @@ Supplier retrieval may omit or delay airline schedule changes. Polling too frequ
 
 ## Dependencies
 
-[OI-0004](../../issues/open/OI-0004-flight-servicing-and-schedule-changes.md) and [OI-0005](../../issues/open/OI-0005-liteapi-webhook-coverage.md) remain in review for supplier evidence. [OI-0010](../../issues/open/OI-0010-operational-flight-status-provider.md) remains open and separate.
+Closed [OI-0004](../../issues/closed/OI-0004-flight-servicing-and-schedule-changes.md) defines the partly manual servicing boundary. [OI-0005](../../issues/open/OI-0005-liteapi-webhook-coverage.md) remains in review for account-specific production evidence. [OI-0010](../../issues/open/OI-0010-operational-flight-status-provider.md) remains open and separate.
 
 ## Related Documents
 

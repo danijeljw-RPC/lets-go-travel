@@ -6,7 +6,7 @@ type: integration-question
 priority: p0
 severity: high
 created: 2026-07-27
-updated: 2026-07-28
+updated: 2026-07-29
 decision_owners:
   - Architecture
   - Security
@@ -18,6 +18,7 @@ related_plans:
 related_docs:
   - docs/integrations/liteapi-nuitee-connect.md
   - docs/operations/reliability-and-supportability.md
+  - docs/evidence/liteapi/OI-0005-webhook-guarantees.md
 blocked_by: []
 ---
 
@@ -55,35 +56,37 @@ Choose Option A. It provides timely response without treating webhook delivery a
 
 The product owner selected Option A on 2026-07-28. Authenticated webhooks are persisted to a durable inbox, deduplicated and processed asynchronously. They enqueue supplier retrieval and reconciliation rather than directly overwriting booking state. Scheduled checks cover active bookings and act as the missing-event safety net, including ADR-0008's flight schedule.
 
-The issue is in review because the exact account event catalogue, authentication strength, retry/backoff, ordering, retention, replay and environment differences still require LiteAPI evidence.
+Public LiteAPI evidence now establishes shared-token authentication, configurable exponential-backoff retries, at-least-once delivery, possible duplicates, `event_id` deduplication and the sandbox marker. The issue remains in review only for account-specific subscriptions, actual retry configuration and controlled production delivery tests.
 
 ## Evidence Reviewed
 
 - Product-owner webhook-first plus scheduled-fallback direction recorded on 2026-07-28.
-- Public LiteAPI webhook documentation already recorded in the supplier profile.
+- [Webhook Guarantees Evidence](../../evidence/liteapi/OI-0005-webhook-guarantees.md), verified against LiteAPI's current public webhook documentation.
 - No account-specific event catalogue or replay/delivery guarantee has been recorded.
 
 ## Evidence Required
 
 - Account event catalogue for hotels and enabled flights.
-- Authentication mechanism and security review.
-- Retry count/backoff, event retention and replay support.
-- Ordering and duplication guarantees.
+- Production authentication-secret configuration and compensating-control approval.
+- Account retry count/backoff configuration and controlled retry observations.
+- Production duplication, missing-event and environment-isolation tests.
 - Production-only event list and sandbox test limits.
 - Evidence for amendment, cancellation, refund and schedule-change events.
 
 ## Decision Impact
 
-Controls eventing, security, reconciliation frequency, operational alerts and support.
+Allows durable inbox, authentication, deduplication, asynchronous retrieval and scheduled fallback implementation. It blocks only production reliance on untested account subscriptions and delivery behaviour.
 
 ## Acceptance Criteria
 
-- [ ] Event matrix and environment differences are recorded.
-- [ ] Authentication and replay controls are approved.
-- [ ] Inbox/deduplication/reconciliation behaviour is documented.
-- [ ] Missing event coverage has an explicit polling or support fallback.
+- [x] Public event matrix and environment differences are recorded.
+- [x] Authentication, replay and shared-secret limitations are documented.
+- [x] Inbox/deduplication/reconciliation behaviour is documented.
+- [x] Missing event coverage has an explicit scheduled-reconciliation and support fallback.
+- [ ] Account subscriptions, secrets, retries and controlled production deliveries are approved.
 
 ## Related Documents
 
 - [LiteAPI/Nuitee Connect](../../integrations/liteapi-nuitee-connect.md)
 - [Reliability and Supportability](../../operations/reliability-and-supportability.md)
+- [Webhook Guarantees Evidence](../../evidence/liteapi/OI-0005-webhook-guarantees.md)

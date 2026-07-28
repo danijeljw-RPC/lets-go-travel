@@ -6,7 +6,7 @@ type: integration-question
 priority: p0
 severity: critical
 created: 2026-07-27
-updated: 2026-07-28
+updated: 2026-07-29
 decision_owners:
   - Finance
   - Product
@@ -18,6 +18,7 @@ related_plans:
 related_docs:
   - docs/integrations/liteapi-nuitee-connect.md
   - docs/product/payments-and-pricing.md
+  - docs/evidence/liteapi/OI-0002-commercial-mor-review.md
 blocked_by: []
 ---
 
@@ -55,12 +56,12 @@ Prefer Option A for the initial small product if commercially available and lega
 
 The product owner selected Option A on 2026-07-28. LiteAPI or its payment entity is the preferred customer-payment and merchant route for the initial product. `readytogo.travel` facilitates the customer journey, initiates the information and operations required by LiteAPI, reconciles booking/payment outcomes and exposes review through its dashboard.
 
-This direction does not establish the legal merchant of record from a technical SDK. The issue is in review until written LiteAPI terms establish the responsible merchant and every item under Evidence Required for hotels, flights and any combined journey.
+This direction does not establish the legal merchant of record from a technical SDK. The issue remains in review until written LiteAPI terms establish the responsible merchant and every item under Evidence Required for hotels, flights and any combined journey. Provider-neutral implementation, sandbox integration and a disabled production payment adapter may proceed.
 
 ## Evidence Reviewed
 
 - Product-owner direction recorded on 2026-07-28.
-- LiteAPI payment and revenue documentation already referenced by ADR-0007.
+- [Public commercial/MOR evidence review](../../evidence/liteapi/OI-0002-commercial-mor-review.md), including LiteAPI's documented Nuitee-managed and integrating-organisation merchant models, margin fields and weekly commission description.
 - No executed agreement or formal written allocation of merchant, settlement, refund, dispute, tax or consumer responsibilities has been recorded in the repository.
 
 ## Evidence Required
@@ -74,7 +75,7 @@ This direction does not establish the legal merchant of record from a technical 
 
 ## Decision Impact
 
-Blocks production activation of the LiteAPI payment route, final pricing, checkout, terms, accounting and refund operations. It does not block the provider-neutral architecture accepted by ADR-0007.
+Blocks production activation of payment collection and live bookings, final customer terms and final accounting/refund operations. It does not block provider-neutral architecture, sandbox integration, checkout state modelling or disabled-by-default payment adapters.
 
 ## Acceptance Criteria
 
@@ -88,3 +89,4 @@ Blocks production activation of the LiteAPI payment route, final pricing, checko
 
 - [LiteAPI/Nuitee Connect](../../integrations/liteapi-nuitee-connect.md)
 - [Payments and Pricing](../../product/payments-and-pricing.md)
+- [Commercial/MOR Evidence Review](../../evidence/liteapi/OI-0002-commercial-mor-review.md)

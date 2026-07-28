@@ -120,7 +120,7 @@ Poor module discipline or unrestricted shared-table access could create a distri
 
 ## Dependencies
 
-The web frontend choice is closed in [OI-0009](../../issues/closed/OI-0009-web-frontend-technology.md) as .NET 10 Blazor SSR. ADR-0008 applies ADR-0006's workload-specific extraction rule to the dedicated flight-reconciliation worker. Container orchestration, background-work framework, regional deployment selection and detailed infrastructure topology are deferred to implementation planning or dedicated decisions.
+The web frontend choice is closed in [OI-0009](../../issues/closed/OI-0009-web-frontend-technology.md) as .NET 10 Blazor SSR. ADR-0008 applies ADR-0006's workload-specific extraction rule to the dedicated flight-reconciliation worker. Subsequent [ADR-0009](ADR-0009-mvp-application-contract-and-module-foundation.md) and [ADR-0010](ADR-0010-mvp-runtime-storage-and-delivery-baseline.md) resolve the application-contract, orchestration, regional deployment and infrastructure details that this ADR intentionally deferred.
 
 ## Related Documents
 

@@ -78,7 +78,7 @@ git commit -m "docs: accept flight reconciliation worker decision"
 - Move and modify: `docs/issues/open/OI-0001-mvp-product-scope.md` to `docs/issues/closed/OI-0001-mvp-product-scope.md`
 - Modify: `docs/issues/open/OI-0002-liteapi-commercial-and-merchant-of-record.md`
 - Modify: `docs/issues/open/OI-0003-australian-airline-and-qantas-coverage.md`
-- Modify: `docs/issues/open/OI-0004-flight-servicing-and-schedule-changes.md`
+- Modify: `docs/issues/closed/OI-0004-flight-servicing-and-schedule-changes.md` (subsequent canonical location)
 - Modify: `docs/issues/open/OI-0005-liteapi-webhook-coverage.md`
 - Modify: `docs/issues/open/OI-0006-mobile-payment-and-pci-scope.md`
 - Move and modify: `docs/issues/open/OI-0007-launch-market-locale-and-currency.md` to `docs/issues/closed/OI-0007-launch-market-locale-and-currency.md`

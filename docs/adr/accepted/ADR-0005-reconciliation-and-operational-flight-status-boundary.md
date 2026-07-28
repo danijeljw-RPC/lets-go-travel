@@ -80,7 +80,7 @@ If LiteAPI retrieval does not reflect schedule changes, booking reconciliation a
 
 ## Dependencies
 
-[OI-0004](../../issues/open/OI-0004-flight-servicing-and-schedule-changes.md) and [OI-0010](../../issues/open/OI-0010-operational-flight-status-provider.md).
+Closed [OI-0004](../../issues/closed/OI-0004-flight-servicing-and-schedule-changes.md) and open [OI-0010](../../issues/open/OI-0010-operational-flight-status-provider.md).
 
 ## Related Documents
 

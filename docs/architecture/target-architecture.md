@@ -42,7 +42,7 @@ The dedicated flight-reconciliation worker uses durable PostgreSQL work records 
 
 ## Deployment Boundary
 
-The frontend, API, workers and Keycloak are container workloads. Workers accept no public application traffic but can use controlled outbound connections. Each US, EU or Australian installation is isolated and has its own Azure PostgreSQL data boundary. Region and container-orchestration selection are separate decisions.
+The frontend, API, workers and Keycloak are container workloads. Workers accept no public application traffic but can use controlled outbound connections. The Australia-first production environment uses Azure Container Apps and Azure Database for PostgreSQL in Australia East. Any later regional installation is isolated and has its own PostgreSQL data boundary. See [ADR-0010](../adr/accepted/ADR-0010-mvp-runtime-storage-and-delivery-baseline.md).
 
 ## Scaling Direction
 

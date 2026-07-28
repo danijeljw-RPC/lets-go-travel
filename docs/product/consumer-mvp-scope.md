@@ -31,7 +31,7 @@ The initial product is a web-first consumer booking experience supporting hotel-
 ## Production Activation Gates
 
 - Reusable sensitive traveller data follows closed [OI-0008](../issues/closed/OI-0008-saved-traveller-and-passport-data.md) and cannot be activated without its protection controls.
-- Customer-visible flight offers require the external evidence tracked by [OI-0003](../issues/open/OI-0003-australian-airline-and-qantas-coverage.md), [OI-0004](../issues/open/OI-0004-flight-servicing-and-schedule-changes.md), and [OI-0005](../issues/open/OI-0005-liteapi-webhook-coverage.md).
+- Customer-visible production flight offers require the external evidence tracked by [OI-0003](../issues/open/OI-0003-australian-airline-and-qantas-coverage.md), closed [OI-0004](../issues/closed/OI-0004-flight-servicing-and-schedule-changes.md), and [OI-0005](../issues/open/OI-0005-liteapi-webhook-coverage.md). Provider-neutral implementation and sandbox work may proceed.
 - Production payment requires the written commercial and PCI evidence tracked by [OI-0002](../issues/open/OI-0002-liteapi-commercial-and-merchant-of-record.md) and [OI-0006](../issues/open/OI-0006-mobile-payment-and-pci-scope.md).
 - Mobile applications depend on the web flow and [OI-0006](../issues/open/OI-0006-mobile-payment-and-pci-scope.md).
 
