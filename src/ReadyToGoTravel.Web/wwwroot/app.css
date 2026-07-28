@@ -1,0 +1,255 @@
+:root {
+    --ocean: #082f49;
+    --deep-ocean: #031d2b;
+    --reef: #0e9f93;
+    --sky: #c8eff1;
+    --sun: #ffd166;
+    --cloud: #f7fbfb;
+    --ink: #102a36;
+    --muted: #58717c;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    min-width: 320px;
+    background: var(--cloud);
+    color: var(--ink);
+    font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+}
+
+body {
+    margin: 0;
+}
+
+a:focus-visible {
+    outline: 3px solid var(--sun);
+    outline-offset: 4px;
+}
+
+.journey-shell {
+    display: grid;
+    min-height: 100vh;
+    grid-template: auto 1fr / minmax(0, 1.45fr) minmax(19rem, .55fr);
+    background:
+        radial-gradient(circle at 15% 92%, rgb(14 159 147 / 18%), transparent 34%),
+        linear-gradient(120deg, var(--cloud) 0 72%, var(--sky) 72% 100%);
+}
+
+.topbar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.4rem clamp(1.25rem, 4vw, 4rem);
+    border-bottom: 1px solid rgb(8 47 73 / 14%);
+}
+
+.wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: .7rem;
+    color: var(--ocean);
+    font-weight: 750;
+    letter-spacing: -.02em;
+    text-decoration: none;
+}
+
+.wordmark-mark {
+    display: grid;
+    width: 2.35rem;
+    aspect-ratio: 1;
+    place-items: center;
+    border-radius: 50% 50% 50% 8%;
+    background: var(--reef);
+    color: white;
+    font-family: ui-monospace, monospace;
+    font-size: .72rem;
+    letter-spacing: -.08em;
+    transform: rotate(-8deg);
+}
+
+.region-tag,
+.eyebrow,
+.card-label {
+    font-family: ui-monospace, "SFMono-Regular", monospace;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.region-tag {
+    color: var(--muted);
+}
+
+.hero {
+    align-self: center;
+    max-width: 56rem;
+    padding: clamp(3rem, 8vw, 8rem) clamp(1.25rem, 7vw, 7rem);
+}
+
+.eyebrow {
+    margin: 0 0 1.3rem;
+    color: var(--reef);
+}
+
+h1 {
+    margin: 0;
+    color: var(--ocean);
+    font-family: "Trebuchet MS", "Avenir Next", sans-serif;
+    font-size: clamp(3.2rem, 7.6vw, 7.6rem);
+    font-weight: 700;
+    letter-spacing: -.065em;
+    line-height: .88;
+}
+
+h1 em {
+    color: var(--reef);
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 400;
+}
+
+.intro {
+    max-width: 42rem;
+    margin: 2rem 0 0;
+    color: var(--muted);
+    font-size: clamp(1rem, 1.5vw, 1.2rem);
+    line-height: 1.7;
+}
+
+.route-line {
+    display: flex;
+    align-items: center;
+    max-width: 34rem;
+    margin: 2.8rem 0 1.5rem;
+}
+
+.route-path {
+    height: 1px;
+    flex: 1;
+    background: repeating-linear-gradient(90deg, var(--reef) 0 8px, transparent 8px 15px);
+}
+
+.route-point {
+    width: .72rem;
+    height: .72rem;
+    border: 2px solid var(--reef);
+    border-radius: 50%;
+    background: var(--cloud);
+}
+
+.route-point-origin {
+    background: var(--sun);
+}
+
+.route-plane {
+    margin: 0 .6rem;
+    color: var(--ocean);
+    font-size: 1.3rem;
+    transform: rotate(25deg);
+}
+
+.platform-status {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    color: var(--muted);
+    font-size: .88rem;
+}
+
+.platform-status strong {
+    color: var(--ink);
+}
+
+.status-light {
+    width: .55rem;
+    height: .55rem;
+    border-radius: 50%;
+    background: var(--reef);
+    box-shadow: 0 0 0 4px rgb(14 159 147 / 14%);
+}
+
+.status-light-offline {
+    background: #b36b28;
+    box-shadow: 0 0 0 4px rgb(179 107 40 / 14%);
+}
+
+.departure-card {
+    align-self: center;
+    margin: 2rem clamp(1.25rem, 4vw, 4rem) 2rem 0;
+    padding: clamp(1.5rem, 3vw, 2.5rem);
+    border-radius: 1.5rem;
+    background: var(--ocean);
+    box-shadow: 0 1.5rem 4rem rgb(3 29 43 / 24%);
+    color: white;
+}
+
+.card-label {
+    margin: 0 0 1.6rem;
+    color: var(--sun);
+}
+
+.departure-card dl {
+    margin: 0;
+}
+
+.departure-card dl div {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-top: 1px solid rgb(255 255 255 / 17%);
+}
+
+.departure-card dt {
+    color: var(--sky);
+    font-family: ui-monospace, "SFMono-Regular", monospace;
+    font-size: .7rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.departure-card dd {
+    margin: 0;
+    font-weight: 700;
+}
+
+.card-note {
+    margin: 1.6rem 0 0;
+    color: rgb(255 255 255 / 67%);
+    font-size: .8rem;
+    line-height: 1.5;
+}
+
+#blazor-error-ui {
+    display: none;
+}
+
+@media (max-width: 850px) {
+    .journey-shell {
+        display: block;
+        background: var(--cloud);
+    }
+
+    .hero {
+        padding-bottom: 2rem;
+    }
+
+    .departure-card {
+        margin: 0 1.25rem 2rem;
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .route-plane {
+        animation: depart 900ms ease-out both;
+    }
+
+    @keyframes depart {
+        from { transform: translateX(-3rem) rotate(25deg); opacity: 0; }
+        to { transform: translateX(0) rotate(25deg); opacity: 1; }
+    }
+}

@@ -1,0 +1,62 @@
+﻿@page "/"
+@inject ReadyToGoTravel.Web.Client.PlatformApiClient PlatformApi
+
+<PageTitle>readytogo.travel</PageTitle>
+
+<main class="journey-shell">
+    <nav class="topbar" aria-label="Primary navigation">
+        <a class="wordmark" href="/" aria-label="readytogo.travel home">
+            <span class="wordmark-mark" aria-hidden="true">go</span>
+            <span>readytogo.travel</span>
+        </a>
+        <span class="region-tag">AU · EN</span>
+    </nav>
+
+    <section class="hero" aria-labelledby="page-title">
+        <p class="eyebrow">Flights + stays, one clear journey</p>
+        <h1 id="page-title">Your next trip,<br /><em>ready when you are.</em></h1>
+        <p class="intro">
+            Search flights, hotels, or both together. This foundation is connected
+            through the public RTGT API and ready for the first booking journey.
+        </p>
+
+        <div class="route-line" aria-hidden="true">
+            <span class="route-point route-point-origin"></span>
+            <span class="route-path"></span>
+            <span class="route-plane">✦</span>
+            <span class="route-point"></span>
+        </div>
+
+        <div class="platform-status" role="status">
+            <span class="status-light @(platform is null ? "status-light-offline" : null)"></span>
+            @if (platform is not null)
+            {
+                <span><strong>@platform.Shortcode API</strong> · @platform.ApiVersion connected</span>
+            }
+            else
+            {
+                <span><strong>API status unavailable</strong> · the web shell is still running</span>
+            }
+        </div>
+    </section>
+
+    <aside class="departure-card" aria-label="MVP journey scope">
+        <p class="card-label">Departure board · MVP</p>
+        <dl>
+            <div><dt>Search</dt><dd>Flights</dd></div>
+            <div><dt>Stay</dt><dd>Hotels</dd></div>
+            <div><dt>Combine</dt><dd>Flight + hotel</dd></div>
+            <div><dt>Region</dt><dd>Australia first</dd></div>
+        </dl>
+        <p class="card-note">Booking journeys are the next delivery slice.</p>
+    </aside>
+</main>
+
+@code {
+    private ReadyToGoTravel.Web.Client.PlatformIdentity? platform;
+
+    protected override async Task OnInitializedAsync()
+    {
+        platform = await PlatformApi.GetPlatformAsync(CancellationToken.None);
+    }
+}

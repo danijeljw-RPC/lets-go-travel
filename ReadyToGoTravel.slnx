@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/ReadyToGoTravel.Api/ReadyToGoTravel.Api.csproj" />
     <Project Path="src/ReadyToGoTravel.BuildingBlocks/ReadyToGoTravel.BuildingBlocks.csproj" />
+    <Project Path="src/ReadyToGoTravel.Web/ReadyToGoTravel.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ReadyToGoTravel.Api.Tests/ReadyToGoTravel.Api.Tests.csproj" />
