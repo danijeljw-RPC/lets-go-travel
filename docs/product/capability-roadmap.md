@@ -6,17 +6,17 @@
 
 Resolve MVP scope, commercial terms, supplier access, payment, privacy and booking lifecycle. Produce accepted ADRs before implementation planning.
 
-## Stage 1 — Web-first Hotel Journey
+## Stage 1 — Web-first Booking Journeys
 
-Customer account, trip, hotel search, prebook, payment, booking, booking detail, confirmation, cancellation status and support traceability.
+Customer account, locale selection, trip, hotel search/booking, flight search/booking, combined hotel-plus-flight trip assembly, prebook, provider-controlled payment, booking detail, confirmation, cancellation state and ticket support. Customer-visible supplier capabilities remain gated by OI-0002 through OI-0006.
 
 ## Stage 2 — Post-booking Value
 
-Notifications, reconciliation, richer trip timeline, documents, reminders, support tooling and customer self-service improvements.
+Daily flight reconciliation, final-24-hours hourly checks, change notifications, richer trip timeline, documents, reminders, support-dashboard improvements and customer self-service improvements.
 
-## Stage 3 — Flight Selling if Verified
+## Stage 3 — Expanded Flight Servicing
 
-Flight search and booking only after Australian coverage, fare content, ancillaries, servicing, schedule-change propagation, cancellations, refunds and operational boundaries are understood.
+Expand carrier/market coverage, ancillaries and self-service only after fare content, ticketing, servicing, schedule-change propagation, cancellations, refunds and manual escalation are evidenced. Unsupported capabilities remain suppressed rather than inferred from generic API documentation.
 
 ## Stage 4 — Mobile
 

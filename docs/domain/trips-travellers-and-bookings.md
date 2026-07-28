@@ -10,9 +10,11 @@ Likely trip attributes include platform ID, owning customer, title, destinations
 
 ## Customer and Traveller
 
-The customer owns the account, trip and booking. A traveller is a person participating in travel. A customer may maintain travellers for themselves, family or friends, subject to [OI-0008](../issues/open/OI-0008-saved-traveller-and-passport-data.md).
+The customer owns the account, trip and booking. A traveller is a person participating in travel. A customer may maintain travellers for themselves, family or friends under closed [OI-0008](../issues/closed/OI-0008-saved-traveller-and-passport-data.md).
 
 Booking-time traveller details are snapshotted because later profile changes must not rewrite what was supplied for an existing booking.
+
+Date of birth, passport and identity-document data is entered per booking by default. Saving any of those categories for future bookings requires a separate unchecked, affirmative and revocable opt-in. General account registration, booking acceptance or saving a low-risk traveller profile cannot imply that consent. Reusable sensitive storage and booking-evidence retention are distinct purposes; OI-0011 continues to govern the unresolved evidence-retention schedule.
 
 ## Booking
 

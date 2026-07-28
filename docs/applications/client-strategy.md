@@ -8,7 +8,9 @@ Clients present platform data, manage local UI state, securely hold tokens, subm
 
 ## Web First
 
-The web experience establishes onboarding, search, results, detail, prebook review, payment, confirmation, trips, booking detail, cancellation state, account/traveller management and support access.
+The web experience is a .NET 10 Blazor Web App using server-side rendering and interactive server components only where the customer journey needs them. It establishes onboarding, locale selection, hotel/flight/combined search, results, detail, prebook review, payment, confirmation, trips, booking detail, cancellation state, account/traveller management and ticket-support access. ASP.NET Core Web API remains the supplier-neutral application boundary.
+
+Necessary LiteAPI hosted payment JavaScript is isolated behind a narrow browser-interoperability boundary. Browser code never receives supplier API credentials and does not own authoritative pricing, payment, booking or reconciliation state.
 
 ## Mobile Later
 
@@ -24,7 +26,9 @@ In-app, email, push and any later critical SMS notifications support preferences
 
 ## Time, Locale and Currency
 
-Preserve local date/time and timezone identifiers for travel schedules, plus UTC instants where determinable. Retain supplier original, transaction and charged currency separately from display conversion. The initial locale/currency decision is [OI-0007](../issues/open/OI-0007-launch-market-locale-and-currency.md).
+Preserve local date/time and timezone identifiers for travel schedules, plus UTC instants where determinable. Retain supplier original, transaction and charged currency separately from display conversion.
+
+The initial locale/currency decision is closed in [OI-0007](../issues/closed/OI-0007-launch-market-locale-and-currency.md). Anonymous visitors store a selected locale in a secure same-site cookie. Authenticated customers store their preferred BCP 47 locale in PostgreSQL, and the account preference becomes authoritative on sign-in. UI text uses version-controlled .NET localisation resources with `en-AU` fallback; the database does not act as the static translation catalogue. Language selection never overwrites supplier, transaction, charged, settlement or refund currency.
 
 ## Customer Trust
 

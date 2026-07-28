@@ -10,6 +10,8 @@ Classify public reference data, internal operational data, personal information,
 
 Every stored field needs a purpose, authority, access policy, retention period, deletion behaviour, encryption requirement, offline policy and supplier-disclosure rule. Do not collect passport or identity details merely for possible later use.
 
+Booking-time collection does not opt a traveller into reusable sensitive storage. Saving date of birth, passport or identity-document data for future bookings requires a separate granular control that is unchecked by default, names the categories and purpose and records an affirmative customer action. Activation also requires field-level protection, masking, least-privilege access, audit, key management and deletion behaviour. See closed [OI-0008](../issues/closed/OI-0008-saved-traveller-and-passport-data.md).
+
 ## Supplier Disclosure
 
 Record which supplier received which data categories, for what fulfilment purpose, against which booking and when. Supplier, airline, hotel and payment-provider obligations may create independent external records.
@@ -26,9 +28,9 @@ Do not log tokens, passwords, supplier keys, full passport numbers, full payment
 
 ## Privacy Lifecycle
 
-Planning must address access, correction, export, account closure, deletion, consent withdrawal, active bookings, refunds, disputes, legally retained records, cross-border disclosure and backup retention. [OI-0008](../issues/open/OI-0008-saved-traveller-and-passport-data.md) tracks the highest-risk product choice.
+Planning must address access, correction, export, account closure, deletion, consent withdrawal, active bookings, refunds, disputes, legally retained records, cross-border disclosure and backup retention. OI-0011 remains open for the supplier-payload and booking-evidence retention schedule.
 
-Keycloak and the application need an explicit authority/synchronisation rule for overlapping fields such as email, display name, phone and locale. Removing identity access does not silently rewrite or erase retained booking evidence.
+Keycloak and the application need an explicit authority/synchronisation rule for overlapping fields such as email, display name, phone and locale. The authenticated BCP 47 locale preference belongs to the PostgreSQL customer profile; anonymous locale belongs to a secure same-site cookie. Removing identity access does not silently rewrite or erase retained booking evidence.
 
 ## Mobile Security
 

@@ -16,7 +16,9 @@ Use a capability-driven payment plan for each final offer. Prefer supplier/provi
 
 ## Initial Provider Activation
 
-Duffel will be integrated as a later provider but disabled by default for the initial launch. Its offers are not exposed in customer search until the related production booking and settlement route is enabled. Activation requires either approved Duffel customer-card payment or an approved Duffel Balance operating model with sufficient working capital and tested refund and reconciliation controls. Collecting customer funds through Stripe does not pre-fund Duffel Balance or remove settlement timing risk.
+The initial direction uses LiteAPI's officially approved hosted JavaScript, hosted payment experience or platform SDK where supported. Prefer LiteAPI or its payment entity as the customer-payment and merchant route when written terms establish the responsibilities tracked by OI-0002. The platform initiates the required workflow, stores permitted opaque references and reconciles customer payment, supplier settlement and booking outcomes; raw card data remains outside the platform.
+
+Duffel and a platform-owned Stripe collection route are later options and are disabled by default for the initial launch. Duffel offers are not exposed in customer search until the related production booking and settlement route is enabled. Activation requires either approved Duffel customer-card payment or an approved Duffel Balance operating model with sufficient working capital and tested refund and reconciliation controls. Collecting customer funds through Stripe does not pre-fund Duffel Balance or remove settlement timing risk.
 
 ## Separate State Machines
 
