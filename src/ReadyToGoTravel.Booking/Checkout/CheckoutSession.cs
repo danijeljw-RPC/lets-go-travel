@@ -326,7 +326,12 @@ public sealed class CheckoutSession
         }
 
         var now = timeProvider.GetUtcNow().ToUniversalTime();
-        attempt.Record(result, now);
+        var errorCode = attempt.Record(result, now);
+        if (errorCode is not null)
+        {
+            return DomainResult<PaymentAttempt>.Failure(errorCode);
+        }
+
         Status = attempt.Status switch
         {
             PaymentStatus.Failed => CheckoutStatus.Failed,
@@ -463,7 +468,13 @@ public sealed class CheckoutSession
             .OrderBy(value => value.Product)
             .Zip(candidate.Components.OrderBy(value => value.Product))
             .Any(value => value.First.Product != value.Second.Product ||
-                          !string.Equals(value.First.ProductDetail, value.Second.ProductDetail, StringComparison.Ordinal));
+                          !string.Equals(value.First.OfferId, value.Second.OfferId, StringComparison.Ordinal) ||
+                          !string.Equals(value.First.ProviderBinding, value.Second.ProviderBinding, StringComparison.Ordinal) ||
+                          !string.Equals(value.First.ProductDetail, value.Second.ProductDetail, StringComparison.Ordinal) ||
+                          value.First.MinimumTotal != value.Second.MinimumTotal ||
+                          !string.Equals(value.First.ProviderRevision, value.Second.ProviderRevision, StringComparison.Ordinal) ||
+                          !string.Equals(value.First.TermsHash, value.Second.TermsHash, StringComparison.Ordinal) ||
+                          value.First.ExpiresAt != value.Second.ExpiresAt);
     }
 
     private void UpdateBookingStatus(DateTimeOffset now)

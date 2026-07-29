@@ -86,9 +86,45 @@ public sealed class PaymentAttempt
 
     public DateTimeOffset UpdatedAt { get; private set; }
 
-    internal void Record(PaymentProviderResult result, DateTimeOffset now)
+    internal string? Record(PaymentProviderResult result, DateTimeOffset now)
     {
-        Status = result.Outcome switch
+        if (!TryMapStatus(result.Outcome, out var nextStatus))
+        {
+            return "invalid_payment_provider_outcome";
+        }
+
+        if (!CanTransitionTo(nextStatus))
+        {
+            return "invalid_payment_transition";
+        }
+
+        Status = nextStatus;
+        ProviderReturnReference = result.ProviderReturnReference;
+        FailureCode = result.ErrorCode;
+        UpdatedAt = now;
+        return null;
+    }
+
+    private bool CanTransitionTo(PaymentStatus nextStatus) => Status switch
+    {
+        PaymentStatus.ActionRequired => nextStatus is
+            PaymentStatus.Processing or
+            PaymentStatus.Authorised or
+            PaymentStatus.Captured or
+            PaymentStatus.Failed or
+            PaymentStatus.OutcomeUnknown,
+        PaymentStatus.Processing => nextStatus is
+            PaymentStatus.Authorised or
+            PaymentStatus.Captured or
+            PaymentStatus.Failed or
+            PaymentStatus.OutcomeUnknown,
+        PaymentStatus.Authorised => nextStatus is PaymentStatus.Captured or PaymentStatus.OutcomeUnknown,
+        _ => false,
+    };
+
+    private static bool TryMapStatus(PaymentProviderOutcome outcome, out PaymentStatus status)
+    {
+        status = outcome switch
         {
             PaymentProviderOutcome.ActionRequired => PaymentStatus.ActionRequired,
             PaymentProviderOutcome.Processing => PaymentStatus.Processing,
@@ -96,10 +132,9 @@ public sealed class PaymentAttempt
             PaymentProviderOutcome.Captured => PaymentStatus.Captured,
             PaymentProviderOutcome.Failed => PaymentStatus.Failed,
             PaymentProviderOutcome.Unknown => PaymentStatus.OutcomeUnknown,
-            _ => throw new ArgumentOutOfRangeException(nameof(result)),
+            _ => default,
         };
-        ProviderReturnReference = result.ProviderReturnReference;
-        FailureCode = result.ErrorCode;
-        UpdatedAt = now;
+
+        return outcome is >= PaymentProviderOutcome.ActionRequired and <= PaymentProviderOutcome.Unknown;
     }
 }

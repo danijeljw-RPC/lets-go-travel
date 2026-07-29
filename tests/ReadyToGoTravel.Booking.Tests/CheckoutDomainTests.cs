@@ -72,6 +72,70 @@ public sealed class CheckoutDomainTests
         Assert.Equal("checkout_not_ready_for_payment", result.ErrorCode);
     }
 
+    [Fact]
+    public void CapturedPaymentRejectsAProcessingEvent()
+    {
+        var checkout = CreatePaymentCheckout();
+        Assert.True(checkout.RecordPayment(PaymentProviderResult.Captured("return_123"), Clock).IsSuccess);
+
+        var result = checkout.RecordPayment(PaymentProviderResult.Processing("return_123"), Clock);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("invalid_payment_transition", result.ErrorCode);
+        Assert.Equal(PaymentStatus.Captured, checkout.PaymentAttempts.Single().Status);
+    }
+
+    [Fact]
+    public void CapturedPaymentRejectsAFailedEvent()
+    {
+        var checkout = CreatePaymentCheckout();
+        Assert.True(checkout.RecordPayment(PaymentProviderResult.Captured("return_123"), Clock).IsSuccess);
+
+        var result = checkout.RecordPayment(PaymentProviderResult.Failed("provider_failure"), Clock);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("invalid_payment_transition", result.ErrorCode);
+        Assert.Equal(PaymentStatus.Captured, checkout.PaymentAttempts.Single().Status);
+    }
+
+    [Fact]
+    public void PaymentRejectsAnUnknownProviderOutcome()
+    {
+        var checkout = CreatePaymentCheckout();
+
+        var result = checkout.RecordPayment(
+            new PaymentProviderResult((PaymentProviderOutcome)999, "return_123", null),
+            Clock);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("invalid_payment_provider_outcome", result.ErrorCode);
+        Assert.Equal(PaymentStatus.ActionRequired, checkout.PaymentAttempts.Single().Status);
+    }
+
+    [Fact]
+    public void OfferIdChangeInvalidatesCustomerAcceptance()
+    {
+        AssertRepricingRequiresAcceptance(HotelOffer("hotel-1") with { OfferId = "hotel-2" });
+    }
+
+    [Fact]
+    public void ProviderBindingChangeInvalidatesCustomerAcceptance()
+    {
+        AssertRepricingRequiresAcceptance(HotelOffer("hotel-1") with { ProviderBinding = "fixture-hotel-2" });
+    }
+
+    [Fact]
+    public void ProviderRevisionChangeInvalidatesCustomerAcceptance()
+    {
+        AssertRepricingRequiresAcceptance(HotelOffer("hotel-1") with { Revision = "hotel-r2" });
+    }
+
+    [Fact]
+    public void OfferExpiryChangeInvalidatesCustomerAcceptance()
+    {
+        AssertRepricingRequiresAcceptance(HotelOffer("hotel-1") with { ExpiresAt = Clock.GetUtcNow().AddMinutes(45) });
+    }
+
     private static CheckoutSession CreateAcceptedCheckout(IReadOnlyCollection<ResolvedCheckoutOffer> offers)
     {
         var checkout = CreateCheckout(offers);
@@ -93,6 +157,24 @@ public sealed class CheckoutDomainTests
         Assert.True(checkout.RecordPayment(PaymentProviderResult.Captured("return_123"), Clock).IsSuccess);
         Assert.True(checkout.BeginBooking(Clock).IsSuccess);
         return checkout;
+    }
+
+    private static CheckoutSession CreatePaymentCheckout()
+    {
+        var checkout = CreateAcceptedCheckout([HotelOffer("hotel-1")]);
+        Assert.True(checkout.BeginPayment("fixture", "payment_123", Clock).IsSuccess);
+        return checkout;
+    }
+
+    private static void AssertRepricingRequiresAcceptance(ResolvedCheckoutOffer replacement)
+    {
+        var checkout = CreateAcceptedCheckout([HotelOffer("hotel-1")]);
+
+        var result = checkout.ApplyResolvedOffers([replacement], Clock);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(CheckoutStatus.AwaitingAcceptance, checkout.Status);
+        Assert.Null(checkout.AcceptedRevision);
     }
 
     private static CheckoutSession CreateCheckout(IReadOnlyCollection<ResolvedCheckoutOffer> offers)
