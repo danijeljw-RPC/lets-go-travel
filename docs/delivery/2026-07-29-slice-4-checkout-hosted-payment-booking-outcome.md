@@ -4,7 +4,7 @@
 
 ## Outcome
 
-Slice 4 is implemented on branch `codex/slice-4-checkout-booking` for a pull request into `dev`. It delivers authenticated server-resolved checkout, renewed price acceptance, provider-hosted payment isolation, durable idempotency, separately evidenced hotel and flight component bookings, immediate retrieval-based recovery, a PostgreSQL Booking schema and an interactive Blazor checkout experience. The pull-request URL is assigned only after independent task and whole-branch review, push and `gh pr create`; this report is the branch's authoritative delivery record.
+Slice 4 is implemented on branch `codex/slice-4-checkout-booking` in [pull request #2](https://github.com/danijeljw-RPC/lets-go-travel/pull/2) into `dev`. It delivers authenticated server-resolved checkout, renewed price acceptance, provider-hosted payment isolation, durable idempotency, separately evidenced hotel and flight component bookings, immediate retrieval-based recovery, a PostgreSQL Booking schema and an interactive Blazor checkout experience. This report is the branch's authoritative delivery record.
 
 The completed implementation follows the [Checkout, Hosted Payment and Booking Implementation Plan](../superpowers/plans/2026-07-29-checkout-hosted-payment-booking.md) and advances [PLAN-0002](../plans/active/PLAN-0002-mvp-delivery.md) to Slice 5.
 
@@ -91,9 +91,9 @@ The raw `markdownlint-cli2 "docs/**/*.md"` command reports 345 pre-existing viol
 - `c4b1a51` — add the deterministic migration, live-smoke fixes, public/operational documentation, verification record and this outcome report.
 - `46c26e2` — refresh expired sandbox offers and correct the completion documentation.
 - `a8fe392` — keep sandbox offer identities server-owned and fail closed across process restarts.
-- final whole-branch fix — persist supplier/provider-managed payment policy, orchestrate sanitized settlement, preserve immutable checkout ownership, scope travellers per offer and harden recovery support state.
+- `7f64b43` — persist supplier/provider-managed payment policy, orchestrate sanitized settlement, preserve immutable checkout ownership, scope travellers per offer and harden recovery support state.
 
-Branch: `codex/slice-4-checkout-booking`. Pull-request base: `dev`. The controller creates the pull request with `gh` after review and does not merge it as part of Slice 4 implementation.
+Branch: `codex/slice-4-checkout-booking`. Pull-request: [#2 into `dev`](https://github.com/danijeljw-RPC/lets-go-travel/pull/2), created with `gh` after review. It is not merged as part of Slice 4 implementation.
 
 ## Production Gates and Explicit Exclusions
 
