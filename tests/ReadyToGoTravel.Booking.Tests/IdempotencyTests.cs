@@ -178,6 +178,9 @@ public sealed class IdempotencyTests
         Assert.Equal(IdempotencyOutcome.InProgress, replay.Outcome);
         Assert.Equal(currentResource, replay.Value);
         Assert.Equal(1, executions);
+        Assert.Equal(2, queryBarrier.CompletedNoRowSelects);
+        Assert.Equal(2, queryBarrier.NoRowSelectsAtFirstInsert);
+        Assert.Equal(2, queryBarrier.InsertAttempts);
 
         releaseAction.SetResult(IdempotentResponse.Completed(200, currentResource));
         var winningTask = ReferenceEquals(losingTask, first) ? second : first;
@@ -278,7 +281,16 @@ internal sealed class SharedBookingDatabaseFixture(
 internal sealed class IdempotencyReadBarrier : DbCommandInterceptor, IDisposable
 {
     private readonly Barrier barrier = new(2);
-    private int interceptedReads;
+    private int completedNoRowSelects;
+    private int yieldedNoRowSelects;
+    private int noRowSelectsAtFirstInsert;
+    private int insertAttempts;
+
+    public int CompletedNoRowSelects => Volatile.Read(ref completedNoRowSelects);
+
+    public int InsertAttempts => Volatile.Read(ref insertAttempts);
+
+    public int NoRowSelectsAtFirstInsert => Volatile.Read(ref noRowSelectsAtFirstInsert);
 
     public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
         DbCommand command,
@@ -286,15 +298,47 @@ internal sealed class IdempotencyReadBarrier : DbCommandInterceptor, IDisposable
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default)
     {
-        if (command.CommandText.Contains("idempotency_records", StringComparison.OrdinalIgnoreCase) &&
-            Interlocked.Increment(ref interceptedReads) <= 2 &&
-            !barrier.SignalAndWait(TimeSpan.FromSeconds(10), cancellationToken))
+        if (IsIdempotencyInsert(command) && Interlocked.Increment(ref insertAttempts) == 1)
         {
-            throw new TimeoutException("Both idempotency reads did not reach the race barrier.");
+            Volatile.Write(ref noRowSelectsAtFirstInsert, Volatile.Read(ref yieldedNoRowSelects));
         }
 
         return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
     }
 
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        if (IsIdempotencySelect(command) && !result.HasRows)
+        {
+            if (Interlocked.Increment(ref completedNoRowSelects) <= 2)
+            {
+                if (!barrier.SignalAndWait(TimeSpan.FromSeconds(10), cancellationToken))
+                {
+                    throw new TimeoutException("Both idempotency reads did not complete before inserts began.");
+                }
+
+                Interlocked.Increment(ref yieldedNoRowSelects);
+                if (!barrier.SignalAndWait(TimeSpan.FromSeconds(10), cancellationToken))
+                {
+                    throw new TimeoutException("Both idempotency reads did not publish their no-row results.");
+                }
+            }
+        }
+
+        return await base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
+    }
+
     public void Dispose() => barrier.Dispose();
+
+    private static bool IsIdempotencySelect(DbCommand command) =>
+        command.CommandText.Contains("SELECT", StringComparison.OrdinalIgnoreCase) &&
+        command.CommandText.Contains("idempotency_records", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsIdempotencyInsert(DbCommand command) =>
+        command.CommandText.Contains("INSERT", StringComparison.OrdinalIgnoreCase) &&
+        command.CommandText.Contains("idempotency_records", StringComparison.OrdinalIgnoreCase);
 }
