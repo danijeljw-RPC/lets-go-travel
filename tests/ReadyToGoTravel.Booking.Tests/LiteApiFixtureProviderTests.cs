@@ -73,6 +73,21 @@ public sealed class LiteApiFixtureProviderTests
     }
 
     [Fact]
+    public async Task DistinctHostedSessionsReturnUniqueProviderReferences()
+    {
+        var paymentProvider = new LiteApiFixturePaymentProvider();
+        var plan = new CustomerPaymentPlan(420m, "AUD", "checkout-001");
+
+        var first = await paymentProvider.PrepareAsync(plan, "return-key-first", default);
+        var second = await paymentProvider.PrepareAsync(plan, "return-key-second", default);
+        var firstReturn = await paymentProvider.CompleteReturnAsync(first.PaymentReference, "same-completion", default);
+        var secondReturn = await paymentProvider.CompleteReturnAsync(second.PaymentReference, "same-completion", default);
+
+        Assert.NotEqual(first.PaymentReference, second.PaymentReference);
+        Assert.NotEqual(firstReturn.ProviderReturnReference, secondReturn.ProviderReturnReference);
+    }
+
+    [Fact]
     public async Task PaymentSuccessAndBookingFailureRemainSeparate()
     {
         var paymentProvider = new LiteApiFixturePaymentProvider();
@@ -105,5 +120,23 @@ public sealed class LiteApiFixtureProviderTests
 
         Assert.Equal(first.ExternalReference, replay.ExternalReference);
         Assert.StartsWith("book_", first.ExternalReference, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DistinctBookingCommandsReturnUniqueRetrievableReferences()
+    {
+        var bookingProvider = new LiteApiFixtureBookingProvider();
+        var first = await bookingProvider.BookAsync(
+            new BookingCommand(CheckoutProduct.Flight, "off_first", "booking-pending", "booking-key-first"),
+            default);
+        var second = await bookingProvider.BookAsync(
+            new BookingCommand(CheckoutProduct.Flight, "off_second", "booking-pending", "booking-key-second"),
+            default);
+
+        var retrieved = await bookingProvider.RetrieveAsync(first.ExternalReference!, default);
+
+        Assert.NotEqual(first.ExternalReference, second.ExternalReference);
+        Assert.Equal(BookingProviderStatus.Pending, retrieved.Status);
+        Assert.Equal(first.ExternalReference, retrieved.ExternalReference);
     }
 }

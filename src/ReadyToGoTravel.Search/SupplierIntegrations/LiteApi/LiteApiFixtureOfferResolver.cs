@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -16,6 +17,7 @@ public sealed class LiteApiFixtureOfferResolver(
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     };
+    private readonly ConcurrentDictionary<string, DateTimeOffset> offerExpiries = new(StringComparer.Ordinal);
 
     public async Task<CheckoutOfferResolutionResult> ResolveAsync(
         string offerId,
@@ -72,7 +74,8 @@ public sealed class LiteApiFixtureOfferResolver(
             return CheckoutOfferResolutionResult.Failure("checkout_market_unavailable");
         }
 
-        var expiresAt = now.AddMinutes(offer.LifetimeMinutes);
+        var candidateExpiry = now.AddMinutes(offer.LifetimeMinutes);
+        var expiresAt = offerExpiries.GetOrAdd(offerId, candidateExpiry);
         if (offer.Scenario == "expired" || expiresAt <= now)
         {
             return CheckoutOfferResolutionResult.Failure("checkout_offer_expired");

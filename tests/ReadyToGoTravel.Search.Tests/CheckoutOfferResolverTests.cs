@@ -1,6 +1,6 @@
-using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using ReadyToGoTravel.Search.Capabilities;
 using ReadyToGoTravel.Search.Checkout;
@@ -35,6 +35,22 @@ public sealed class CheckoutOfferResolverTests
         Assert.Equal(CheckoutOfferProduct.Hotel, result.Value!.Product);
         Assert.Equal(420m, result.Value.MinimumTotal);
         Assert.DoesNotContain("supplier", JsonSerializer.Serialize(result.Value), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RepeatedResolutionOfUnchangedFixturePreservesExpiry()
+    {
+        var clock = new AdjustableTimeProvider(Now);
+        var resolver = new LiteApiFixtureOfferResolver(clock, CapabilityRegistry.CreateDefaults());
+        var offerId = OpaqueOfferId("sandbox-hotel-001");
+
+        var first = await resolver.ResolveAsync(offerId, SearchEnvironment.Sandbox);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        var second = await resolver.ResolveAsync(offerId, SearchEnvironment.Sandbox);
+
+        Assert.True(first.IsSuccess);
+        Assert.True(second.IsSuccess);
+        Assert.Equal(first.Value!.ExpiresAt, second.Value!.ExpiresAt);
     }
 
     [Fact]
@@ -204,5 +220,12 @@ public sealed class CheckoutOfferResolverTests
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private sealed class AdjustableTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+
+        public void Advance(TimeSpan duration) => now = now.Add(duration);
     }
 }

@@ -7,3 +7,4 @@ Delivery outcome reports record what an implemented slice changed, the verificat
 ## Outcomes
 
 - [Slice 3 — Search and Capability Registry](2026-07-29-slice-3-search-capability-outcome.md)
+- [Slice 4 — Checkout, Hosted Payment and Booking](2026-07-29-slice-4-checkout-hosted-payment-booking-outcome.md)

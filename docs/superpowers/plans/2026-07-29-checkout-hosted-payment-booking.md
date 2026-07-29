@@ -12,6 +12,8 @@
 
 **Design:** [Checkout, Hosted Payment and Booking Design](../specs/2026-07-29-checkout-hosted-payment-booking-design.md)
 
+**Status:** Implementation complete on `codex/slice-4-checkout-booking`; independent whole-branch review, push and `gh` pull-request creation into `dev` remain controller-owned publication steps.
+
 ## Global Constraints
 
 - Product name is `readytogo.travel`; shortcode is `RTGT`; root namespace and project prefix are `ReadyToGoTravel`.
@@ -603,7 +605,7 @@ Commit as `feat: add hosted checkout experience`.
 - Produces: explicit Booking schema migration, local sandbox checkout instructions, authoritative Slice 4 completion state, requested Markdown outcome report and a GitHub pull request into `dev`.
 - Consumes: complete Tasks 1–5 implementation and the repository CI verification surface.
 
-- [ ] **Step 1: Generate and inspect the initial Booking migration**
+- [x] **Step 1: Generate and inspect the initial Booking migration**
 
 Run:
 
@@ -619,13 +621,13 @@ Rename the generated migration pair to the two exact `20260729030000_*` paths ab
 
 Inspect the migration for schema `booking`, required foreign-key ownership inside the module, decimal precision, enum lengths and unique indexes for idempotency and provider return/booking references. It must not create or alter Consumer/Search tables.
 
-- [ ] **Step 2: Update public and operational documentation**
+- [x] **Step 2: Update public and operational documentation**
 
 Document the seven authenticated checkout routes, required idempotency headers, separate payment/component states, sandbox scenarios, local startup commands and Production fail-closed behavior. Keep OI-0002, OI-0003 and OI-0006 open; do not claim merchant, carrier booking, PCI or live supplier approval.
 
 Mark Slice 4 complete and Slice 5 next in PLAN-0002 and the review register. Do not implement or imply webhook, scheduled reconciliation, immutable history or notification completion.
 
-- [ ] **Step 3: Write the requested Slice 4 outcome report**
+- [x] **Step 3: Write the requested Slice 4 outcome report**
 
 Create `docs/delivery/2026-07-29-slice-4-checkout-hosted-payment-booking-outcome.md` containing:
 
@@ -641,7 +643,7 @@ Create `docs/delivery/2026-07-29-slice-4-checkout-hosted-payment-booking-outcome
 - unchanged production gates and explicit exclusions; and
 - Slice 5 handoff for webhooks, scheduled reconciliation, immutable versions and notifications.
 
-- [ ] **Step 4: Run fresh repository verification**
+- [x] **Step 4: Run fresh repository verification**
 
 Run:
 
@@ -661,7 +663,7 @@ docker build -f src/ReadyToGoTravel.FlightReconciliation.Worker/Dockerfile -t rt
 
 Apply both Consumer and Booking migrations to a fresh PostgreSQL database. Smoke-test the development hotel, flight, combined, repriced, duplicate-return and pending-recovery paths. Start the API with Production configuration and confirm checkout returns `503 booking_capability_unavailable` without supplier/payment credentials.
 
-- [ ] **Step 5: Record verification evidence and commit completion**
+- [x] **Step 5: Record verification evidence and commit completion**
 
 Update this plan's status and execution record plus the outcome report with actual command results, test totals and smoke outcomes. Run `git diff --check` and verify only intended Slice 4 paths are staged.
 
@@ -681,6 +683,16 @@ gh pr create \
 ```
 
 The PR body summarizes scope, tests, production gates, explicit Slice 5 exclusions and links to the outcome report. Confirm `gh pr checks` finds the repository CI run; do not merge the PR.
+
+## Execution Record
+
+Implementation completed on 2026-07-29 through delegated tasks with independent review/fix gates. The deterministic Booking migration `20260729030000_InitialBookingSchema` and the existing Consumer migration were applied to a fresh PostgreSQL 17.10 database. Inspection confirmed only the expected `consumer` and `booking` tables plus the Booking uniqueness constraints.
+
+Fresh local verification passed locked restore, solution formatting, a warning-as-error Release build, all 149 tests, repository documentation validation, changed-document markdown lint and all four container builds. Live Development smoke recorded hotel `Completed`, QF flight `BookingPending`, combined `BookingPending`, duplicate return convergence, safe pending recovery and AUD 289.40-to-309.40 repricing; Production returned HTTP `503 booking_capability_unavailable`.
+
+The full unconfigured `markdownlint-cli2 "docs/**/*.md"` command still reports 345 pre-existing repository violations. The vulnerable-package audit was not run because the approval boundary rejected transmitting repository package metadata to the external advisory service. These are recorded verification limitations, not silently treated as passes.
+
+Live PostgreSQL smoke exposed three sanitized-fixture integration defects: moving expiry falsely invalidated unchanged acceptance, provider booking references collided between checkouts and provider payment/return references collided between checkouts. Each received an observed focused RED, minimum fix and focused/full GREEN verification. The [Slice 4 outcome report](../../delivery/2026-07-29-slice-4-checkout-hosted-payment-booking-outcome.md) contains the complete evidence and exclusions.
 
 ## Plan Self-review
 

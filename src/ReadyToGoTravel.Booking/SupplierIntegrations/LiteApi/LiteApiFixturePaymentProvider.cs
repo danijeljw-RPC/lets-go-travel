@@ -30,9 +30,10 @@ public sealed class LiteApiFixturePaymentProvider : ICustomerPaymentProvider
         ArgumentException.ThrowIfNullOrWhiteSpace(returnKey);
         var fixture = await LoadFixtureAsync(cancellationToken);
         var scenario = fixture.Payments.Single(value => value.Scenario == "action-required");
+        var suffix = OpaqueSuffix(returnKey);
         return new HostedPaymentPreparation(
-            scenario.PaymentReference,
-            scenario.BrowserToken ?? throw new InvalidDataException("Hosted payment fixture requires a browser token."),
+            $"{scenario.PaymentReference}_{suffix}",
+            $"{scenario.BrowserToken ?? throw new InvalidDataException("Hosted payment fixture requires a browser token.")}_{suffix}",
             timeProvider.GetUtcNow().ToUniversalTime().AddMinutes(scenario.BrowserTokenLifetimeMinutes),
             ParseStatus(scenario.Status));
     }
@@ -44,11 +45,12 @@ public sealed class LiteApiFixturePaymentProvider : ICustomerPaymentProvider
         ArgumentException.ThrowIfNullOrWhiteSpace(paymentReference);
         var fixture = await LoadFixtureAsync(cancellationToken);
         var scenario = fixture.Payments.SingleOrDefault(value =>
-            string.Equals(value.PaymentReference, paymentReference, StringComparison.Ordinal));
+            string.Equals(value.PaymentReference, paymentReference, StringComparison.Ordinal)
+            || paymentReference.StartsWith(value.PaymentReference + "_", StringComparison.Ordinal));
         return scenario is null
             ? new CustomerPaymentStatusResult(paymentReference, PaymentProviderStatus.OutcomeUnknown, null, "payment_not_found")
             : new CustomerPaymentStatusResult(
-                scenario.PaymentReference,
+                paymentReference,
                 ParseStatus(scenario.Status),
                 scenario.ProviderReturnReference,
                 scenario.ErrorCode);
@@ -66,14 +68,16 @@ public sealed class LiteApiFixturePaymentProvider : ICustomerPaymentProvider
             return current;
         }
 
-        var completionHash = Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(completionReference)))[..24];
+        var completionHash = OpaqueSuffix($"{paymentReference}\u001f{completionReference}");
         return new CustomerPaymentStatusResult(
             paymentReference,
             PaymentProviderStatus.Captured,
             $"return_{completionHash}",
             null);
     }
+
+    private static string OpaqueSuffix(string value) => Convert.ToHexString(
+        SHA256.HashData(Encoding.UTF8.GetBytes(value)))[..24].ToLowerInvariant();
 
     private static PaymentProviderStatus ParseStatus(string value) => value switch
     {
