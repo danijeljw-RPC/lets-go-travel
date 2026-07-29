@@ -1,0 +1,9 @@
+<!-- markdownlint-disable MD013 -->
+
+# Delivery Outcomes
+
+Delivery outcome reports record what an implemented slice changed, the verification evidence, explicit exclusions, remaining production gates and the next-slice handoff. They supplement active plans without accepting ADRs, closing supplier evidence reviews or enabling production capabilities.
+
+## Outcomes
+
+- [Slice 3 — Search and Capability Registry](2026-07-29-slice-3-search-capability-outcome.md)

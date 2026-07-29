@@ -22,4 +22,16 @@ Keycloak-authenticated consumers:
 
 Ownership comes only from the validated `sub` claim. A resource owned by another subject is indistinguishable from a missing resource. Unknown JSON properties are rejected, so booking-time date-of-birth or identity-document fields cannot leak into reusable traveller profiles.
 
-Search, offers, checkout, booking, supplier webhooks, reconciliation and support endpoints are later slices and are not implied by this foundation.
+## Implemented Search Surface
+
+Public, capability-gated discovery:
+
+- `GET /api/v1/search/capabilities?pointOfSale=AU`;
+- `POST /api/v1/search/hotels`; and
+- `POST /api/v1/search/flights`.
+
+Search requests and results are platform-owned. Results expose opaque offer IDs, expiry, required revalidation, minimum total, returned and requested currencies, currency provenance, base amount, included taxes and included fees. They do not expose supplier references or payloads.
+
+Development uses sanitized deterministic LiteAPI sandbox fixtures. Default production configuration contains no search provider and returns `503 search_capability_unavailable`. Qantas, Jetstar and Virgin Australia appear only as observed sandbox search capability; production booking, ticketing and servicing remain disabled.
+
+Checkout, booking, supplier webhooks, reconciliation and support endpoints are later slices and are not implied by the search surface.

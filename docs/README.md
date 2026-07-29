@@ -27,6 +27,7 @@ The accepted direction is a web-first consumer experience organised around trips
 | [Operations](operations/README.md) | Reliability, reconciliation, observability and recovery. |
 | [Applications](applications/README.md) | Web and future mobile client responsibilities. |
 | [Deployment](deployment/README.md) | Local runtime, migrations and later environment/release runbooks. |
+| [Delivery](delivery/README.md) | Completed slice outcome reports, verification evidence and handoffs. |
 
 ## Decision State
 
