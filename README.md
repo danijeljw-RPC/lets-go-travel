@@ -8,12 +8,13 @@ The repository contains the .NET 10 MVP foundation and its canonical product doc
 
 ## Application Foundation
 
-The solution currently produces four independently deployable processes:
+The solution currently produces four independently deployable processes and one internal consumer feature module:
 
 - `ReadyToGoTravel.Api` — versioned ASP.NET Core Web API, health checks and OpenAPI.
 - `ReadyToGoTravel.Web` — Blazor SSR customer web host that consumes the public API.
 - `ReadyToGoTravel.Worker` — general durable background-work host.
 - `ReadyToGoTravel.FlightReconciliation.Worker` — isolated scheduled flight reconciliation host.
+- `ReadyToGoTravel.Consumer` — subject-owned customer, trip and low-risk traveller rules, persistence and API composition; it is not a deployable.
 
 Build and verify locally with:
 
@@ -24,6 +25,10 @@ dotnet build ReadyToGoTravel.slnx --configuration Release --no-restore
 dotnet test ReadyToGoTravel.slnx --configuration Release --no-build
 ./scripts/validate-docs.sh
 ```
+
+For a working local PostgreSQL and Keycloak environment, follow the [local consumer foundation runbook](docs/deployment/local-development.md). It uses deterministic API/web ports, a public PKCE development client and an imported realm with no built-in users or secrets.
+
+Slice 2 now provides Keycloak-compatible authentication, an `en-AU` locale boundary, adult consumer profiles, customer-owned trip shells and low-risk saved travellers. Reusable date-of-birth, passport and identity-document storage is deliberately disabled. Supplier search and booking begin in Slice 3 and remain capability-gated.
 
 The application foundation and sandbox development are approved. Supplier booking, payment and webhook capabilities must remain disabled in production until the corresponding gates in the [review register](docs/decisions/review-register.md) are approved.
 

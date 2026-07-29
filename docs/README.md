@@ -26,6 +26,7 @@ The accepted direction is a web-first consumer experience organised around trips
 | [Security](security/README.md) | Identity, privacy, payment scope, retention, legal hold and data protection. |
 | [Operations](operations/README.md) | Reliability, reconciliation, observability and recovery. |
 | [Applications](applications/README.md) | Web and future mobile client responsibilities. |
+| [Deployment](deployment/README.md) | Local runtime, migrations and later environment/release runbooks. |
 
 ## Decision State
 

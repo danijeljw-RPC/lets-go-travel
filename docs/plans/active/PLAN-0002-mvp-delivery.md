@@ -45,7 +45,7 @@ scope:
 
 ## Status
 
-Active. Slice 1 application foundation is implemented and verified. Slice 2 is next. Production supplier/payment capabilities remain disabled until their review-register gates are approved.
+Active. Slices 1 and 2 are implemented and verified. Slice 3 supplier-neutral search and capability discovery is next. Production supplier/payment capabilities remain disabled until their review-register gates are approved.
 
 ## Purpose
 
@@ -54,7 +54,7 @@ Deliver the consumer MVP through independently testable vertical slices while pr
 ## Slice Sequence
 
 - [x] Slice 1: .NET 10 solution, API contract, Blazor SSR, workers, containers and CI.
-- [ ] Slice 2: Keycloak identity, locale, customers, trips and travellers.
+- [x] Slice 2: Keycloak identity, locale, customers, trips and travellers.
 - [ ] Slice 3: supplier-neutral hotel/flight search, pricing and capability registry.
 - [ ] Slice 4: checkout, LiteAPI hosted payment, hotel/flight booking and combined journeys.
 - [ ] Slice 5: webhooks, reconciliation, immutable versions and notifications.
@@ -71,11 +71,12 @@ Deliver the consumer MVP through independently testable vertical slices while pr
 
 ## Current Plan
 
-Slice 1 followed the completed [MVP Foundation Implementation Plan](../../superpowers/plans/2026-07-29-mvp-foundation.md). The next implementation plan must cover Slice 2 only: Keycloak identity, locale, customers, trips and travellers.
+Slice 2 followed the completed [Consumer Foundation Implementation Plan](../../superpowers/plans/2026-07-29-consumer-foundation.md). The next implementation plan must cover Slice 3 only: provider-neutral hotel/flight search, pricing and capability discovery. It may build against sandbox fixtures while all production supplier capabilities remain disabled.
 
 ## Change Log
 
 - 2026-07-29: Completed Slice 1 with the .NET 10 solution, public API contract, Blazor SSR host, cooperative workers, non-root containers, locked CI and automated documentation validation.
+- 2026-07-29: Completed Slice 2 with subject-owned consumer profiles, locale handling, trips, low-risk travellers, PostgreSQL migrations, authenticated API routes, Blazor SSR account pages and a pinned local Keycloak/PostgreSQL runtime.
 
 ## Production Gates
 

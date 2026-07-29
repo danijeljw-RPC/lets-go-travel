@@ -90,7 +90,7 @@ Booking-time traveller snapshots remain a booking-module responsibility in Slice
 
 PostgreSQL is authoritative. Entity Framework Core mappings live inside the consumer module and use schema `consumer`. Database constraints and unique indexes reinforce domain validation, including one customer per Keycloak subject and owned identifier lookups.
 
-The repository carries an initial migration and a pinned `dotnet-ef` tool. Development may apply migrations only when `Database:ApplyMigrations=true`; production migration remains a controlled deployment step. Readiness includes the consumer database health check.
+The repository carries an initial migration and a pinned `dotnet-ef` tool. Development applies migrations through the explicit local runbook; production migration remains a controlled deployment step and never runs implicitly during application startup. Readiness includes the consumer database health check.
 
 SQLite in-memory integration tests verify mappings, ownership and HTTP behavior without weakening the production provider boundary. PostgreSQL migration and container smoke checks remain separate verification steps.
 

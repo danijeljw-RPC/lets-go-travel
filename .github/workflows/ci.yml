@@ -11,6 +11,20 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.10-alpine3.23
+        env:
+          POSTGRES_DB: rtgt
+          POSTGRES_USER: rtgt
+          POSTGRES_PASSWORD: ci-only-not-a-production-secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready --username=rtgt --dbname=rtgt"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
@@ -22,6 +36,17 @@ jobs:
         run: dotnet format ReadyToGoTravel.slnx --verify-no-changes --no-restore
       - name: Build
         run: dotnet build ReadyToGoTravel.slnx --configuration Release --no-restore
+      - name: Verify consumer migration against PostgreSQL
+        env:
+          RTGT_CI_CONNECTION: Host=localhost;Port=5432;Database=rtgt;Username=rtgt;Password=ci-only-not-a-production-secret
+        run: |
+          dotnet tool restore
+          dotnet tool run dotnet-ef database update \
+            --project src/ReadyToGoTravel.Consumer/ReadyToGoTravel.Consumer.csproj \
+            --connection "$RTGT_CI_CONNECTION"
+          dotnet tool run dotnet-ef migrations script --idempotent \
+            --project src/ReadyToGoTravel.Consumer/ReadyToGoTravel.Consumer.csproj \
+            --output "$RUNNER_TEMP/consumer-migration.sql"
       - name: Test
         run: dotnet test ReadyToGoTravel.slnx --configuration Release --no-build --collect:"XPlat Code Coverage"
       - name: Validate documentation

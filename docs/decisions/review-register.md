@@ -6,6 +6,8 @@
 
 Evidence reconciliation completed on 2026-07-29. **MVP implementation is approved to start.** Supplier-neutral code, sandbox adapters, disabled production integrations and compliance-first controls may proceed. The remaining items are production-activation evidence, exercised operational controls or named approvals; none is an unanswered product-scope question.
 
+Implementation checkpoint: consumer foundation Slice 2 is complete. It introduced no new product-owner review. Production Keycloak realm operations, email verification, recovery, federation and backup remain launch configuration/operational evidence; local identity configuration is explicitly development-only. Slice 3 may proceed without waiting for those items.
+
 ## Production Activation Reviews
 
 | Review | Implementation disposition | Production evidence still required | Outcome |

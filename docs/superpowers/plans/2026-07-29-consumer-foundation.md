@@ -44,25 +44,25 @@
 - Produces: `SupportedLocales.Default = "en-AU"`, `Customer.Create(subject, locale, adultConfirmed, clock)`, `Trip.Create(customerId, title, destination, startDate, endDate, clock)` and `Traveller.Create(customerId, givenName, familyName, relationship, isMinor, guardianAuthorityConfirmed, clock)`.
 - Consumes: `TimeProvider` and UUIDv7 generation.
 
-- [ ] **Step 1: Scaffold the module and tests with central package versions**
+- [x] **Step 1: Scaffold the module and tests with central package versions**
 
 Add EF Core 10.0.8, EF Design 10.0.8, SQLite 10.0.8, Npgsql EF 10.0.3 and JWT bearer 10.0.8 package versions. Add both projects to the solution and reference the module from its tests.
 
-- [ ] **Step 2: Write failing domain tests**
+- [x] **Step 2: Write failing domain tests**
 
 Tests require adult confirmation, reject unsupported locales, reject reversed trip dates, require guardian authority for minor travellers, normalize trimmed names and prove the traveller type has no DOB/passport/document property.
 
-- [ ] **Step 3: Run the focused tests and confirm failure**
+- [x] **Step 3: Run the focused tests and confirm failure**
 
 Run: `dotnet test tests/ReadyToGoTravel.Consumer.Tests/ReadyToGoTravel.Consumer.Tests.csproj`
 
 Expected: FAIL because the domain types do not exist.
 
-- [ ] **Step 4: Implement the minimum domain types**
+- [x] **Step 4: Implement the minimum domain types**
 
 Use internal sealed entities with private EF constructors, explicit factory methods returning a small `DomainResult<T>`, UUIDv7 IDs and UTC timestamps. Store customer status, trip status and minor guardian-attestation state as explicit values.
 
-- [ ] **Step 5: Run focused tests and commit**
+- [x] **Step 5: Run focused tests and commit**
 
 Run the consumer tests and full architecture tests. Commit as `feat: add consumer domain module`.
 
@@ -79,23 +79,23 @@ Run the consumer tests and full architecture tests. Commit as `feat: add consume
 - Produces: schema `consumer`, `customers`, `trips` and `travellers`; `AddConsumerModule(Action<IServiceProvider, DbContextOptionsBuilder>)`.
 - Consumes: the Task 1 entities and EF Core provider configured by the host.
 
-- [ ] **Step 1: Write failing SQLite mapping tests**
+- [x] **Step 1: Write failing SQLite mapping tests**
 
 Prove one customer per subject, customer-owned list isolation and mapped table absence of DOB/passport columns.
 
-- [ ] **Step 2: Run tests and confirm mapping failure**
+- [x] **Step 2: Run tests and confirm mapping failure**
 
 Expected: FAIL because `ConsumerDbContext` and mappings do not exist.
 
-- [ ] **Step 3: Implement mappings and registration**
+- [x] **Step 3: Implement mappings and registration**
 
 Map explicit column sizes, string enums, foreign keys, unique subject index and customer ownership indexes. Register `TimeProvider.System`, the database context and its readiness health check.
 
-- [ ] **Step 4: Add and inspect the initial PostgreSQL migration**
+- [x] **Step 4: Add and inspect the initial PostgreSQL migration**
 
 Install the repository-local `dotnet-ef` 10.0.8 tool, generate `InitialConsumerSchema` against Npgsql and confirm no sensitive traveller columns exist.
 
-- [ ] **Step 5: Run persistence tests and commit**
+- [x] **Step 5: Run persistence tests and commit**
 
 Commit as `feat: persist consumer profiles and trips`.
 
@@ -115,23 +115,23 @@ Commit as `feat: persist consumer profiles and trips`.
 - Produces: public `GET /api/v1/locales`; authenticated `GET`/`PUT /api/v1/me`; owned `GET`/`POST /api/v1/trips`, `GET /api/v1/trips/{id}`, `POST /api/v1/trips/{id}/archive`; owned `GET`/`POST /api/v1/travellers`, `DELETE /api/v1/travellers/{id}`; and `GET /api/v1/privacy/sensitive-traveller-storage`.
 - Consumes: authenticated `sub`, module database, existing rate limit and `ProblemDetails` contract.
 
-- [ ] **Step 1: Build an in-process authenticated test host and write failing HTTP tests**
+- [x] **Step 1: Build an in-process authenticated test host and write failing HTTP tests**
 
 Use `Microsoft.AspNetCore.TestHost`, SQLite in-memory and a test authentication handler that emits a selected `sub`. Cover anonymous `401`, idempotent profile provisioning, unsupported locale, cross-customer `404`, trip validation, minor guardian validation, unknown sensitive JSON rejection and disabled capability response.
 
-- [ ] **Step 2: Run tests and confirm missing routes**
+- [x] **Step 2: Run tests and confirm missing routes**
 
 Expected: protected routes return `404` before implementation.
 
-- [ ] **Step 3: Implement module endpoints**
+- [x] **Step 3: Implement module endpoints**
 
 Use route groups, `RequireAuthorization("consumer")`, asynchronous EF queries and stable problem codes. Every ownership query includes both resource ID and current customer ID.
 
-- [ ] **Step 4: Compose PostgreSQL and JWT bearer in the API**
+- [x] **Step 4: Compose PostgreSQL and JWT bearer in the API**
 
-Configure `Authentication:Authority`, `Authentication:Audience`, `ConnectionStrings:Consumer` and `Database:ApplyMigrations`. Require the `sub` policy, reject unknown JSON members and apply migrations only when explicitly enabled.
+Configure `Authentication:Authority`, `Authentication:Audience` and `ConnectionStrings:Consumer`. Require the `sub` policy, reject unknown JSON members and keep migration execution as an explicit deployment step.
 
-- [ ] **Step 5: Run API, module and full tests; commit**
+- [x] **Step 5: Run API, module and full tests; commit**
 
 Commit as `feat: expose authenticated consumer api`.
 
@@ -156,19 +156,19 @@ Commit as `feat: expose authenticated consumer api`.
 - Produces: OIDC sign-in/sign-out endpoints, secure `rtgt.locale` cookie, `en-AU` resource fallback and static SSR account/trip/traveller pages.
 - Consumes: the Task 3 HTTP API only; web retains no consumer-module project reference.
 
-- [ ] **Step 1: Write failing web-boundary and locale tests**
+- [x] **Step 1: Write failing web-boundary and locale tests**
 
 Prove the web project has no consumer reference, locale catalogue defaults to `en-AU`, the cookie is essential/SameSite Lax/HttpOnly and the API token handler only targets the configured API origin.
 
-- [ ] **Step 2: Implement OIDC, localisation and API clients**
+- [x] **Step 2: Implement OIDC, localisation and API clients**
 
 Use cookie plus OpenID Connect authorization code/PKCE, `SaveTokens=true`, request-localization middleware and a delegating handler that forwards the current access token.
 
-- [ ] **Step 3: Add compact customer pages**
+- [x] **Step 3: Add compact customer pages**
 
 Render authentication state, locale, owned trips and low-risk travellers. State that DOB and passport data are collected at checkout and are not saved for reuse. Keep static SSR as default and avoid a client-side state framework.
 
-- [ ] **Step 4: Run tests/build and commit**
+- [x] **Step 4: Run tests/build and commit**
 
 Commit as `feat: add consumer account web shell`.
 
@@ -190,19 +190,19 @@ Commit as `feat: add consumer account web shell`.
 - Produces: pinned Keycloak 26.7.0 and PostgreSQL local dependencies, deterministic realm/client import and documented local startup without committed secrets.
 - Consumes: current API/web configuration and the repository verification workflow.
 
-- [ ] **Step 1: Add local Compose and realm configuration**
+- [x] **Step 1: Add local Compose and realm configuration**
 
 Expose PostgreSQL only to localhost, require bootstrap secrets through an ignored `.env`, import an `rtgt` realm, configure public PKCE web client and API audience, and include health checks.
 
-- [ ] **Step 2: Update CI and documentation**
+- [x] **Step 2: Update CI and documentation**
 
 Start PostgreSQL for migration verification, keep Keycloak integration optional, document commands and mark Slice 2 complete without changing production gates.
 
-- [ ] **Step 3: Run fresh verification**
+- [x] **Step 3: Run fresh verification**
 
 Run locked restore, formatter, release build, all tests, migration script inspection, documentation validation, vulnerability audit and all four Docker builds. Smoke-test anonymous/public API behavior and Keycloak-protected route rejection.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Commit as `feat: complete consumer foundation slice`.
 
@@ -212,3 +212,7 @@ Commit as `feat: complete consumer foundation slice`.
 - Placeholder scan: no placeholder implementation step or unresolved product choice remains.
 - Type consistency: one consumer module, one context, one `sub` policy and the same route set are used throughout.
 - Scope: no supplier, booking, payment, sharing, enterprise or production-activation work enters Slice 2.
+
+## Execution Record
+
+Completed on 2026-07-29. Locked restore, format verification, the warning-as-error release build, 32 tests, documentation validation, the full transitive vulnerability audit and all four non-root container builds passed. The initial migration applied to PostgreSQL 17.10 and exposed no reusable sensitive traveller columns. Keycloak 26.7.0 imported the development realm and became healthy; the HTTP smoke test returned API readiness/public routes `200`, the anonymous profile route `401`, the Blazor home `200` and the OIDC challenge `302`.
