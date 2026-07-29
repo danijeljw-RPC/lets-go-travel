@@ -82,6 +82,7 @@ var apiBaseUrl = builder.Configuration["PlatformApi:BaseUrl"]
     ?? throw new InvalidOperationException("PlatformApi:BaseUrl is required.");
 builder.Services.AddTransient<ApiAccessTokenHandler>();
 builder.Services.AddHttpClient<PlatformApiClient>(client => ConfigureApiClient(client, apiBaseUrl));
+builder.Services.AddHttpClient<SearchApiClient>(client => ConfigureApiClient(client, apiBaseUrl));
 builder.Services.AddHttpClient<ConsumerApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
     .AddHttpMessageHandler<ApiAccessTokenHandler>();
 

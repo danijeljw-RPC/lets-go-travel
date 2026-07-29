@@ -6,7 +6,7 @@
 
 Evidence reconciliation completed on 2026-07-29. **MVP implementation is approved to start.** Supplier-neutral code, sandbox adapters, disabled production integrations and compliance-first controls may proceed. The remaining items are production-activation evidence, exercised operational controls or named approvals; none is an unanswered product-scope question.
 
-Implementation checkpoint: consumer foundation Slice 2 is complete. It introduced no new product-owner review. Production Keycloak realm operations, email verification, recovery, federation and backup remain launch configuration/operational evidence; local identity configuration is explicitly development-only. Slice 3 may proceed without waiting for those items.
+Implementation checkpoint: supplier-neutral search and capability Slice 3 is complete. It introduced no new product-owner review or production activation. Sanitized LiteAPI fixtures run only in development/testing, production search fails closed, and Qantas, Jetstar and Virgin Australia remain observed search carriers only. Slice 4 may proceed behind the existing supplier, payment and carrier gates.
 
 ## Production Activation Reviews
 
