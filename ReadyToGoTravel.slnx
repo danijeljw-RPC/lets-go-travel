@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/ReadyToGoTravel.Api/ReadyToGoTravel.Api.csproj" />
     <Project Path="src/ReadyToGoTravel.BuildingBlocks/ReadyToGoTravel.BuildingBlocks.csproj" />
+    <Project Path="src/ReadyToGoTravel.Booking/ReadyToGoTravel.Booking.csproj" />
     <Project Path="src/ReadyToGoTravel.Consumer/ReadyToGoTravel.Consumer.csproj" />
     <Project Path="src/ReadyToGoTravel.FlightReconciliation.Worker/ReadyToGoTravel.FlightReconciliation.Worker.csproj" />
     <Project Path="src/ReadyToGoTravel.Search/ReadyToGoTravel.Search.csproj" />
@@ -12,6 +13,7 @@
     <Project Path="tests/ReadyToGoTravel.Api.Tests/ReadyToGoTravel.Api.Tests.csproj" />
     <Project Path="tests/ReadyToGoTravel.Architecture.Tests/ReadyToGoTravel.Architecture.Tests.csproj" />
     <Project Path="tests/ReadyToGoTravel.BuildingBlocks.Tests/ReadyToGoTravel.BuildingBlocks.Tests.csproj" />
+    <Project Path="tests/ReadyToGoTravel.Booking.Tests/ReadyToGoTravel.Booking.Tests.csproj" />
     <Project Path="tests/ReadyToGoTravel.Consumer.Tests/ReadyToGoTravel.Consumer.Tests.csproj" />
     <Project Path="tests/ReadyToGoTravel.Search.Tests/ReadyToGoTravel.Search.Tests.csproj" />
     <Project Path="tests/ReadyToGoTravel.Web.Tests/ReadyToGoTravel.Web.Tests.csproj" />
