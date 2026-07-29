@@ -189,6 +189,58 @@ public sealed class IdempotencyTests
         Assert.Equal(1, executions);
     }
 
+    [Fact]
+    public async Task StaleRetryInProgressCannotOverwriteCompletedReplay()
+    {
+        await using var fixture = await SharedBookingDatabaseFixture.CreateAsync();
+        var customerId = Guid.CreateVersion7();
+        var pending = new CurrentResource("checkout-race", "payment_pending");
+        var completed = new CurrentResource("checkout-race", "captured");
+        var staleActionEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseStaleAction = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var stale = fixture.FirstService.ExecuteAsync(
+            customerId,
+            "payment-return",
+            "same-key",
+            "same-fingerprint",
+            IdempotentResponse.InProgress(202, pending),
+            async cancellationToken =>
+            {
+                staleActionEntered.SetResult();
+                await releaseStaleAction.Task.WaitAsync(cancellationToken);
+                return IdempotentResponse.InProgress(202, pending);
+            },
+            default);
+        await staleActionEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var winner = await fixture.SecondService.ExecuteAsync(
+            customerId,
+            "payment-return",
+            "same-key",
+            "same-fingerprint",
+            IdempotentResponse.InProgress(202, pending),
+            _ => Task.FromResult(IdempotentResponse.Completed(200, completed)),
+            default,
+            retryInProgress: true);
+        releaseStaleAction.SetResult();
+        var staleResult = await stale;
+
+        Assert.Equal(IdempotencyOutcome.Completed, winner.Outcome);
+        Assert.Equal(completed, winner.Value);
+        Assert.Equal(IdempotencyOutcome.Completed, staleResult.Outcome);
+        Assert.Equal(completed, staleResult.Value);
+        Assert.True(staleResult.IsReplay);
+
+        await using var verification = new BookingDbContext(
+            new DbContextOptionsBuilder<BookingDbContext>()
+                .UseSqlite(fixture.ConnectionString)
+                .Options);
+        var record = await verification.IdempotencyRecords.SingleAsync();
+        Assert.Equal("Completed", record.Status.ToString());
+        Assert.Contains("captured", record.ResponseBody, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("pan")]
     [InlineData("cvv")]
@@ -239,6 +291,8 @@ internal sealed class SharedBookingDatabaseFixture(
     BookingDbContext firstContext,
     BookingDbContext secondContext) : IAsyncDisposable
 {
+    public string ConnectionString => $"Data Source={databasePath};Foreign Keys=True;Default Timeout=30";
+
     public IIdempotencyService FirstService => new IdempotencyService(firstContext, TimeProvider.System);
 
     public IIdempotencyService SecondService => new IdempotencyService(secondContext, TimeProvider.System);

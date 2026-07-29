@@ -38,6 +38,11 @@ public interface ICustomerPaymentProvider
     Task<CustomerPaymentStatusResult> RetrieveAsync(
         string paymentReference,
         CancellationToken cancellationToken = default);
+
+    Task<CustomerPaymentStatusResult> CompleteReturnAsync(
+        string paymentReference,
+        string completionReference,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record SupplierSettlementPlan(

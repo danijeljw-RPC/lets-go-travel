@@ -87,7 +87,7 @@ public static class BookingEndpoints
 
     private static async Task<IResult> ReturnPaymentAsync(
         Guid checkoutId,
-        EmptyCheckoutCommandRequest request,
+        PaymentReturnRequest request,
         ClaimsPrincipal principal,
         CheckoutService service,
         HttpContext context,

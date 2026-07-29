@@ -52,6 +52,15 @@ public sealed class LiteApiFixturePaymentProvider : ICustomerPaymentProvider
                 scenario.ErrorCode);
     }
 
+    public Task<CustomerPaymentStatusResult> CompleteReturnAsync(
+        string paymentReference,
+        string completionReference,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(completionReference);
+        return RetrieveAsync(paymentReference, cancellationToken);
+    }
+
     private static PaymentProviderStatus ParseStatus(string value) => value switch
     {
         "ActionRequired" => PaymentProviderStatus.ActionRequired,

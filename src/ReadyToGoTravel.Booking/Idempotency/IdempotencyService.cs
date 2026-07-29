@@ -162,8 +162,7 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
             }
 
             var continuedResponse = await action(cancellationToken);
-            await StoreResponseAsync(existing, continuedResponse, cancellationToken);
-            return continuedResponse;
+            return await StoreResponseAsync(existing, continuedResponse, cancellationToken);
         }
 
         var inProgressBody = SerializeSafeResponse(inProgressResponse.Value);
@@ -193,12 +192,10 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
         }
 
         var response = await action(cancellationToken);
-        await StoreResponseAsync(record, response, cancellationToken);
-
-        return response;
+        return await StoreResponseAsync(record, response, cancellationToken);
     }
 
-    private async Task StoreResponseAsync<TResponse>(
+    private async Task<IdempotentResponse<TResponse>> StoreResponseAsync<TResponse>(
         IdempotencyRecord record,
         IdempotentResponse<TResponse> response,
         CancellationToken cancellationToken)
@@ -214,7 +211,27 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
             record.Complete(response.StatusCode, responseBody, now);
         }
 
-        await context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            return response;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            var customerId = record.CustomerId;
+            var operation = record.Operation;
+            var key = record.Key;
+            var fingerprint = record.Fingerprint;
+            context.Entry(record).State = EntityState.Detached;
+            var winner = await context.IdempotencyRecords
+                .AsNoTracking()
+                .SingleAsync(value =>
+                    value.CustomerId == customerId &&
+                    value.Operation == operation &&
+                    value.Key == key,
+                    cancellationToken);
+            return Replay<TResponse>(winner, fingerprint);
+        }
     }
 
     private static IdempotentResponse<TResponse> Replay<TResponse>(IdempotencyRecord record, string fingerprint)

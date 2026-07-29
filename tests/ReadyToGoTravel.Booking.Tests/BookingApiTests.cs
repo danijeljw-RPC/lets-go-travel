@@ -7,10 +7,10 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -212,6 +212,65 @@ public sealed class BookingApiTests
     }
 
     [Fact]
+    public async Task PaymentReturnAcceptsOpaqueCompletionReferenceAndRejectsClientStatus()
+    {
+        var payment = new DeterministicPaymentProvider();
+        await using var application = await TestApplication.CreateAsync(payment: payment);
+        var checkout = await application.CreateCheckoutAsync("owner", HotelOfferIds);
+        checkout = await application.AcceptAsync(checkout);
+        checkout = await application.PreparePaymentAsync(checkout.Id, "payment-session-completion-input");
+
+        var accepted = await application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/payment-return",
+            new { completionReference = "opaque-hosted-completion" },
+            "payment-return-completion-input");
+        var rejected = await application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/payment-return",
+            new { completionReference = "opaque-hosted-completion", status = "Captured" },
+            "payment-return-client-status");
+
+        accepted.EnsureSuccessStatusCode();
+        Assert.Equal("opaque-hosted-completion", payment.LastCompletionReference);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+    }
+
+    [Fact]
+    public async Task ConcurrentDifferentKeyPaymentReturnsCannotRegressCapturedToProcessing()
+    {
+        var payment = new DeterministicPaymentProvider { BlockFirstRetrieval = true };
+        payment.RetrieveResults.Enqueue(new CustomerPaymentStatusResult(
+            "pay-captured",
+            PaymentProviderStatus.Processing,
+            "return-processing",
+            null));
+        payment.RetrieveResults.Enqueue(new CustomerPaymentStatusResult(
+            "pay-captured",
+            PaymentProviderStatus.Captured,
+            "return-captured",
+            null));
+        await using var application = await TestApplication.CreateAsync(payment: payment);
+        var checkout = await application.CreateCheckoutAsync("owner", HotelOfferIds);
+        checkout = await application.AcceptAsync(checkout);
+        checkout = await application.PreparePaymentAsync(checkout.Id, "payment-session-return-race");
+
+        var stale = application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/payment-return",
+            new { completionReference = "return-processing" },
+            "payment-return-race-stale");
+        await payment.FirstRetrieveStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var winner = await application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/payment-return",
+            new { completionReference = "return-captured" },
+            "payment-return-race-winner");
+        winner.EnsureSuccessStatusCode();
+        payment.ReleaseFirstRetrieval();
+        _ = await stale;
+
+        var current = await application.Client.GetFromJsonAsync<Checkout>($"/api/v1/checkouts/{checkout.Id}");
+        Assert.Equal("Captured", Assert.Single(current!.Payments).Status);
+    }
+
+    [Fact]
     public async Task CapturedPaymentAndPartialBookingFailureRequireRefundAndSupport()
     {
         var booking = new DeterministicBookingProvider();
@@ -280,6 +339,66 @@ public sealed class BookingApiTests
 
         Assert.Equal("Completed", checkout.Status);
         Assert.Equal("Confirmed", Assert.Single(checkout.Components).Status);
+    }
+
+    [Fact]
+    public async Task ConfirmedRecoveryWithoutExternalReferenceCreatesOneSupportCase()
+    {
+        var booking = new DeterministicBookingProvider();
+        booking.BookResults[CheckoutOfferProduct.Flight] = new BookingProviderExecutionResult(
+            BookingProviderStatus.Pending,
+            "book-flight-pending-no-confirmation",
+            null);
+        booking.RetrieveResults["book-flight-pending-no-confirmation"] = new BookingProviderExecutionResult(
+            BookingProviderStatus.Confirmed,
+            null,
+            null);
+        await using var application = await TestApplication.CreateAsync(booking: booking);
+        var checkout = await application.CreateCheckoutAsync("owner", FlightOfferIds);
+        checkout = await application.AcceptAsync(checkout);
+        checkout = await application.PreparePaymentAsync(checkout.Id, "payment-session-missing-confirmation");
+        checkout = await application.ReturnPaymentAsync(checkout.Id, "payment-return-missing-confirmation");
+        checkout = await application.BookAsync(checkout.Id, "book-missing-confirmation");
+
+        var first = await application.Client.PostAsJsonAsync($"/api/v1/checkouts/{checkout.Id}/recover", new { });
+        var second = await application.Client.PostAsJsonAsync($"/api/v1/checkouts/{checkout.Id}/recover", new { });
+
+        first.EnsureSuccessStatusCode();
+        second.EnsureSuccessStatusCode();
+        var recovered = (await second.Content.ReadFromJsonAsync<Checkout>())!;
+        Assert.Equal("RequiresSupport", recovered.Status);
+        Assert.Equal(1, recovered.RecoveryCaseCount);
+    }
+
+    [Fact]
+    public async Task ConcurrentRecoveryCreatesExactlyOneDurableRecoveryCase()
+    {
+        var booking = new DeterministicBookingProvider { BlockUntilTwoRetrieveCalls = true };
+        booking.BookResults[CheckoutOfferProduct.Flight] = new BookingProviderExecutionResult(
+            BookingProviderStatus.Pending,
+            "book-flight-pending-race",
+            null);
+        booking.RetrieveResults["book-flight-pending-race"] = new BookingProviderExecutionResult(
+            BookingProviderStatus.Confirmed,
+            "book-flight-contradiction",
+            null);
+        await using var application = await TestApplication.CreateAsync(booking: booking);
+        var checkout = await application.CreateCheckoutAsync("owner", FlightOfferIds);
+        checkout = await application.AcceptAsync(checkout);
+        checkout = await application.PreparePaymentAsync(checkout.Id, "payment-session-recovery-race");
+        checkout = await application.ReturnPaymentAsync(checkout.Id, "payment-return-recovery-race");
+        checkout = await application.BookAsync(checkout.Id, "book-recovery-race");
+
+        var first = application.Client.PostAsJsonAsync($"/api/v1/checkouts/{checkout.Id}/recover", new { });
+        var second = application.Client.PostAsJsonAsync($"/api/v1/checkouts/{checkout.Id}/recover", new { });
+        var responses = await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.True(
+            responses.All(response => response.IsSuccessStatusCode),
+            string.Join("\n", await Task.WhenAll(responses.Select(response => response.Content.ReadAsStringAsync()))));
+        await using var scope = application.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<BookingDbContext>();
+        Assert.Equal(1, await database.RecoveryCases.CountAsync());
     }
 
     [Fact]
@@ -403,6 +522,38 @@ public sealed class BookingApiTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Fact]
+    public async Task ProductionWithoutBookingCapabilitiesReturnsServiceUnavailable()
+    {
+        await using var application = await TestApplication.CreateAsync(
+            environment: SearchEnvironment.Production,
+            enableFixtures: false,
+            registerTestCapabilities: false);
+        var owned = await application.CreateOwnedContextAsync("owner");
+
+        var response = await application.PostCheckoutAsync(owned, HotelOfferIds, "create-production-unavailable");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal("booking_capability_unavailable", (await response.Content.ReadFromJsonAsync<Problem>())!.Code);
+    }
+
+    [Fact]
+    public async Task CheckoutRateLimiterAllowsTwentyRequestsPerMinuteThenRejects()
+    {
+        await using var application = await TestApplication.CreateAsync(useRealCheckoutRateLimiter: true);
+        application.SetSubject("owner");
+        var checkoutId = Guid.CreateVersion7();
+
+        for (var requestNumber = 0; requestNumber < 20; requestNumber++)
+        {
+            var allowed = await application.Client.GetAsync($"/api/v1/checkouts/{checkoutId}");
+            Assert.NotEqual(HttpStatusCode.TooManyRequests, allowed.StatusCode);
+        }
+
+        var rejected = await application.Client.GetAsync($"/api/v1/checkouts/{checkoutId}");
+        Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
+    }
+
     private sealed record Problem(string Code, string CorrelationId);
 
     private sealed record OwnedContext(Guid TripId, Guid TravellerId);
@@ -432,12 +583,12 @@ public sealed class BookingApiTests
     private sealed class TestApplication : IAsyncDisposable
     {
         private readonly WebApplication application;
-        private readonly SqliteConnection connection;
+        private readonly string databasePath;
 
-        private TestApplication(WebApplication application, SqliteConnection connection, HttpClient client)
+        private TestApplication(WebApplication application, string databasePath, HttpClient client)
         {
             this.application = application;
-            this.connection = connection;
+            this.databasePath = databasePath;
             Client = client;
         }
 
@@ -448,14 +599,23 @@ public sealed class BookingApiTests
         public static async Task<TestApplication> CreateAsync(
             DeterministicOfferResolver? resolver = null,
             DeterministicPaymentProvider? payment = null,
-            DeterministicBookingProvider? booking = null)
+            DeterministicBookingProvider? booking = null,
+            SearchEnvironment environment = SearchEnvironment.Sandbox,
+            bool enableFixtures = true,
+            bool registerTestCapabilities = true,
+            bool useRealCheckoutRateLimiter = false)
         {
-            var connection = new SqliteConnection("Data Source=:memory:");
-            await connection.OpenAsync();
+            var databasePath = Path.Combine(
+                Path.GetTempPath(),
+                $"ready-to-go-travel-booking-api-{Guid.CreateVersion7():N}.db");
+            var connectionString = $"Data Source={databasePath};Foreign Keys=True;Default Timeout=30";
             var clock = new FixedTimeProvider(new DateTimeOffset(2026, 7, 29, 12, 0, 0, TimeSpan.Zero));
-            resolver ??= new DeterministicOfferResolver();
-            payment ??= new DeterministicPaymentProvider();
-            booking ??= new DeterministicBookingProvider();
+            if (registerTestCapabilities)
+            {
+                resolver ??= new DeterministicOfferResolver();
+                payment ??= new DeterministicPaymentProvider();
+                booking ??= new DeterministicBookingProvider();
+            }
 
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
             builder.WebHost.UseTestServer();
@@ -475,17 +635,32 @@ public sealed class BookingApiTests
             builder.Services.AddAuthorization(options =>
                 options.AddPolicy("consumer", policy => policy.RequireAuthenticatedUser().RequireClaim("sub")));
             builder.Services.AddRateLimiter(options =>
-                options.AddPolicy("checkout", context => RateLimitPartition.GetNoLimiter(
-                    context.Connection.RemoteIpAddress?.ToString() ?? "test")));
-            builder.Services.AddConsumerModule((_, options) => options.UseSqlite(connection));
-            builder.Services.AddSearchModule(SearchEnvironment.Sandbox, enableFixtures: true);
+            {
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                options.AddPolicy("checkout", context => useRealCheckoutRateLimiter
+                    ? RateLimitPartition.GetFixedWindowLimiter(
+                        context.Connection.RemoteIpAddress?.ToString() ?? "test",
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = 20,
+                            QueueLimit = 0,
+                            Window = TimeSpan.FromMinutes(1),
+                        })
+                    : RateLimitPartition.GetNoLimiter(
+                        context.Connection.RemoteIpAddress?.ToString() ?? "test"));
+            });
+            builder.Services.AddConsumerModule((_, options) => options.UseSqlite(connectionString));
+            builder.Services.AddSearchModule(environment, enableFixtures);
             builder.Services.AddBookingModule(
-                (_, options) => options.UseSqlite(connection),
-                SearchEnvironment.Sandbox,
-                enableFixtures: true);
-            builder.Services.Replace(ServiceDescriptor.Singleton<ICheckoutOfferResolver>(resolver));
-            builder.Services.Replace(ServiceDescriptor.Singleton<ICustomerPaymentProvider>(payment));
-            builder.Services.Replace(ServiceDescriptor.Singleton<IBookingProvider>(booking));
+                (_, options) => options.UseSqlite(connectionString),
+                environment,
+                enableFixtures);
+            if (registerTestCapabilities)
+            {
+                builder.Services.Replace(ServiceDescriptor.Singleton<ICheckoutOfferResolver>(resolver!));
+                builder.Services.Replace(ServiceDescriptor.Singleton<ICustomerPaymentProvider>(payment!));
+                builder.Services.Replace(ServiceDescriptor.Singleton<IBookingProvider>(booking!));
+            }
 
             var application = builder.Build();
             application.UseExceptionHandler();
@@ -510,7 +685,7 @@ public sealed class BookingApiTests
                 await bookingCreator.CreateTablesAsync();
             }
 
-            return new TestApplication(application, connection, application.GetTestClient());
+            return new TestApplication(application, databasePath, application.GetTestClient());
         }
 
         public void SetSubject(string subject)
@@ -606,7 +781,10 @@ public sealed class BookingApiTests
 
         public async Task<Checkout> ReturnPaymentAsync(Guid checkoutId, string key)
         {
-            var response = await PostAsync($"/api/v1/checkouts/{checkoutId}/payment-return", new { }, key);
+            var response = await PostAsync(
+                $"/api/v1/checkouts/{checkoutId}/payment-return",
+                new { completionReference = "opaque-hosted-completion" },
+                key);
             response.EnsureSuccessStatusCode();
             return (await response.Content.ReadFromJsonAsync<Checkout>())!;
         }
@@ -632,7 +810,7 @@ public sealed class BookingApiTests
         {
             Client.Dispose();
             await application.DisposeAsync();
-            await connection.DisposeAsync();
+            File.Delete(databasePath);
         }
 
         private static void MapBookingEndpointsWhenPresent(RouteGroupBuilder api)
@@ -696,14 +874,24 @@ public sealed class BookingApiTests
     {
         private readonly TaskCompletionSource preparationRelease = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource firstRetrievalRelease = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private int retrieveCalls;
 
         public int PrepareCalls { get; private set; }
 
-        public int RetrieveCalls { get; private set; }
+        public int RetrieveCalls => Volatile.Read(ref retrieveCalls);
 
         public bool BlockPreparation { get; init; }
 
+        public bool BlockFirstRetrieval { get; init; }
+
+        public string? LastCompletionReference { get; private set; }
+
         public TaskCompletionSource PrepareStarted { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource FirstRetrieveStarted { get; } = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Queue<CustomerPaymentStatusResult> RetrieveResults { get; } = [];
@@ -727,28 +915,52 @@ public sealed class BookingApiTests
                 PaymentProviderStatus.ActionRequired);
         }
 
-        public Task<CustomerPaymentStatusResult> RetrieveAsync(
+        public async Task<CustomerPaymentStatusResult> RetrieveAsync(
             string paymentReference,
             CancellationToken cancellationToken = default)
         {
-            RetrieveCalls++;
+            var call = Interlocked.Increment(ref retrieveCalls);
             if (RetrieveResults.Count > 0)
             {
-                return Task.FromResult(RetrieveResults.Dequeue());
+                var result = RetrieveResults.Dequeue();
+                if (BlockFirstRetrieval && call == 1)
+                {
+                    FirstRetrieveStarted.TrySetResult();
+                    await firstRetrievalRelease.Task.WaitAsync(cancellationToken);
+                }
+
+                return result;
             }
 
-            return Task.FromResult(new CustomerPaymentStatusResult(
+            return new CustomerPaymentStatusResult(
                 paymentReference,
                 PaymentProviderStatus.Captured,
                 "return-captured",
-                null));
+                null);
+        }
+
+        public Task<CustomerPaymentStatusResult> CompleteReturnAsync(
+            string paymentReference,
+            string completionReference,
+            CancellationToken cancellationToken = default)
+        {
+            LastCompletionReference = completionReference;
+            return RetrieveAsync(paymentReference, cancellationToken);
         }
 
         public void ReleasePreparation() => preparationRelease.TrySetResult();
+
+        public void ReleaseFirstRetrieval() => firstRetrievalRelease.TrySetResult();
     }
 
     private sealed class DeterministicBookingProvider : IBookingProvider
     {
+        private readonly TaskCompletionSource twoRetrievalsStarted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private int retrieveCalls;
+
+        public bool BlockUntilTwoRetrieveCalls { get; init; }
+
         public Dictionary<CheckoutOfferProduct, BookingProviderExecutionResult> BookResults { get; } = new()
         {
             [CheckoutOfferProduct.Hotel] = new BookingProviderExecutionResult(
@@ -776,9 +988,21 @@ public sealed class BookingApiTests
             return Task.FromResult(BookResults[product]);
         }
 
-        public Task<BookingProviderExecutionResult> RetrieveAsync(
+        public async Task<BookingProviderExecutionResult> RetrieveAsync(
             string externalReference,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(RetrieveResults[externalReference]);
+            CancellationToken cancellationToken = default)
+        {
+            if (BlockUntilTwoRetrieveCalls)
+            {
+                if (Interlocked.Increment(ref retrieveCalls) == 2)
+                {
+                    twoRetrievalsStarted.TrySetResult();
+                }
+
+                await twoRetrievalsStarted.Task.WaitAsync(cancellationToken);
+            }
+
+            return RetrieveResults[externalReference];
+        }
     }
 }

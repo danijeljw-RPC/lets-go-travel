@@ -18,6 +18,8 @@ internal sealed record AcceptCheckoutRequest(
 
 internal sealed record EmptyCheckoutCommandRequest();
 
+internal sealed record PaymentReturnRequest(string CompletionReference);
+
 internal sealed record CheckoutResponse(
     Guid Id,
     Guid TripId,

@@ -290,7 +290,7 @@ internal sealed class CheckoutService(
     public async Task<CheckoutServiceResult> ReturnPaymentAsync(
         string subject,
         Guid checkoutId,
-        EmptyCheckoutCommandRequest request,
+        PaymentReturnRequest request,
         string idempotencyKey,
         CancellationToken cancellationToken)
     {
@@ -298,6 +298,11 @@ internal sealed class CheckoutService(
         if (checkout is null)
         {
             return Failure(StatusCodes.Status404NotFound, "checkout_not_found");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CompletionReference) || request.CompletionReference.Length > 512)
+        {
+            return Failure(StatusCodes.Status400BadRequest, "payment_completion_reference_invalid");
         }
 
         var response = await idempotency.ExecuteAsync(
@@ -346,6 +351,7 @@ internal sealed class CheckoutService(
 
                 var providerResult = await paymentService.VerifyReturnAsync(
                     attempt.ProviderPaymentReference,
+                    request.CompletionReference,
                     actionCancellationToken);
                 if (!string.Equals(
                         providerResult.PaymentReference,
@@ -385,7 +391,25 @@ internal sealed class CheckoutService(
                     checkout.Recover(null, "payment_outcome_unknown", timeProvider);
                 }
 
-                await database.SaveChangesAsync(actionCancellationToken);
+                try
+                {
+                    await database.SaveChangesAsync(actionCancellationToken);
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    DetachCheckoutGraph();
+                    var winner = await LoadCheckoutSnapshotAsync(checkout.Id, actionCancellationToken);
+                    var winnerPayment = LastPayment(winner);
+                    var winnerPending = winnerPayment?.Status is PaymentStatus.ActionRequired or PaymentStatus.Processing;
+                    return Completed(
+                        winnerPending ? StatusCodes.Status202Accepted : StatusCodes.Status200OK,
+                        CheckoutResponseMapper.Map(
+                            winner,
+                            retryAfterSeconds: winnerPending ? PendingRetryAfterSeconds : null),
+                        null,
+                        winnerPending ? PendingRetryAfterSeconds : null);
+                }
+
                 var pending = providerResult.Status == PaymentProviderStatus.Processing;
                 return Completed(
                     pending ? StatusCodes.Status202Accepted : StatusCodes.Status200OK,
@@ -576,6 +600,13 @@ internal sealed class CheckoutService(
                     break;
                 }
 
+                if (execution.Status == BookingProviderStatus.Confirmed &&
+                    string.IsNullOrWhiteSpace(execution.ExternalReference))
+                {
+                    checkout.Recover(component.Id, "booking_confirmation_reference_required", timeProvider);
+                    break;
+                }
+
                 var recorded = checkout.RecordBookingResult(
                     component.Id,
                     CheckoutOfferMapper.ToDomainResult(execution),
@@ -604,7 +635,7 @@ internal sealed class CheckoutService(
                 return Failure(StatusCodes.Status503ServiceUnavailable, "booking_capability_unavailable");
             }
 
-            var providerResult = await paymentService.VerifyReturnAsync(
+            var providerResult = await paymentService.RetrieveAsync(
                 payment.ProviderPaymentReference,
                 cancellationToken);
             if (!string.Equals(
@@ -645,7 +676,21 @@ internal sealed class CheckoutService(
             return Failure(StatusCodes.Status409Conflict, "checkout_recovery_not_available");
         }
 
-        await database.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            database.ChangeTracker.Clear();
+            checkout = await LoadCheckoutSnapshotAsync(checkout.Id, cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsRecoveryCaseRace(exception))
+        {
+            database.ChangeTracker.Clear();
+            checkout = await LoadCheckoutSnapshotAsync(checkout.Id, cancellationToken);
+        }
+
         var pending = checkout.Status is CheckoutStatus.BookingPending or CheckoutStatus.PaymentPending;
         return Success(
             pending ? StatusCodes.Status202Accepted : StatusCodes.Status200OK,
@@ -679,6 +724,49 @@ internal sealed class CheckoutService(
         .Include(value => value.Components)
         .Include(value => value.PaymentAttempts)
         .Include(value => value.RecoveryCases);
+
+    private Task<CheckoutSession> LoadCheckoutSnapshotAsync(Guid checkoutId, CancellationToken cancellationToken) =>
+        CheckoutGraph()
+            .AsNoTracking()
+            .SingleAsync(value => value.Id == checkoutId, cancellationToken);
+
+    private void DetachCheckoutGraph()
+    {
+        foreach (var entry in database.ChangeTracker.Entries()
+                     .Where(entry => entry.Entity is not IdempotencyRecord)
+                     .ToArray())
+        {
+            entry.State = EntityState.Detached;
+        }
+    }
+
+    private static bool IsRecoveryCaseRace(DbUpdateException exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            var sqlState = current.GetType().GetProperty("SqlState")?.GetValue(current)?.ToString();
+            var constraintName = current.GetType().GetProperty("ConstraintName")?.GetValue(current)?.ToString();
+            if (string.Equals(sqlState, "23505", StringComparison.Ordinal) &&
+                string.Equals(
+                    constraintName,
+                    "ux_booking_recovery_cases_checkout_dedupe_reason",
+                    StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            var sqliteErrorCode = current.GetType().GetProperty("SqliteErrorCode")?.GetValue(current);
+            if (sqliteErrorCode is int sqliteCode && sqliteCode == 19 &&
+                current.Message.Contains("booking_recovery_cases.checkout_session_id", StringComparison.Ordinal) &&
+                current.Message.Contains("booking_recovery_cases.dedupe_key", StringComparison.Ordinal) &&
+                current.Message.Contains("booking_recovery_cases.reason", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private async Task<ResolvedOffersResult> ResolveOffersAsync(
         IReadOnlyCollection<string> offerIds,

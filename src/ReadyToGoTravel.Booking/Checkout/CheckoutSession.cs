@@ -103,6 +103,7 @@ public sealed class BookingRecoveryCase
     {
         Id = id;
         ComponentBookingId = componentBookingId;
+        DedupeKey = componentBookingId?.ToString("N") ?? "payment";
         Reason = reason;
         CreatedAt = createdAt;
     }
@@ -110,6 +111,8 @@ public sealed class BookingRecoveryCase
     public Guid Id { get; }
 
     public Guid? ComponentBookingId { get; }
+
+    public string DedupeKey { get; }
 
     public string Reason { get; }
 

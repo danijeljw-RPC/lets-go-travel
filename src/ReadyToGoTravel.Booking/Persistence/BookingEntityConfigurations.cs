@@ -18,7 +18,7 @@ internal sealed class CheckoutSessionConfiguration : IEntityTypeConfiguration<Ch
         builder.Property(value => value.TripId).HasColumnName("trip_id");
         builder.HasIndex(value => value.CustomerId);
         builder.HasIndex(value => value.TripId);
-        builder.Property(value => value.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(32).IsRequired();
+        builder.Property(value => value.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(32).IsRequired().IsConcurrencyToken();
         builder.Property(value => value.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(value => value.UpdatedAt).HasColumnName("updated_at").IsRequired();
         builder.Property(value => value.ExpiresAt).HasColumnName("expires_at").IsRequired();
@@ -123,7 +123,7 @@ internal sealed class PaymentAttemptConfiguration : IEntityTypeConfiguration<Pay
         builder.Property(value => value.ProviderPaymentReference).HasColumnName("provider_payment_reference").HasMaxLength(255).IsRequired();
         builder.Property(value => value.Amount).HasColumnName("amount").HasPrecision(18, 2).IsRequired();
         builder.Property(value => value.Currency).HasColumnName("currency").HasMaxLength(3).IsRequired();
-        builder.Property(value => value.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(32).IsRequired();
+        builder.Property(value => value.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(32).IsRequired().IsConcurrencyToken();
         builder.Property(value => value.ProviderReturnReference).HasColumnName("provider_return_reference").HasMaxLength(255);
         builder.HasIndex(value => value.ProviderReturnReference).IsUnique().HasFilter("provider_return_reference IS NOT NULL");
         builder.Property(value => value.FailureCode).HasColumnName("failure_code").HasMaxLength(120);
@@ -161,7 +161,11 @@ internal sealed class BookingRecoveryCaseConfiguration : IEntityTypeConfiguratio
         builder.Property(value => value.Id).HasColumnName("id").ValueGeneratedNever();
         builder.Property<Guid>("checkout_session_id").HasColumnName("checkout_session_id");
         builder.Property(value => value.ComponentBookingId).HasColumnName("component_booking_id");
+        builder.Property(value => value.DedupeKey).HasColumnName("dedupe_key").HasMaxLength(32).IsRequired();
         builder.Property(value => value.Reason).HasColumnName("reason").HasMaxLength(400).IsRequired();
+        builder.HasIndex("checkout_session_id", nameof(BookingRecoveryCase.DedupeKey), nameof(BookingRecoveryCase.Reason))
+            .HasDatabaseName("ux_booking_recovery_cases_checkout_dedupe_reason")
+            .IsUnique();
         builder.Property(value => value.CreatedAt).HasColumnName("created_at").IsRequired();
     }
 }
@@ -180,7 +184,7 @@ internal sealed class IdempotencyRecordConfiguration : IEntityTypeConfiguration<
             .HasDatabaseName("ux_idempotency_records_customer_operation_key")
             .IsUnique();
         builder.Property(value => value.Fingerprint).HasColumnName("fingerprint").HasMaxLength(64).IsRequired();
-        builder.Property(value => value.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(16).IsRequired();
+        builder.Property(value => value.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(16).IsRequired().IsConcurrencyToken();
         builder.Property(value => value.ResponseStatusCode).HasColumnName("response_status_code");
         builder.Property(value => value.ResponseBody).HasColumnName("response_body");
         builder.Property(value => value.CreatedAt).HasColumnName("created_at").IsRequired();
