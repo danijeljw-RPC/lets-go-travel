@@ -17,7 +17,7 @@ public sealed class CheckoutOfferResolverTests
     public async Task ResolverReturnsFreshPlatformRevisionForOpaqueHotelOffer()
     {
         var provider = new LiteApiFixtureSearchProvider(new FixedTimeProvider(Now));
-        var resolver = new LiteApiFixtureOfferResolver(new FixedTimeProvider(Now));
+        var resolver = Resolver();
         var hotelRequest = new HotelSearchRequest(
             "Melbourne",
             new DateOnly(2026, 10, 10),
@@ -40,7 +40,7 @@ public sealed class CheckoutOfferResolverTests
     [Fact]
     public async Task ProductionResolutionFailsClosed()
     {
-        var resolver = new LiteApiFixtureOfferResolver(new FixedTimeProvider(Now));
+        var resolver = Resolver();
 
         var result = await resolver.ResolveAsync("off_example", SearchEnvironment.Production);
 
@@ -61,7 +61,7 @@ public sealed class CheckoutOfferResolverTests
     [Fact]
     public async Task UnknownOpaqueOfferIsRejected()
     {
-        var resolver = new LiteApiFixtureOfferResolver(new FixedTimeProvider(Now));
+        var resolver = Resolver();
 
         var result = await resolver.ResolveAsync("off_unknown", SearchEnvironment.Sandbox);
 
@@ -73,7 +73,7 @@ public sealed class CheckoutOfferResolverTests
     public async Task ResolverReturnsCurrentRepricedFlightRevision()
     {
         var provider = new LiteApiFixtureSearchProvider(new FixedTimeProvider(Now));
-        var resolver = new LiteApiFixtureOfferResolver(new FixedTimeProvider(Now));
+        var resolver = Resolver();
         var request = new FlightSearchRequest(
             [new FlightSearchLeg("SYD", "MEL", new DateOnly(2026, 10, 10))],
             1,
@@ -97,7 +97,7 @@ public sealed class CheckoutOfferResolverTests
     [InlineData("sandbox-hotel-expired-001", "checkout_offer_expired")]
     public async Task ResolverRejectsUnavailableFixtureScenarios(string fixtureReference, string errorCode)
     {
-        var resolver = new LiteApiFixtureOfferResolver(new FixedTimeProvider(Now));
+        var resolver = Resolver();
         var opaqueOfferId = OpaqueOfferId(fixtureReference);
 
         var result = await resolver.ResolveAsync(opaqueOfferId, SearchEnvironment.Sandbox);
@@ -105,6 +105,95 @@ public sealed class CheckoutOfferResolverTests
         Assert.False(result.IsSuccess);
         Assert.Equal(errorCode, result.ErrorCode);
     }
+
+    [Fact]
+    public async Task ResolverFailsClosedWhenPointOfSaleIsNotEnabledForTheFixtureMarket()
+    {
+        var resolver = Resolver(Registry(capability => capability with { PointOfSale = "NZ" }));
+
+        var result = await resolver.ResolveAsync(OpaqueOfferId("sandbox-hotel-001"), SearchEnvironment.Sandbox);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("booking_capability_unavailable", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ResolverFailsClosedWhenTheFixtureProviderIsNotEnabled()
+    {
+        var resolver = Resolver(Registry(capability => capability with { Provider = "OtherProvider" }));
+
+        var result = await resolver.ResolveAsync(OpaqueOfferId("sandbox-hotel-001"), SearchEnvironment.Sandbox);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("booking_capability_unavailable", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ResolverFailsClosedWhenTheHotelProductIsNotEnabledForVerificationAndBooking()
+    {
+        var resolver = Resolver(Registry(capability => capability.Product == SearchProduct.Accommodation
+            ? capability with { Product = SearchProduct.Flight }
+            : capability));
+
+        var result = await resolver.ResolveAsync(OpaqueOfferId("sandbox-hotel-001"), SearchEnvironment.Sandbox);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("booking_capability_unavailable", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ResolverFailsClosedWhenPriceVerificationIsDisabled()
+    {
+        var resolver = Resolver(Registry(capability => capability.Operation == SearchOperation.PriceVerification
+            && capability.Product == SearchProduct.Accommodation
+            ? capability with { Enabled = false }
+            : capability));
+
+        var result = await resolver.ResolveAsync(OpaqueOfferId("sandbox-hotel-001"), SearchEnvironment.Sandbox);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("booking_capability_unavailable", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ResolverFailsClosedWhenBookingIsDisabled()
+    {
+        var resolver = Resolver(Registry(capability => capability.Operation == SearchOperation.Booking
+            && capability.Product == SearchProduct.Accommodation
+            ? capability with { Enabled = false }
+            : capability));
+
+        var result = await resolver.ResolveAsync(OpaqueOfferId("sandbox-hotel-001"), SearchEnvironment.Sandbox);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("booking_capability_unavailable", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ResolverFailsClosedWhenTheFlightCarrierIsNotEnabled()
+    {
+        var resolver = Resolver(Registry(capability => capability.Operation == SearchOperation.Booking
+            && capability.Product == SearchProduct.Flight
+            && capability.CarrierCode == "QF"
+            ? capability with { Enabled = false }
+            : capability));
+
+        var result = await resolver.ResolveAsync(OpaqueOfferId("sandbox-flight-qf-001"), SearchEnvironment.Sandbox);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("booking_capability_unavailable", result.ErrorCode);
+    }
+
+    private static LiteApiFixtureOfferResolver Resolver(ICapabilityRegistry? registry = null) => new(
+        new FixedTimeProvider(Now),
+        registry ?? CapabilityRegistry.CreateDefaults());
+
+    private static CapabilityRegistry Registry(Func<SearchCapability, SearchCapability> map) =>
+        CapabilityRegistry.Create(
+            CapabilityRegistry.CreateDefaults()
+                .GetSnapshot(SearchEnvironment.Sandbox, "AU")
+                .Select(map)
+                .ToArray());
 
     private static string OpaqueOfferId(string fixtureReference)
     {

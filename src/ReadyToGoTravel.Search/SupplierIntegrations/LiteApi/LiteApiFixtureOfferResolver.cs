@@ -8,7 +8,9 @@ using ReadyToGoTravel.Search.Checkout;
 
 namespace ReadyToGoTravel.Search.SupplierIntegrations.LiteApi;
 
-public sealed class LiteApiFixtureOfferResolver(TimeProvider timeProvider) : ICheckoutOfferResolver
+public sealed class LiteApiFixtureOfferResolver(
+    TimeProvider timeProvider,
+    ICapabilityRegistry capabilityRegistry) : ICheckoutOfferResolver
 {
     private static readonly JsonSerializerOptions FixtureJsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -36,6 +38,34 @@ public sealed class LiteApiFixtureOfferResolver(TimeProvider timeProvider) : ICh
             return CheckoutOfferResolutionResult.Failure("checkout_offer_not_found");
         }
 
+        if (!Enum.TryParse<SearchEnvironment>(fixture.Environment, true, out var fixtureEnvironment)
+            || fixtureEnvironment != environment)
+        {
+            return CheckoutOfferResolutionResult.Failure("booking_capability_unavailable");
+        }
+
+        var checkoutProduct = ParseProduct(offer.Product);
+        var searchProduct = ToSearchProduct(checkoutProduct);
+        var carrierCode = checkoutProduct == CheckoutOfferProduct.Flight ? offer.CarrierCode : null;
+        if ((checkoutProduct == CheckoutOfferProduct.Flight && string.IsNullOrWhiteSpace(carrierCode))
+            || !capabilityRegistry.IsEnabled(
+                fixture.Provider,
+                environment,
+                fixture.PointOfSale,
+                searchProduct,
+                SearchOperation.PriceVerification,
+                carrierCode)
+            || !capabilityRegistry.IsEnabled(
+                fixture.Provider,
+                environment,
+                fixture.PointOfSale,
+                searchProduct,
+                SearchOperation.Booking,
+                carrierCode))
+        {
+            return CheckoutOfferResolutionResult.Failure("booking_capability_unavailable");
+        }
+
         var now = timeProvider.GetUtcNow().ToUniversalTime();
         if (!offer.MarketEnabled || offer.Scenario == "disabled-market")
         {
@@ -49,7 +79,7 @@ public sealed class LiteApiFixtureOfferResolver(TimeProvider timeProvider) : ICh
         }
 
         var product = new CheckoutOffer(
-            ParseProduct(offer.Product),
+            checkoutProduct,
             offerId,
             offer.ProductDetail,
             offer.MinimumTotal,
@@ -66,6 +96,13 @@ public sealed class LiteApiFixtureOfferResolver(TimeProvider timeProvider) : ICh
         "hotel" => CheckoutOfferProduct.Hotel,
         "flight" => CheckoutOfferProduct.Flight,
         _ => throw new InvalidDataException($"Unsupported checkout fixture product '{value}'."),
+    };
+
+    private static SearchProduct ToSearchProduct(CheckoutOfferProduct product) => product switch
+    {
+        CheckoutOfferProduct.Hotel => SearchProduct.Accommodation,
+        CheckoutOfferProduct.Flight => SearchProduct.Flight,
+        _ => throw new InvalidDataException("Unsupported checkout offer product."),
     };
 
     private static async Task<CheckoutOffersFixture> LoadFixtureAsync(CancellationToken cancellationToken)
@@ -86,12 +123,17 @@ public sealed class LiteApiFixtureOfferResolver(TimeProvider timeProvider) : ICh
         return prefix + Convert.ToHexString(digest.AsSpan(0, 12)).ToLowerInvariant();
     }
 
-    private sealed record CheckoutOffersFixture(string Provider, string Environment, IReadOnlyList<CheckoutFixtureOffer> Offers);
+    private sealed record CheckoutOffersFixture(
+        string Provider,
+        string Environment,
+        string PointOfSale,
+        IReadOnlyList<CheckoutFixtureOffer> Offers);
 
     private sealed record CheckoutFixtureOffer(
         string FixtureReference,
         string ProviderBinding,
         string Product,
+        string? CarrierCode,
         string ProductDetail,
         decimal MinimumTotal,
         string Currency,
