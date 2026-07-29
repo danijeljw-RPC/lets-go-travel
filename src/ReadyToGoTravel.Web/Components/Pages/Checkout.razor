@@ -137,10 +137,20 @@
                     <button class="primary-action" type="button" disabled="@busy" @onclick="PreparePaymentAsync">Continue to hosted payment</button>
                 }
 
-                @if (checkout.PaymentSession is not null)
+                @if (ActivePaymentSession is not null)
                 {
                     <div id="hosted-payment" class="hosted-payment"></div>
                     <button class="primary-action" type="button" disabled="@(busy || !hostedPaymentReady)" @onclick="CompletePaymentAndBookAsync">Complete sandbox payment and book</button>
+                }
+
+                @if (CanResumePayment)
+                {
+                    <button class="secondary-action" type="button" disabled="@busy" @onclick="ResumePaymentAsync">Resume hosted payment</button>
+                }
+
+                @if (CanBookCapturedPayment)
+                {
+                    <button class="primary-action" type="button" disabled="@busy" @onclick="BookCapturedPaymentAsync">Continue supplier booking</button>
                 }
 
                 @if (CanRecover)
@@ -178,6 +188,7 @@
     private bool busy;
     private bool initializeHostedPayment;
     private bool hostedPaymentReady;
+    private HostedPaymentSessionView? activePaymentSession;
 
     private IReadOnlyList<string> SelectedOfferIds =>
         new[] { HotelOfferId, FlightOfferId }
@@ -194,6 +205,19 @@
         !NeedsAcceptance &&
         checkout.PaymentSession is null &&
         checkout.Status == "ReadyForPayment";
+
+    private HostedPaymentSessionView? ActivePaymentSession =>
+        checkout?.PaymentSession ?? activePaymentSession;
+
+    private CheckoutPaymentView? LatestPayment => checkout?.Payments.LastOrDefault();
+
+    private bool HasCapturedPayment => LatestPayment?.Status == "Captured";
+
+    private bool CanResumePayment => checkout?.Status == "PaymentPending" &&
+        LatestPayment?.Status == "ActionRequired" &&
+        ActivePaymentSession is null;
+
+    private bool CanBookCapturedPayment => checkout?.Status == "PaymentPending" && HasCapturedPayment;
 
     private bool CanRecover => checkout?.Status is "PaymentPending" or "BookingPending" or "RequiresSupport";
 
@@ -218,7 +242,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!initializeHostedPayment || checkout?.PaymentSession is null)
+        if (!initializeHostedPayment || ActivePaymentSession is null)
         {
             return;
         }
@@ -226,7 +250,7 @@
         initializeHostedPayment = false;
         try
         {
-            await HostedPayment.CreateAsync("hosted-payment", checkout.PaymentSession.BrowserToken);
+            await HostedPayment.CreateAsync("hosted-payment", ActivePaymentSession.BrowserToken);
             hostedPaymentReady = true;
         }
         catch (JSException)
@@ -300,7 +324,8 @@
                     revision.Total,
                     revision.Currency,
                     revision.TermsHash,
-                    "checkout-v1")),
+                    "checkout-v1"),
+                KeyFor($"acceptance:{checkout.Id}:{revision.Number}:{revision.TermsHash}")),
             "The current price and terms are accepted.");
     }
 
@@ -318,14 +343,17 @@
             "Hosted payment is ready.");
         if (result?.PaymentSession is not null)
         {
+            activePaymentSession = result.PaymentSession;
             hostedPaymentReady = false;
             initializeHostedPayment = true;
         }
     }
 
+    private Task ResumePaymentAsync() => PreparePaymentAsync();
+
     private async Task CompletePaymentAndBookAsync()
     {
-        if (checkout?.PaymentSession is null)
+        if (checkout is null || ActivePaymentSession is null)
         {
             return;
         }
@@ -346,13 +374,21 @@
                 return;
             }
 
-            var bookingResult = await BookingApi.BookAsync(
-                checkout.Id,
-                KeyFor($"book:{checkout.Id}"));
-            UpdateFrom(bookingResult);
-            message = bookingResult.IsSuccess
-                ? "Payment and supplier booking states have been refreshed."
-                : MessageFor(bookingResult.ErrorCode);
+            if (paymentResult.StatusCode == System.Net.HttpStatusCode.Accepted || !HasCapturedPayment)
+            {
+                if (LatestPayment?.Status != "ActionRequired")
+                {
+                    activePaymentSession = null;
+                    hostedPaymentReady = false;
+                }
+
+                message = "Payment is not yet captured. No supplier booking was submitted; retrieve the provider state before continuing.";
+                return;
+            }
+
+            activePaymentSession = null;
+            hostedPaymentReady = false;
+            await BookCapturedPaymentAsync();
         }
         catch (JSException)
         {
@@ -364,9 +400,33 @@
         }
     }
 
-    private Task RecoverAsync() => ApplyAsync(
-        BookingApi.RecoverAsync(checkout!.Id),
-        "Payment and component states were retrieved without issuing a new operation.");
+    private async Task BookCapturedPaymentAsync()
+    {
+        if (checkout is null || !HasCapturedPayment)
+        {
+            message = "Supplier booking remains blocked until payment is captured.";
+            return;
+        }
+
+        var bookingResult = await ApplyAsync(
+            BookingApi.BookAsync(checkout.Id, KeyFor($"book:{checkout.Id}")),
+            "Payment and supplier booking states have been refreshed.");
+        if (bookingResult is not null && bookingResult.Status != "Completed")
+        {
+            message = "Supplier booking is not fully confirmed. Review each component state or retrieve it safely.";
+        }
+    }
+
+    private async Task RecoverAsync()
+    {
+        var recovered = await ApplyAsync(
+            BookingApi.RecoverAsync(checkout!.Id),
+            "Payment and component states were retrieved without issuing a new operation.");
+        if (recovered is not null && HasCapturedPayment && recovered.Status == "PaymentPending")
+        {
+            await BookCapturedPaymentAsync();
+        }
+    }
 
     private async Task<CheckoutView?> ApplyAsync(
         Task<BookingClientResult> operation,
@@ -392,6 +452,16 @@
         if (result.Checkout is not null)
         {
             checkout = result.Checkout;
+            if (result.Checkout.PaymentSession is not null)
+            {
+                activePaymentSession = result.Checkout.PaymentSession;
+            }
+
+            if (result.Checkout.Payments.LastOrDefault()?.Status is "Captured" or "Failed" or "OutcomeUnknown")
+            {
+                activePaymentSession = null;
+                hostedPaymentReady = false;
+            }
         }
     }
 

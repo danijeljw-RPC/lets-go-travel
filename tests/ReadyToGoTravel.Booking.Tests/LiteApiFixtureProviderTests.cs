@@ -54,6 +54,25 @@ public sealed class LiteApiFixtureProviderTests
     }
 
     [Fact]
+    public async Task HostedPaymentCompletionReturnsProviderAuthoritativeCapturedState()
+    {
+        var paymentProvider = new LiteApiFixturePaymentProvider();
+        var preparation = await paymentProvider.PrepareAsync(
+            new CustomerPaymentPlan(420m, "AUD", "checkout-001"),
+            "return-key",
+            default);
+
+        var result = await paymentProvider.CompleteReturnAsync(
+            preparation.PaymentReference,
+            "opaque-browser-completion",
+            default);
+
+        Assert.Equal(PaymentProviderStatus.Captured, result.Status);
+        Assert.Equal(preparation.PaymentReference, result.PaymentReference);
+        Assert.False(string.IsNullOrWhiteSpace(result.ProviderReturnReference));
+    }
+
+    [Fact]
     public async Task PaymentSuccessAndBookingFailureRemainSeparate()
     {
         var paymentProvider = new LiteApiFixturePaymentProvider();

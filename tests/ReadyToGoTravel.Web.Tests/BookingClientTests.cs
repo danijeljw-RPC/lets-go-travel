@@ -56,7 +56,11 @@ public sealed class BookingClientTests
         var checkoutId = Guid.NewGuid();
 
         await client.GetCheckoutAsync(checkoutId, default);
-        await client.AcceptAsync(checkoutId, new CheckoutAcceptanceInput(1, 420m, "AUD", "terms-r1", "rtgt-v1"), default);
+        await client.AcceptAsync(
+            checkoutId,
+            new CheckoutAcceptanceInput(1, 420m, "AUD", "terms-r1", "rtgt-v1"),
+            "acceptance-key",
+            default);
         await client.CreatePaymentSessionAsync(checkoutId, "payment-key", default);
         await client.BookAsync(checkoutId, "book-key", default);
         await client.RecoverAsync(checkoutId, default);
@@ -70,6 +74,9 @@ public sealed class BookingClientTests
                 $"/api/v1/checkouts/{checkoutId}/recover",
             ],
             handler.Paths);
+        Assert.Equal(
+            "acceptance-key",
+            handler.Requests[1].Headers.GetValues("Idempotency-Key").Single());
     }
 
     private static BookingApiClient CreateClient(HttpMessageHandler handler) =>
@@ -83,11 +90,14 @@ public sealed class BookingClientTests
 
         public List<string> Paths { get; } = [];
 
+        public List<HttpRequestMessage> Requests { get; } = [];
+
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             LastRequest = request;
+            Requests.Add(request);
             LastBody = request.Content is null
                 ? string.Empty
                 : await request.Content.ReadAsStringAsync(cancellationToken);

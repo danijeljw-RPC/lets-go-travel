@@ -163,6 +163,45 @@ public sealed class BookingApiTests
     }
 
     [Fact]
+    public async Task AcceptanceRequiresAnIdempotencyKeyAndReplaysOrConflictsByFingerprint()
+    {
+        await using var application = await TestApplication.CreateAsync();
+        var checkout = await application.CreateCheckoutAsync("owner", HotelOfferIds);
+        var acceptance = new
+        {
+            revisionNumber = checkout.CurrentRevision.Number,
+            acceptedTotal = checkout.CurrentRevision.Total,
+            currency = checkout.CurrentRevision.Currency,
+            termsHash = checkout.CurrentRevision.TermsHash,
+            policyVersion = "checkout-v1",
+        };
+
+        var missing = await application.Client.PostAsJsonAsync(
+            $"/api/v1/checkouts/{checkout.Id}/acceptance",
+            acceptance);
+        var first = await application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/acceptance",
+            acceptance,
+            "acceptance-replay");
+        var replay = await application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/acceptance",
+            acceptance,
+            "acceptance-replay");
+        var conflict = await application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/acceptance",
+            acceptance with { policyVersion = "changed-policy" },
+            "acceptance-replay");
+
+        Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
+        Assert.Equal("idempotency_key_required", (await missing.Content.ReadFromJsonAsync<Problem>())!.Code);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+        Assert.Equal(await first.Content.ReadAsStringAsync(), await replay.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
+        Assert.Equal("idempotency_conflict", (await conflict.Content.ReadFromJsonAsync<Problem>())!.Code);
+    }
+
+    [Fact]
     public async Task DistinctPaymentKeysShareOneDurableExternalOperation()
     {
         var payment = new DeterministicPaymentProvider { BlockPreparation = true };
@@ -191,6 +230,31 @@ public sealed class BookingApiTests
             "payment-session-concurrent-two");
         Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
         Assert.NotNull((await replay.Content.ReadFromJsonAsync<Checkout>())!.PaymentSession);
+    }
+
+    [Fact]
+    public async Task ReloadedPaymentPendingCheckoutCanReplayItsHostedSessionWithANewCallerKey()
+    {
+        var payment = new DeterministicPaymentProvider();
+        await using var application = await TestApplication.CreateAsync(payment: payment);
+        var checkout = await application.CreateCheckoutAsync("owner", HotelOfferIds);
+        checkout = await application.AcceptAsync(checkout);
+        var initial = await application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/payment-session",
+            new { },
+            "payment-session-before-reload");
+
+        var resumed = await application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/payment-session",
+            new { },
+            "payment-session-after-reload");
+
+        initial.EnsureSuccessStatusCode();
+        resumed.EnsureSuccessStatusCode();
+        var initialCheckout = (await initial.Content.ReadFromJsonAsync<Checkout>())!;
+        var resumedCheckout = (await resumed.Content.ReadFromJsonAsync<Checkout>())!;
+        Assert.Equal(initialCheckout.PaymentSession, resumedCheckout.PaymentSession);
+        Assert.Equal(1, payment.PrepareCalls);
     }
 
     [Fact]
@@ -800,7 +864,7 @@ public sealed class BookingApiTests
 
         public async Task<Checkout> AcceptAsync(Checkout checkout)
         {
-            var response = await Client.PostAsJsonAsync(
+            var response = await PostAsync(
                 $"/api/v1/checkouts/{checkout.Id}/acceptance",
                 new
                 {
@@ -809,7 +873,8 @@ public sealed class BookingApiTests
                     currency = checkout.CurrentRevision.Currency,
                     termsHash = checkout.CurrentRevision.TermsHash,
                     policyVersion = "checkout-v1",
-                });
+                },
+                $"acceptance-{checkout.Id:N}-{checkout.CurrentRevision.Number}");
             response.EnsureSuccessStatusCode();
             return (await response.Content.ReadFromJsonAsync<Checkout>())!;
         }

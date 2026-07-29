@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ReadyToGoTravel.Booking.Providers;
@@ -52,13 +54,25 @@ public sealed class LiteApiFixturePaymentProvider : ICustomerPaymentProvider
                 scenario.ErrorCode);
     }
 
-    public Task<CustomerPaymentStatusResult> CompleteReturnAsync(
+    public async Task<CustomerPaymentStatusResult> CompleteReturnAsync(
         string paymentReference,
         string completionReference,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(completionReference);
-        return RetrieveAsync(paymentReference, cancellationToken);
+        var current = await RetrieveAsync(paymentReference, cancellationToken);
+        if (current.Status != PaymentProviderStatus.ActionRequired)
+        {
+            return current;
+        }
+
+        var completionHash = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(completionReference)))[..24];
+        return new CustomerPaymentStatusResult(
+            paymentReference,
+            PaymentProviderStatus.Captured,
+            $"return_{completionHash}",
+            null);
     }
 
     private static PaymentProviderStatus ParseStatus(string value) => value switch

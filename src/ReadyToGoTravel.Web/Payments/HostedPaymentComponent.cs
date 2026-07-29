@@ -38,11 +38,16 @@ public sealed class HostedPaymentComponent(IJSRuntime jsRuntime) : IAsyncDisposa
 
     public async ValueTask DisposeAsync()
     {
-        if (module is not null && sessionHandle is not null)
+        var moduleToDispose = module;
+        var sessionToDispose = sessionHandle;
+        module = null;
+        sessionHandle = null;
+
+        if (moduleToDispose is not null && sessionToDispose is not null)
         {
             try
             {
-                await module.InvokeVoidAsync("disposeHostedPayment", sessionHandle);
+                await moduleToDispose.InvokeVoidAsync("disposeHostedPayment", sessionToDispose);
             }
             catch (JSDisconnectedException)
             {
@@ -50,9 +55,9 @@ public sealed class HostedPaymentComponent(IJSRuntime jsRuntime) : IAsyncDisposa
             }
         }
 
-        if (module is not null)
+        if (moduleToDispose is not null)
         {
-            await module.DisposeAsync();
+            await moduleToDispose.DisposeAsync();
         }
     }
 }

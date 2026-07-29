@@ -119,6 +119,7 @@ internal sealed class CheckoutService(
         string subject,
         Guid checkoutId,
         AcceptCheckoutRequest request,
+        string idempotencyKey,
         CancellationToken cancellationToken)
     {
         var checkout = await FindOwnedAsync(subject, checkoutId, cancellationToken);
@@ -127,32 +128,54 @@ internal sealed class CheckoutService(
             return Failure(StatusCodes.Status404NotFound, "checkout_not_found");
         }
 
-        if (string.IsNullOrWhiteSpace(request.Currency) ||
-            string.IsNullOrWhiteSpace(request.TermsHash) ||
-            string.IsNullOrWhiteSpace(request.PolicyVersion))
-        {
-            return Failure(StatusCodes.Status400BadRequest, "checkout_acceptance_invalid");
-        }
+        var current = CheckoutResponseMapper.Map(checkout);
+        var response = await idempotency.ExecuteAsync(
+            checkout.CustomerId,
+            $"checkout-acceptance:{checkout.Id:N}",
+            idempotencyKey,
+            IdempotencyFingerprint.Create(request),
+            IdempotentResponse.InProgress(
+                StatusCodes.Status202Accepted,
+                new CheckoutStoredResponse(current, null, PendingRetryAfterSeconds)),
+            async actionCancellationToken =>
+            {
+                if (string.IsNullOrWhiteSpace(request.Currency) ||
+                    string.IsNullOrWhiteSpace(request.TermsHash) ||
+                    string.IsNullOrWhiteSpace(request.PolicyVersion))
+                {
+                    return Completed(
+                        StatusCodes.Status400BadRequest,
+                        CheckoutResponseMapper.Map(checkout),
+                        "checkout_acceptance_invalid");
+                }
 
-        if (MatchesExistingAcceptance(checkout, request))
-        {
-            return Success(StatusCodes.Status200OK, CheckoutResponseMapper.Map(checkout));
-        }
+                if (MatchesExistingAcceptance(checkout, request))
+                {
+                    return Completed(StatusCodes.Status200OK, CheckoutResponseMapper.Map(checkout), null);
+                }
 
-        var acceptance = checkout.AcceptRevision(
-            request.RevisionNumber,
-            request.AcceptedTotal,
-            request.Currency,
-            request.TermsHash,
-            request.PolicyVersion,
-            timeProvider);
-        if (!acceptance.IsSuccess)
-        {
-            return Failure(StatusCodes.Status409Conflict, acceptance.ErrorCode ?? "checkout_acceptance_conflict");
-        }
+                var acceptance = checkout.AcceptRevision(
+                    request.RevisionNumber,
+                    request.AcceptedTotal,
+                    request.Currency,
+                    request.TermsHash,
+                    request.PolicyVersion,
+                    timeProvider);
+                if (!acceptance.IsSuccess)
+                {
+                    return Completed(
+                        StatusCodes.Status409Conflict,
+                        CheckoutResponseMapper.Map(checkout),
+                        acceptance.ErrorCode ?? "checkout_acceptance_conflict");
+                }
 
-        await database.SaveChangesAsync(cancellationToken);
-        return Success(StatusCodes.Status200OK, CheckoutResponseMapper.Map(checkout));
+                await database.SaveChangesAsync(actionCancellationToken);
+                return Completed(StatusCodes.Status200OK, CheckoutResponseMapper.Map(checkout), null);
+            },
+            cancellationToken,
+            retryInProgress: true);
+
+        return FromIdempotent(response);
     }
 
     public async Task<CheckoutServiceResult> PreparePaymentAsync(

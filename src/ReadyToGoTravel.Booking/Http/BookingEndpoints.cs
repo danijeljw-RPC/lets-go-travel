@@ -58,13 +58,22 @@ public static class BookingEndpoints
         ClaimsPrincipal principal,
         CheckoutService service,
         HttpContext context,
-        CancellationToken cancellationToken) => BookingHttpResults.From(
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetIdempotencyKey(context, out var key))
+        {
+            return BookingHttpResults.MissingIdempotencyKey(context);
+        }
+
+        return BookingHttpResults.From(
             context,
             await service.AcceptAsync(
                 principal.FindFirstValue("sub")!,
                 checkoutId,
                 request,
+                key,
                 cancellationToken));
+    }
 
     private static async Task<IResult> PreparePaymentAsync(
         Guid checkoutId,

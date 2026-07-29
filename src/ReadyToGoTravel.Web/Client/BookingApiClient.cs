@@ -29,12 +29,13 @@ public sealed class BookingApiClient(HttpClient client)
     public Task<BookingClientResult> AcceptAsync(
         Guid checkoutId,
         CheckoutAcceptanceInput input,
+        string idempotencyKey,
         CancellationToken cancellationToken = default) =>
         SendAsync(
             HttpMethod.Post,
             $"/api/v1/checkouts/{checkoutId}/acceptance",
             input,
-            null,
+            idempotencyKey,
             cancellationToken);
 
     public Task<BookingClientResult> CreatePaymentSessionAsync(

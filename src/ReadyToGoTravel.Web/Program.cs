@@ -88,7 +88,7 @@ builder.Services.AddHttpClient<ConsumerApiClient>(client => ConfigureApiClient(c
     .AddHttpMessageHandler<ApiAccessTokenHandler>();
 builder.Services.AddHttpClient<BookingApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
     .AddHttpMessageHandler<ApiAccessTokenHandler>();
-builder.Services.AddScoped<HostedPaymentComponent>();
+builder.Services.AddTransient<HostedPaymentComponent>();
 
 var app = builder.Build();
 
