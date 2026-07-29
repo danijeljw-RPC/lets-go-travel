@@ -34,4 +34,15 @@ public sealed class WebBoundaryTests
         Assert.Contains("/api/v1/trips", clientSource, StringComparison.Ordinal);
         Assert.Contains("/api/v1/travellers", clientSource, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void WebConsumesSearchThroughThePublicV1Api()
+    {
+        var clientSource = File.ReadAllText(RepositoryFiles.FromRoot(
+            "src/ReadyToGoTravel.Web/Client/SearchApiClient.cs"));
+
+        Assert.Contains("/api/v1/search/capabilities", clientSource, StringComparison.Ordinal);
+        Assert.Contains("/api/v1/search/hotels", clientSource, StringComparison.Ordinal);
+        Assert.Contains("/api/v1/search/flights", clientSource, StringComparison.Ordinal);
+    }
 }

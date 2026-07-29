@@ -172,21 +172,21 @@ Commit as `feat: expose capability-gated search api`.
 - Consumes: the Task 3 public `/api/v1/search` routes only.
 - Produces: `/search` hotel and flight forms, minimum-total offer cards, expiry/revalidation labels and an explicit sandbox/unavailable capability message.
 
-- [ ] **Step 1: Write failing web-boundary and client tests**
+- [x] **Step 1: Write failing web-boundary and client tests**
 
 Prove the web project still references no server module, `SearchApiClient` uses only `/api/v1/search`, and a failed/unavailable API call produces a typed unavailable result rather than supplier detail leakage.
 
-- [ ] **Step 2: Run focused tests and confirm failure**
+- [x] **Step 2: Run focused tests and confirm failure**
 
 Run: `dotnet test tests/ReadyToGoTravel.Web.Tests/ReadyToGoTravel.Web.Tests.csproj && dotnet test tests/ReadyToGoTravel.Architecture.Tests/ReadyToGoTravel.Architecture.Tests.csproj`
 
 Expected: FAIL because the search client/page do not exist.
 
-- [ ] **Step 3: Implement the compact SSR experience**
+- [x] **Step 3: Implement the compact SSR experience**
 
 Add public hotel and return-flight forms with Australia/AUD defaults. Render minimum totals and included tax/fee summaries returned by the API; do not calculate totals in the browser. Display fixture results as sandbox observations and provide no booking action.
 
-- [ ] **Step 4: Run web, architecture and full tests; commit**
+- [x] **Step 4: Run web, architecture and full tests; commit**
 
 Run: `dotnet test ReadyToGoTravel.slnx && dotnet build ReadyToGoTravel.slnx --no-restore --configuration Release`
 
