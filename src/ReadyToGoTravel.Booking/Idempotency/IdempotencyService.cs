@@ -15,7 +15,8 @@ public enum IdempotencyOutcome
 public sealed record IdempotentResponse<TResponse>(
     IdempotencyOutcome Outcome,
     int StatusCode,
-    TResponse? Value);
+    TResponse? Value,
+    bool IsReplay = false);
 
 public static class IdempotentResponse
 {
@@ -35,7 +36,8 @@ public interface IIdempotencyService
         string fingerprint,
         IdempotentResponse<TResponse> inProgressResponse,
         Func<CancellationToken, Task<IdempotentResponse<TResponse>>> action,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        bool retryInProgress = false);
 }
 
 public static class IdempotencyFingerprint
@@ -132,7 +134,8 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
         string fingerprint,
         IdempotentResponse<TResponse> inProgressResponse,
         Func<CancellationToken, Task<IdempotentResponse<TResponse>>> action,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool retryInProgress = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
@@ -152,7 +155,15 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
 
         if (existing is not null)
         {
-            return Replay<TResponse>(existing, fingerprint);
+            var replay = Replay<TResponse>(existing, fingerprint);
+            if (replay.Outcome != IdempotencyOutcome.InProgress || !retryInProgress)
+            {
+                return replay;
+            }
+
+            var continuedResponse = await action(cancellationToken);
+            await StoreResponseAsync(existing, continuedResponse, cancellationToken);
+            return continuedResponse;
         }
 
         var inProgressBody = SerializeSafeResponse(inProgressResponse.Value);
@@ -182,11 +193,28 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
         }
 
         var response = await action(cancellationToken);
-        var responseBody = SerializeSafeResponse(response.Value);
-        record.Complete(response.StatusCode, responseBody, timeProvider.GetUtcNow().ToUniversalTime());
-        await context.SaveChangesAsync(cancellationToken);
+        await StoreResponseAsync(record, response, cancellationToken);
 
         return response;
+    }
+
+    private async Task StoreResponseAsync<TResponse>(
+        IdempotencyRecord record,
+        IdempotentResponse<TResponse> response,
+        CancellationToken cancellationToken)
+    {
+        var responseBody = SerializeSafeResponse(response.Value);
+        var now = timeProvider.GetUtcNow().ToUniversalTime();
+        if (response.Outcome == IdempotencyOutcome.InProgress)
+        {
+            record.UpdateInProgress(response.StatusCode, responseBody, now);
+        }
+        else
+        {
+            record.Complete(response.StatusCode, responseBody, now);
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
     }
 
     private static IdempotentResponse<TResponse> Replay<TResponse>(IdempotencyRecord record, string fingerprint)
@@ -202,7 +230,7 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
         var outcome = record.Status == IdempotencyRecordStatus.Completed
             ? IdempotencyOutcome.Completed
             : IdempotencyOutcome.InProgress;
-        return new IdempotentResponse<TResponse>(outcome, record.ResponseStatusCode ?? 202, value);
+        return new IdempotentResponse<TResponse>(outcome, record.ResponseStatusCode ?? 202, value, IsReplay: true);
     }
 
     private static string SerializeSafeResponse<TResponse>(TResponse? value)

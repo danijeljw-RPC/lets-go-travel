@@ -105,6 +105,15 @@ public sealed class PaymentAttempt
         return null;
     }
 
+    internal void RequireRefund(DateTimeOffset now)
+    {
+        if (Status is PaymentStatus.Authorised or PaymentStatus.Captured)
+        {
+            Status = PaymentStatus.RefundRequired;
+            UpdatedAt = now;
+        }
+    }
+
     private bool CanTransitionTo(PaymentStatus nextStatus) => Status switch
     {
         PaymentStatus.ActionRequired => nextStatus is

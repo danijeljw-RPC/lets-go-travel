@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using ReadyToGoTravel.Booking.Application;
 using ReadyToGoTravel.Booking.Idempotency;
 using ReadyToGoTravel.Booking.Payments;
 using ReadyToGoTravel.Booking.Persistence;
@@ -25,7 +26,9 @@ public static class BookingModule
         }
 
         services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton(new BookingRuntime(environment));
         services.AddDbContext<BookingDbContext>(configureDatabase);
+        services.AddScoped<CheckoutService>();
         services.AddScoped<IIdempotencyService, IdempotencyService>();
         services.AddHealthChecks()
             .AddDbContextCheck<BookingDbContext>("booking_database", tags: ["ready"]);
@@ -44,3 +47,5 @@ public static class BookingModule
         return services;
     }
 }
+
+internal sealed record BookingRuntime(SearchEnvironment Environment);

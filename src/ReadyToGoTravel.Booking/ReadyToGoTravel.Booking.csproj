@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ReadyToGoTravel.Consumer\ReadyToGoTravel.Consumer.csproj" />
     <ProjectReference Include="..\ReadyToGoTravel.Search\ReadyToGoTravel.Search.csproj" />
     <EmbeddedResource Include="SupplierIntegrations/LiteApi/Fixtures/*.json" />
   </ItemGroup>

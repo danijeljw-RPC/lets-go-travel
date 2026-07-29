@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" />
@@ -22,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ReadyToGoTravel.Booking\ReadyToGoTravel.Booking.csproj" />
+    <ProjectReference Include="..\..\src\ReadyToGoTravel.Consumer\ReadyToGoTravel.Consumer.csproj" />
     <ProjectReference Include="..\..\src\ReadyToGoTravel.Search\ReadyToGoTravel.Search.csproj" />
   </ItemGroup>
 

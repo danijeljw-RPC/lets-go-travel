@@ -107,6 +107,7 @@ internal sealed class TravellerSnapshotConfiguration : IEntityTypeConfiguration<
         builder.Property(value => value.FamilyName).HasColumnName("family_name").HasMaxLength(100).IsRequired();
         builder.Property(value => value.IsMinor).HasColumnName("is_minor").IsRequired();
         builder.Property(value => value.GuardianAuthorityConfirmedAt).HasColumnName("guardian_authority_confirmed_at");
+        builder.Property(value => value.AgeAtTravel).HasColumnName("age_at_travel");
     }
 }
 

@@ -67,11 +67,19 @@ public enum BookingProviderStatus
     Unknown,
 }
 
+public sealed record BookingTravellerContext(
+    Guid TravellerId,
+    string GivenName,
+    string FamilyName,
+    bool IsMinor,
+    int? AgeAtTravel);
+
 public sealed record BookingCommand(
     CheckoutProduct Product,
     string OfferId,
     string ProviderBinding,
-    string IdempotencyKey);
+    string IdempotencyKey,
+    IReadOnlyList<BookingTravellerContext>? Travellers = null);
 
 public sealed record BookingProviderExecutionResult(
     BookingProviderStatus Status,

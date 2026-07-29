@@ -79,4 +79,11 @@ internal sealed class IdempotencyRecord
         ResponseBody = responseBody;
         UpdatedAt = now;
     }
+
+    internal void UpdateInProgress(int responseStatusCode, string responseBody, DateTimeOffset now)
+    {
+        ResponseStatusCode = responseStatusCode;
+        ResponseBody = responseBody;
+        UpdatedAt = now;
+    }
 }

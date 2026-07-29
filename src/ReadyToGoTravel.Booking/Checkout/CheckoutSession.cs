@@ -41,8 +41,9 @@ public sealed class TravellerSnapshot
         string givenName,
         string familyName,
         bool isMinor,
-        DateTimeOffset? guardianAuthorityConfirmedAt)
-        : this(Guid.Empty, travellerId, givenName, familyName, isMinor, guardianAuthorityConfirmedAt)
+        DateTimeOffset? guardianAuthorityConfirmedAt,
+        int? ageAtTravel = null)
+        : this(Guid.Empty, travellerId, givenName, familyName, isMinor, guardianAuthorityConfirmedAt, ageAtTravel)
     {
     }
 
@@ -52,7 +53,8 @@ public sealed class TravellerSnapshot
         string givenName,
         string familyName,
         bool isMinor,
-        DateTimeOffset? guardianAuthorityConfirmedAt)
+        DateTimeOffset? guardianAuthorityConfirmedAt,
+        int? ageAtTravel)
     {
         Id = id;
         TravellerId = travellerId;
@@ -60,6 +62,7 @@ public sealed class TravellerSnapshot
         FamilyName = familyName;
         IsMinor = isMinor;
         GuardianAuthorityConfirmedAt = guardianAuthorityConfirmedAt;
+        AgeAtTravel = ageAtTravel;
     }
 
     public Guid Id { get; }
@@ -74,13 +77,16 @@ public sealed class TravellerSnapshot
 
     public DateTimeOffset? GuardianAuthorityConfirmedAt { get; }
 
+    public int? AgeAtTravel { get; }
+
     internal static TravellerSnapshot CopyOf(TravellerSnapshot source, DateTimeOffset now) => new(
         Guid.CreateVersion7(now),
         source.TravellerId,
         source.GivenName,
         source.FamilyName,
         source.IsMinor,
-        source.GuardianAuthorityConfirmedAt);
+        source.GuardianAuthorityConfirmedAt,
+        source.AgeAtTravel);
 }
 
 public sealed record CheckoutAcceptance(
@@ -500,14 +506,21 @@ public sealed class CheckoutSession
         var confirmed = components.Any(value => value.Status == ComponentBookingStatus.Confirmed);
         var failed = components.Any(value => value.Status == ComponentBookingStatus.Failed);
         var requiresSupport = components.Any(value => value.Status == ComponentBookingStatus.RequiresSupport);
+        var payment = paymentAttempts.LastOrDefault();
 
-        if (confirmed && failed)
+        if (failed && payment?.Status is PaymentStatus.Authorised or PaymentStatus.Captured)
         {
             foreach (var component in components)
             {
                 component.RequireRefund(now);
             }
 
+            payment.RequireRefund(now);
+
+            Status = CheckoutStatus.RequiresSupport;
+        }
+        else if (confirmed && failed)
+        {
             Status = CheckoutStatus.RequiresSupport;
         }
         else if (confirmed && requiresSupport)

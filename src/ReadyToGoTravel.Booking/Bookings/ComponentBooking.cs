@@ -114,6 +114,7 @@ public sealed class ComponentBooking
             case BookingProviderOutcome.Confirmed:
                 return "booking_confirmation_reference_required";
             case BookingProviderOutcome.Pending:
+                ProviderBookingReference = result.ExternalReference;
                 break;
             case BookingProviderOutcome.Failed:
                 Status = ComponentBookingStatus.Failed;
