@@ -96,21 +96,21 @@ Commit as `feat: add supplier-neutral search contracts`.
 - Consumes: Task 1 requests, results, pricing and capability registry.
 - Produces: `IHotelSearchProvider.SearchAsync(...)`, `IFlightSearchProvider.SearchAsync(...)` and deterministic `LiteApiFixtureSearchProvider` results with opaque `off_` identifiers.
 
-- [ ] **Step 1: Add sanitized fixture JSON and failing adapter tests**
+- [x] **Step 1: Add sanitized fixture JSON and failing adapter tests**
 
 Tests prove hotel mapping, QF/JQ/VA flight mapping, minimum totals, tax/fee categories, expiry, requested/returned currency provenance, absence of secrets and absence of supplier references in public result records.
 
-- [ ] **Step 2: Run focused tests and confirm adapter failure**
+- [x] **Step 2: Run focused tests and confirm adapter failure**
 
 Run: `dotnet test tests/ReadyToGoTravel.Search.Tests/ReadyToGoTravel.Search.Tests.csproj --filter LiteApiFixtureContractTests`
 
 Expected: FAIL because provider interfaces and the fixture adapter do not exist.
 
-- [ ] **Step 3: Implement deterministic fixture mapping**
+- [x] **Step 3: Implement deterministic fixture mapping**
 
 Load embedded JSON with `JsonUnmappedMemberHandling.Disallow`, map supplier fields into platform records, create opaque offer IDs from a SHA-256 digest of provider/environment/reference and calculate expiry from the injected clock plus the sanitized fixture lifetime. Unsupported point-of-sale, currency, route or expired fixture data returns no offers rather than inventing capability.
 
-- [ ] **Step 4: Run search tests; commit**
+- [x] **Step 4: Run search tests; commit**
 
 Run: `dotnet test tests/ReadyToGoTravel.Search.Tests/ReadyToGoTravel.Search.Tests.csproj`
 

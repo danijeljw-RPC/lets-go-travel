@@ -10,4 +10,8 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="SupplierIntegrations/LiteApi/Fixtures/*.json" />
+  </ItemGroup>
+
 </Project>
