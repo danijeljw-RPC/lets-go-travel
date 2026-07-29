@@ -7,6 +7,8 @@ namespace ReadyToGoTravel.Consumer.Application;
 
 public interface IConsumerBookingContext
 {
+    Task<Guid?> ResolveCustomerIdAsync(string subject, CancellationToken cancellationToken = default);
+
     Task<ConsumerBookingContextResult> ResolveAsync(
         string subject,
         Guid tripId,
@@ -35,6 +37,12 @@ public sealed record ConsumerTraveller(
 
 internal sealed class ConsumerBookingContextResolver(ConsumerDbContext context) : IConsumerBookingContext
 {
+    public Task<Guid?> ResolveCustomerIdAsync(string subject, CancellationToken cancellationToken = default) =>
+        context.Customers.AsNoTracking()
+            .Where(value => value.Subject == subject && value.Status == CustomerStatus.Active)
+            .Select(value => (Guid?)value.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+
     public async Task<ConsumerBookingContextResult> ResolveAsync(
         string subject,
         Guid tripId,

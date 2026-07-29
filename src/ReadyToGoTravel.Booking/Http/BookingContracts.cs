@@ -7,7 +7,7 @@ internal sealed record CreateCheckoutRequest(
     IReadOnlyList<string> OfferIds,
     IReadOnlyList<CheckoutTravellerAssignmentRequest> TravellerAssignments);
 
-internal sealed record CheckoutTravellerAssignmentRequest(Guid TravellerId, int? AgeAtTravel);
+internal sealed record CheckoutTravellerAssignmentRequest(Guid TravellerId, int? AgeAtTravel, string? OfferId = null);
 
 internal sealed record AcceptCheckoutRequest(
     int RevisionNumber,

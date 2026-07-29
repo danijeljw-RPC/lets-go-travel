@@ -66,6 +66,22 @@ public sealed class BookingApiTests
         Assert.Equal("checkout_not_found", (await response.Content.ReadFromJsonAsync<Problem>())!.Code);
     }
 
+    [Fact]
+    public async Task CheckoutRemainsOwnedAfterTravellerRemovalAndTripArchive()
+    {
+        await using var application = await TestApplication.CreateAsync();
+        var owned = await application.CreateOwnedContextAsync("owner");
+        var created = await application.PostCheckoutAsync(owned, HotelOfferIds, "create-immutable-owner");
+        created.EnsureSuccessStatusCode();
+        var checkout = (await created.Content.ReadFromJsonAsync<Checkout>())!;
+
+        (await application.Client.DeleteAsync($"/api/v1/travellers/{owned.TravellerId}")).EnsureSuccessStatusCode();
+        (await application.Client.PostAsJsonAsync($"/api/v1/trips/{owned.TripId}/archive", new { })).EnsureSuccessStatusCode();
+
+        var response = await application.Client.GetAsync($"/api/v1/checkouts/{checkout.Id}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     public static TheoryData<string[]> HappyPathCompositions => new()
     {
         HotelOfferIds,
@@ -531,7 +547,44 @@ public sealed class BookingApiTests
         checkout = (await response.Content.ReadFromJsonAsync<Checkout>())!;
 
         Assert.Equal("RequiresSupport", checkout.Status);
+        Assert.Equal("RequiresSupport", Assert.Single(checkout.Components).Status);
         Assert.Equal(1, checkout.RecoveryCaseCount);
+    }
+
+    [Fact]
+    public async Task CombinedCheckoutAssignsTravellersPerOffer()
+    {
+        var booking = new DeterministicBookingProvider();
+        await using var application = await TestApplication.CreateAsync(booking: booking);
+        var owned = await application.CreateOwnedContextAsync("owner");
+        var secondResponse = await application.Client.PostAsJsonAsync(
+            "/api/v1/travellers",
+            new
+            {
+                givenName = "Sam",
+                familyName = "Taylor",
+                relationshipLabel = "Companion",
+                isMinor = false,
+                guardianAuthorityConfirmed = false,
+            });
+        secondResponse.EnsureSuccessStatusCode();
+        var second = (await secondResponse.Content.ReadFromJsonAsync<IdResponse>())!;
+
+        var response = await application.PostAsync(
+            "/api/v1/checkouts",
+            new
+            {
+                tripId = owned.TripId,
+                offerIds = CombinedOfferIds,
+                travellerAssignments = new[]
+                {
+                    new { offerId = HotelOfferIds[0], travellerId = owned.TravellerId, ageAtTravel = 30 },
+                    new { offerId = FlightOfferIds[0], travellerId = second.Id, ageAtTravel = 31 },
+                },
+            },
+            "create-component-travellers");
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
     [Fact]
@@ -847,10 +900,12 @@ public sealed class BookingApiTests
                 {
                     tripId = owned.TripId,
                     offerIds,
-                    travellerAssignments = new[]
+                    travellerAssignments = offerIds.Select(offerId => new
                     {
-                        new { travellerId = owned.TravellerId, ageAtTravel = (int?)30 },
-                    },
+                        travellerId = owned.TravellerId,
+                        ageAtTravel = (int?)30,
+                        offerId,
+                    }).ToArray(),
                 },
                 key);
 

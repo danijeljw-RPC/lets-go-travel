@@ -283,6 +283,18 @@ public sealed class IdempotencyTests
         Assert.Equal(1, actionExecutions);
     }
 
+    [Fact]
+    public async Task BenignCompanyNameFieldIsAllowed()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var response = await fixture.Idempotency.ExecuteAsync(
+            Guid.CreateVersion7(), "checkout", "company", "hash",
+            IdempotentResponse.InProgress(202, new { companyName = "ReadyToGoTravel" }),
+            _ => Task.FromResult(IdempotentResponse.Completed(200, new { companyName = "ReadyToGoTravel" })),
+            default);
+        Assert.Equal(IdempotencyOutcome.Completed, response.Outcome);
+    }
+
     private sealed record CurrentResource(string CheckoutId, string PaymentStatus);
 }
 

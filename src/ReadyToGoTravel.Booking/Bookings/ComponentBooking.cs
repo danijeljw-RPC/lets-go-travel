@@ -141,4 +141,14 @@ public sealed class ComponentBooking
             UpdatedAt = now;
         }
     }
+
+    internal void RequireSupport(string reason, DateTimeOffset now)
+    {
+        if (Status != ComponentBookingStatus.Confirmed)
+        {
+            Status = ComponentBookingStatus.RequiresSupport;
+            FailureCode = reason;
+            UpdatedAt = now;
+        }
+    }
 }

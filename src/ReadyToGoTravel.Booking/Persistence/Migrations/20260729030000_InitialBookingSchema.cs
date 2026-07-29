@@ -11,7 +11,7 @@ public partial class InitialBookingSchema : Migration
     private static readonly string[] RecoveryCaseIdentityColumns = ["checkout_session_id", "dedupe_key", "reason"];
     private static readonly string[] CheckoutRevisionIdentityColumns = ["checkout_session_id", "number"];
     private static readonly string[] IdempotencyIdentityColumns = ["customer_id", "operation", "key"];
-    private static readonly string[] TravellerSnapshotIdentityColumns = ["checkout_session_id", "traveller_id"];
+    private static readonly string[] TravellerSnapshotIdentityColumns = ["checkout_session_id", "offer_id", "traveller_id"];
 
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
@@ -192,11 +192,40 @@ public partial class InitialBookingSchema : Migration
             });
 
         migrationBuilder.CreateTable(
+            name: "payment_plans",
+            schema: "booking",
+            columns: table => new
+            {
+                checkout_session_id = table.Column<Guid>(type: "uuid", nullable: false),
+                provider = table.Column<string>(type: "character varying(80)", maxLength: 80, nullable: false),
+                merchant_model = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
+                customer_payment_route = table.Column<string>(type: "character varying(80)", maxLength: 80, nullable: false),
+                settlement_route = table.Column<string>(type: "character varying(80)", maxLength: 80, nullable: false),
+                amount = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                currency = table.Column<string>(type: "character varying(3)", maxLength: 3, nullable: false),
+                required_customer_action = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
+                refund_owner = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
+                separate_component_charges = table.Column<bool>(type: "boolean", nullable: false)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_payment_plans", x => x.checkout_session_id);
+                table.ForeignKey(
+                    name: "FK_payment_plans_checkout_sessions_checkout_session_id",
+                    column: x => x.checkout_session_id,
+                    principalSchema: "booking",
+                    principalTable: "checkout_sessions",
+                    principalColumn: "id",
+                    onDelete: ReferentialAction.Cascade);
+            });
+
+        migrationBuilder.CreateTable(
             name: "traveller_snapshots",
             schema: "booking",
             columns: table => new
             {
                 id = table.Column<Guid>(type: "uuid", nullable: false),
+                offer_id = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
                 traveller_id = table.Column<Guid>(type: "uuid", nullable: false),
                 given_name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                 family_name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
@@ -314,7 +343,7 @@ public partial class InitialBookingSchema : Migration
             filter: "provider_return_reference IS NOT NULL");
 
         migrationBuilder.CreateIndex(
-            name: "IX_traveller_snapshots_checkout_session_id_traveller_id",
+            name: "IX_traveller_snapshots_checkout_session_id_offer_id_traveller_~",
             schema: "booking",
             table: "traveller_snapshots",
             columns: TravellerSnapshotIdentityColumns,
@@ -346,6 +375,10 @@ public partial class InitialBookingSchema : Migration
 
         migrationBuilder.DropTable(
             name: "payment_attempts",
+            schema: "booking");
+
+        migrationBuilder.DropTable(
+            name: "payment_plans",
             schema: "booking");
 
         migrationBuilder.DropTable(

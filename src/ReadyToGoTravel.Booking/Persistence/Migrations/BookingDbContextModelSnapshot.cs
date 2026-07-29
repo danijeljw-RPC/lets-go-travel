@@ -310,6 +310,12 @@ namespace ReadyToGoTravel.Booking.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_minor");
 
+                    b.Property<string>("OfferId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("offer_id");
+
                     b.Property<Guid>("TravellerId")
                         .HasColumnType("uuid")
                         .HasColumnName("traveller_id");
@@ -320,7 +326,7 @@ namespace ReadyToGoTravel.Booking.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("checkout_session_id", "TravellerId")
+                    b.HasIndex("checkout_session_id", "OfferId", "TravellerId")
                         .IsUnique();
 
                     b.ToTable("traveller_snapshots", "booking");
@@ -542,7 +548,74 @@ namespace ReadyToGoTravel.Booking.Persistence.Migrations
                                 .HasForeignKey("checkout_session_id");
                         });
 
+                    b.OwnsOne("ReadyToGoTravel.Booking.Payments.PaymentPlan", "PaymentPlan", b1 =>
+                        {
+                            b1.Property<Guid>("checkout_session_id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("checkout_session_id");
+
+                            b1.Property<decimal>("Amount")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)")
+                                .HasColumnName("amount");
+
+                            b1.Property<string>("Currency")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .HasColumnType("character varying(3)")
+                                .HasColumnName("currency");
+
+                            b1.Property<string>("CustomerPaymentRoute")
+                                .IsRequired()
+                                .HasMaxLength(80)
+                                .HasColumnType("character varying(80)")
+                                .HasColumnName("customer_payment_route");
+
+                            b1.Property<string>("MerchantModel")
+                                .IsRequired()
+                                .HasMaxLength(40)
+                                .HasColumnType("character varying(40)")
+                                .HasColumnName("merchant_model");
+
+                            b1.Property<string>("Provider")
+                                .IsRequired()
+                                .HasMaxLength(80)
+                                .HasColumnType("character varying(80)")
+                                .HasColumnName("provider");
+
+                            b1.Property<string>("RefundOwner")
+                                .IsRequired()
+                                .HasMaxLength(40)
+                                .HasColumnType("character varying(40)")
+                                .HasColumnName("refund_owner");
+
+                            b1.Property<string>("RequiredCustomerAction")
+                                .IsRequired()
+                                .HasMaxLength(40)
+                                .HasColumnType("character varying(40)")
+                                .HasColumnName("required_customer_action");
+
+                            b1.Property<bool>("SeparateComponentCharges")
+                                .HasColumnType("boolean")
+                                .HasColumnName("separate_component_charges");
+
+                            b1.Property<string>("SettlementRoute")
+                                .IsRequired()
+                                .HasMaxLength(80)
+                                .HasColumnType("character varying(80)")
+                                .HasColumnName("settlement_route");
+
+                            b1.HasKey("checkout_session_id");
+
+                            b1.ToTable("payment_plans", "booking");
+
+                            b1.WithOwner()
+                                .HasForeignKey("checkout_session_id");
+                        });
+
                     b.Navigation("AcceptedRevision");
+
+                    b.Navigation("PaymentPlan");
                 });
 
             modelBuilder.Entity("ReadyToGoTravel.Booking.Checkout.TravellerSnapshot", b =>

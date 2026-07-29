@@ -291,11 +291,8 @@
             return;
         }
 
-        var assignments = selectedTravellerIds
-            .OrderBy(value => value)
-            .Select(value => new CheckoutTravellerInput(
-                value,
-                agesAtTravel.GetValueOrDefault(value)))
+        var assignments = SelectedOfferIds.SelectMany(offerId => selectedTravellerIds.OrderBy(value => value)
+            .Select(value => new CheckoutTravellerInput(value, agesAtTravel.GetValueOrDefault(value), offerId)))
             .ToArray();
         var input = new CreateCheckoutInput(selectedTripId.Value, SelectedOfferIds, assignments);
         var intent = $"create:{selectedTripId}:{string.Join(',', SelectedOfferIds)}:{string.Join(',', assignments)}";

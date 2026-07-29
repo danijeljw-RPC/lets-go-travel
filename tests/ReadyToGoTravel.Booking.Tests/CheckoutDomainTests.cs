@@ -179,7 +179,9 @@ public sealed class CheckoutDomainTests
 
     private static CheckoutSession CreateCheckout(IReadOnlyCollection<ResolvedCheckoutOffer> offers)
     {
-        var result = CheckoutSession.Create(Guid.CreateVersion7(), Guid.CreateVersion7(), offers, Travellers(), Clock);
+        var travellers = offers.Select(offer =>
+            new TravellerSnapshot(offer.OfferId, Guid.CreateVersion7(), "Ari", "Taylor", false, null)).ToArray();
+        var result = CheckoutSession.Create(Guid.CreateVersion7(), Guid.CreateVersion7(), offers, travellers, Clock);
         Assert.True(result.IsSuccess);
         return result.Value!;
     }
@@ -209,7 +211,7 @@ public sealed class CheckoutDomainTests
         Clock.GetUtcNow());
 
     private static IReadOnlyCollection<TravellerSnapshot> Travellers() =>
-    [new TravellerSnapshot(Guid.CreateVersion7(), "Ari", "Taylor", false, null)];
+    [new TravellerSnapshot("hotel-1", Guid.CreateVersion7(), "Ari", "Taylor", false, null)];
 
     private sealed class FixtureTimeProvider(DateTimeOffset now) : TimeProvider
     {

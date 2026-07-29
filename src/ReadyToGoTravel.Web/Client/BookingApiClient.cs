@@ -142,7 +142,7 @@ public sealed record CreateCheckoutInput(
     IReadOnlyList<string> OfferIds,
     IReadOnlyList<CheckoutTravellerInput> TravellerAssignments);
 
-public sealed record CheckoutTravellerInput(Guid TravellerId, int? AgeAtTravel);
+public sealed record CheckoutTravellerInput(Guid TravellerId, int? AgeAtTravel, string? OfferId = null);
 
 public sealed record CheckoutAcceptanceInput(
     int RevisionNumber,

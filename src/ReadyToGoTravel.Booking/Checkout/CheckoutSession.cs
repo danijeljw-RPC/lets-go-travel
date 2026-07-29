@@ -37,18 +37,20 @@ internal sealed record ResolvedCheckoutOffer(
 public sealed class TravellerSnapshot
 {
     public TravellerSnapshot(
+        string offerId,
         Guid travellerId,
         string givenName,
         string familyName,
         bool isMinor,
         DateTimeOffset? guardianAuthorityConfirmedAt,
         int? ageAtTravel = null)
-        : this(Guid.Empty, travellerId, givenName, familyName, isMinor, guardianAuthorityConfirmedAt, ageAtTravel)
+        : this(Guid.Empty, offerId, travellerId, givenName, familyName, isMinor, guardianAuthorityConfirmedAt, ageAtTravel)
     {
     }
 
     private TravellerSnapshot(
         Guid id,
+        string offerId,
         Guid travellerId,
         string givenName,
         string familyName,
@@ -57,6 +59,7 @@ public sealed class TravellerSnapshot
         int? ageAtTravel)
     {
         Id = id;
+        OfferId = offerId;
         TravellerId = travellerId;
         GivenName = givenName;
         FamilyName = familyName;
@@ -66,6 +69,7 @@ public sealed class TravellerSnapshot
     }
 
     public Guid Id { get; }
+    public string OfferId { get; }
 
     public Guid TravellerId { get; }
 
@@ -81,6 +85,7 @@ public sealed class TravellerSnapshot
 
     internal static TravellerSnapshot CopyOf(TravellerSnapshot source, DateTimeOffset now) => new(
         Guid.CreateVersion7(now),
+        source.OfferId,
         source.TravellerId,
         source.GivenName,
         source.FamilyName,
@@ -170,6 +175,7 @@ public sealed class CheckoutSession
     public CheckoutRevision CurrentRevision => revisions[^1];
 
     public CheckoutAcceptance? AcceptedRevision { get; private set; }
+    public PaymentPlan? PaymentPlan { get; private set; }
 
     public IReadOnlyList<TravellerSnapshot> TravellerSnapshots => travellerSnapshots;
 
@@ -178,6 +184,7 @@ public sealed class CheckoutSession
     public IReadOnlyList<PaymentAttempt> PaymentAttempts => paymentAttempts;
 
     public IReadOnlyList<BookingRecoveryCase> RecoveryCases => recoveryCases;
+    internal void SetPaymentPlan(PaymentPlan paymentPlan) => PaymentPlan = paymentPlan;
 
     public DateTimeOffset CreatedAt { get; }
 
@@ -202,7 +209,8 @@ public sealed class CheckoutSession
             return DomainResult<CheckoutSession>.Failure("invalid_checkout_composition");
         }
 
-        if (travellers.Count == 0 || travellers.Select(value => value.TravellerId).Distinct().Count() != travellers.Count)
+        if (travellers.Count == 0 || travellers.Select(value => new { value.OfferId, value.TravellerId }).Distinct().Count() != travellers.Count ||
+            offers.Any(offer => travellers.All(traveller => traveller.OfferId != offer.OfferId)))
         {
             return DomainResult<CheckoutSession>.Failure("invalid_checkout_travellers");
         }
@@ -452,6 +460,11 @@ public sealed class CheckoutSession
 
         var recoveryCase = new BookingRecoveryCase(Guid.CreateVersion7(now), componentBookingId, reason, now);
         recoveryCases.Add(recoveryCase);
+        if (componentBookingId.HasValue)
+        {
+            components.Single(value => value.Id == componentBookingId.Value).RequireSupport(reason, now);
+        }
+
         Status = CheckoutStatus.RequiresSupport;
         UpdatedAt = now;
         return DomainResult<BookingRecoveryCase>.Success(recoveryCase);

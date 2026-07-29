@@ -92,7 +92,7 @@ internal static class CheckoutFactory
                 "hotel-r1",
                 Clock.GetUtcNow().AddHours(1),
                 Clock.GetUtcNow())],
-            [new TravellerSnapshot(Guid.CreateVersion7(), givenName, familyName, false, null)],
+            [new TravellerSnapshot("hotel-1", Guid.CreateVersion7(), givenName, familyName, false, null)],
             Clock);
 
         Assert.True(result.IsSuccess);

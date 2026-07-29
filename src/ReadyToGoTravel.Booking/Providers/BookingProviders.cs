@@ -84,7 +84,8 @@ public sealed record BookingCommand(
     string OfferId,
     string ProviderBinding,
     string IdempotencyKey,
-    IReadOnlyList<BookingTravellerContext>? Travellers = null);
+    IReadOnlyList<BookingTravellerContext>? Travellers = null,
+    string? SettlementInstruction = null);
 
 public sealed record BookingProviderExecutionResult(
     BookingProviderStatus Status,

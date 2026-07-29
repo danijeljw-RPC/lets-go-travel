@@ -41,6 +41,7 @@ public static class BookingModule
             services.AddSingleton<LiteApiFixtureBookingProvider>();
             services.AddSingleton<IBookingProvider>(provider =>
                 provider.GetRequiredService<LiteApiFixtureBookingProvider>());
+            services.AddSingleton<ISupplierSettlementProvider, LiteApiFixtureSettlementProvider>();
             services.AddScoped<IPaymentService, PaymentService>();
         }
 

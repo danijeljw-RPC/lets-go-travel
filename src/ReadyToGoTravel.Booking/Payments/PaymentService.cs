@@ -4,7 +4,7 @@ namespace ReadyToGoTravel.Booking.Payments;
 
 public interface IPaymentService
 {
-    Task<HostedPaymentPreparation> PrepareAsync(
+    Task<PaymentPreparation> PrepareAsync(
         CustomerPaymentPlan plan,
         string returnKey,
         CancellationToken cancellationToken = default);
@@ -17,15 +17,29 @@ public interface IPaymentService
     Task<CustomerPaymentStatusResult> RetrieveAsync(
         string paymentReference,
         CancellationToken cancellationToken = default);
+
+    Task<SupplierSettlementInstruction> CreateSettlementAsync(PaymentPlan plan, string providerBinding,
+        decimal amount, string currency, string paymentReference, CancellationToken cancellationToken = default);
 }
 
-public sealed class PaymentService(ICustomerPaymentProvider customerPaymentProvider) : IPaymentService
+public sealed record PaymentPreparation(PaymentPlan Plan, HostedPaymentPreparation HostedSession);
+public sealed record PaymentPlan(string Provider, string MerchantModel, string CustomerPaymentRoute,
+    string SettlementRoute, decimal Amount, string Currency, string RequiredCustomerAction,
+    string RefundOwner, bool SeparateComponentCharges);
+
+public sealed class PaymentService(ICustomerPaymentProvider customerPaymentProvider,
+    ISupplierSettlementProvider supplierSettlementProvider) : IPaymentService
 {
-    public Task<HostedPaymentPreparation> PrepareAsync(
+    public async Task<PaymentPreparation> PrepareAsync(
         CustomerPaymentPlan plan,
         string returnKey,
-        CancellationToken cancellationToken = default) =>
-        customerPaymentProvider.PrepareAsync(plan, returnKey, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var policy = new PaymentPlan("hosted-payment", "SupplierOrProviderManaged",
+            "ProviderHostedCustomerPayment", "OpaqueSupplierSettlementInstruction", plan.Amount, plan.Currency,
+            "HostedComponent", "SupplierOrProvider", false);
+        return new PaymentPreparation(policy, await customerPaymentProvider.PrepareAsync(plan, returnKey, cancellationToken));
+    }
 
     public Task<CustomerPaymentStatusResult> VerifyReturnAsync(
         string paymentReference,
@@ -37,4 +51,9 @@ public sealed class PaymentService(ICustomerPaymentProvider customerPaymentProvi
         string paymentReference,
         CancellationToken cancellationToken = default) =>
         customerPaymentProvider.RetrieveAsync(paymentReference, cancellationToken);
+
+    public Task<SupplierSettlementInstruction> CreateSettlementAsync(PaymentPlan plan, string providerBinding,
+        decimal amount, string currency, string paymentReference, CancellationToken cancellationToken = default) =>
+        supplierSettlementProvider.CreateInstructionAsync(
+            new SupplierSettlementPlan(providerBinding, amount, currency, paymentReference), cancellationToken);
 }

@@ -48,6 +48,21 @@ internal sealed class CheckoutSessionConfiguration : IEntityTypeConfiguration<Ch
             acceptance.Property(value => value.PolicyVersion).HasColumnName("policy_version").HasMaxLength(40).IsRequired();
             acceptance.Property(value => value.AcceptedAt).HasColumnName("accepted_at").IsRequired();
         });
+        builder.OwnsOne(value => value.PaymentPlan, plan =>
+        {
+            plan.ToTable("payment_plans");
+            plan.WithOwner().HasForeignKey("checkout_session_id");
+            plan.Property<Guid>("checkout_session_id").HasColumnName("checkout_session_id");
+            plan.Property(value => value.Provider).HasColumnName("provider").HasMaxLength(80);
+            plan.Property(value => value.MerchantModel).HasColumnName("merchant_model").HasMaxLength(40);
+            plan.Property(value => value.CustomerPaymentRoute).HasColumnName("customer_payment_route").HasMaxLength(80);
+            plan.Property(value => value.SettlementRoute).HasColumnName("settlement_route").HasMaxLength(80);
+            plan.Property(value => value.Amount).HasColumnName("amount").HasPrecision(18, 2);
+            plan.Property(value => value.Currency).HasColumnName("currency").HasMaxLength(3);
+            plan.Property(value => value.RequiredCustomerAction).HasColumnName("required_customer_action").HasMaxLength(40);
+            plan.Property(value => value.RefundOwner).HasColumnName("refund_owner").HasMaxLength(40);
+            plan.Property(value => value.SeparateComponentCharges).HasColumnName("separate_component_charges");
+        });
     }
 }
 
@@ -101,8 +116,9 @@ internal sealed class TravellerSnapshotConfiguration : IEntityTypeConfiguration<
         builder.HasKey(value => value.Id);
         builder.Property(value => value.Id).HasColumnName("id").ValueGeneratedNever();
         builder.Property<Guid>("checkout_session_id").HasColumnName("checkout_session_id");
+        builder.Property(value => value.OfferId).HasColumnName("offer_id").HasMaxLength(255).IsRequired();
         builder.Property(value => value.TravellerId).HasColumnName("traveller_id").IsRequired();
-        builder.HasIndex("checkout_session_id", nameof(TravellerSnapshot.TravellerId)).IsUnique();
+        builder.HasIndex("checkout_session_id", nameof(TravellerSnapshot.OfferId), nameof(TravellerSnapshot.TravellerId)).IsUnique();
         builder.Property(value => value.GivenName).HasColumnName("given_name").HasMaxLength(100).IsRequired();
         builder.Property(value => value.FamilyName).HasColumnName("family_name").HasMaxLength(100).IsRequired();
         builder.Property(value => value.IsMinor).HasColumnName("is_minor").IsRequired();

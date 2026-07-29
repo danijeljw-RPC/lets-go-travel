@@ -46,7 +46,8 @@ internal sealed class CheckoutService(
             return Failure(StatusCodes.Status400BadRequest, validationError);
         }
 
-        var travellerIds = request.TravellerAssignments.Select(value => value.TravellerId).ToArray();
+        var assignments = request.TravellerAssignments.Select(value => value with { OfferId = value.OfferId ?? request.OfferIds.SingleOrDefault() }).ToArray();
+        var travellerIds = assignments.Select(value => value.TravellerId).Distinct().ToArray();
         var consumer = await consumerContext.ResolveAsync(subject, request.TripId, travellerIds, cancellationToken);
         if (!consumer.IsSuccess || consumer.Value is null)
         {
@@ -68,16 +69,13 @@ internal sealed class CheckoutService(
                     return Completed(offerResult.StatusCode, null, offerResult.ErrorCode);
                 }
 
-                var ageByTravellerId = request.TravellerAssignments.ToDictionary(
-                    value => value.TravellerId,
-                    value => value.AgeAtTravel);
-                var travellers = consumer.Value.Travellers.Select(value => new TravellerSnapshot(
-                    value.TravellerId,
-                    value.GivenName,
-                    value.FamilyName,
-                    value.IsMinor,
-                    value.GuardianAuthorityConfirmedAt,
-                    ageByTravellerId[value.TravellerId])).ToArray();
+                var byId = consumer.Value.Travellers.ToDictionary(value => value.TravellerId);
+                var travellers = assignments.Select(assignment =>
+                {
+                    var value = byId[assignment.TravellerId];
+                    return new TravellerSnapshot(assignment.OfferId!, value.TravellerId, value.GivenName, value.FamilyName,
+                        value.IsMinor, value.GuardianAuthorityConfirmedAt, assignment.AgeAtTravel);
+                }).ToArray();
                 var creation = CheckoutSession.Create(
                     consumer.Value.CustomerId,
                     consumer.Value.TripId,
@@ -280,9 +278,10 @@ internal sealed class CheckoutService(
                                 checkout.Id.ToString("N")),
                             $"checkout-payment:{checkout.Id:N}:{checkout.CurrentRevision.Number}",
                             providerCancellationToken);
+                        checkout.SetPaymentPlan(preparation.Plan);
                         var payment = checkout.BeginPayment(
                             "hosted-payment",
-                            preparation.PaymentReference,
+                            preparation.HostedSession.PaymentReference,
                             timeProvider);
                         if (!payment.IsSuccess)
                         {
@@ -294,9 +293,9 @@ internal sealed class CheckoutService(
 
                         await database.SaveChangesAsync(providerCancellationToken);
                         var session = new HostedPaymentSessionResponse(
-                            preparation.PaymentReference,
-                            preparation.BrowserToken,
-                            preparation.BrowserTokenExpiresAt);
+                            preparation.HostedSession.PaymentReference,
+                            preparation.HostedSession.BrowserToken,
+                            preparation.HostedSession.BrowserTokenExpiresAt);
                         return Completed(
                             StatusCodes.Status200OK,
                             CheckoutResponseMapper.Map(checkout, session),
@@ -501,7 +500,8 @@ internal sealed class CheckoutService(
                     async providerCancellationToken =>
                     {
                         var provider = services.GetService<IBookingProvider>();
-                        if (provider is null)
+                        var paymentService = services.GetService<IPaymentService>();
+                        if (provider is null || paymentService is null || checkout.PaymentPlan is null)
                         {
                             return Completed(
                                 StatusCodes.Status503ServiceUnavailable,
@@ -519,12 +519,6 @@ internal sealed class CheckoutService(
                         }
 
                         await database.SaveChangesAsync(providerCancellationToken);
-                        var travellers = checkout.TravellerSnapshots.Select(value => new BookingTravellerContext(
-                            value.TravellerId,
-                            value.GivenName,
-                            value.FamilyName,
-                            value.IsMinor,
-                            value.AgeAtTravel)).ToArray();
                         foreach (var component in checkout.Components.OrderBy(value => value.Product))
                         {
                             if (checkout.Status != CheckoutStatus.BookingPending ||
@@ -533,13 +527,21 @@ internal sealed class CheckoutService(
                                 break;
                             }
 
+                            var revisionComponent = checkout.CurrentRevision.Components.Single(value => value.OfferId == component.OfferId);
+                            var settlement = await paymentService.CreateSettlementAsync(checkout.PaymentPlan,
+                                component.ProviderBinding, revisionComponent.MinimumTotal,
+                                checkout.CurrentRevision.TransactionCurrency, paymentAttempt.ProviderPaymentReference,
+                                providerCancellationToken);
                             var execution = await provider.BookAsync(
                                 new BookingCommand(
                                     component.Product,
                                     component.OfferId,
                                     component.ProviderBinding,
                                     $"checkout-book:{checkout.Id:N}:{component.Id:N}",
-                                    travellers),
+                                    checkout.TravellerSnapshots.Where(value => value.OfferId == component.OfferId)
+                                        .Select(value => new BookingTravellerContext(value.TravellerId, value.GivenName,
+                                            value.FamilyName, value.IsMinor, value.AgeAtTravel)).ToArray(),
+                                    settlement.InstructionReference),
                                 providerCancellationToken);
                             if (execution.Status == BookingProviderStatus.Confirmed &&
                                 string.IsNullOrWhiteSpace(execution.ExternalReference))
@@ -695,7 +697,8 @@ internal sealed class CheckoutService(
         else if (checkout.Status == CheckoutStatus.RequiresSupport)
         {
             foreach (var component in checkout.Components.Where(value =>
-                         value.Status == ComponentBookingStatus.RequiresSupport))
+                         value.Status == ComponentBookingStatus.RequiresSupport &&
+                         checkout.RecoveryCases.All(recovery => recovery.ComponentBookingId != value.Id)))
             {
                 checkout.Recover(component.Id, "booking_outcome_unknown", timeProvider);
             }
@@ -746,9 +749,8 @@ internal sealed class CheckoutService(
             return null;
         }
 
-        var travellerIds = checkout.TravellerSnapshots.Select(value => value.TravellerId).ToArray();
-        var owner = await consumerContext.ResolveAsync(subject, checkout.TripId, travellerIds, cancellationToken);
-        return owner.IsSuccess && owner.Value?.CustomerId == checkout.CustomerId ? checkout : null;
+        var customerId = await consumerContext.ResolveCustomerIdAsync(subject, cancellationToken);
+        return customerId == checkout.CustomerId ? checkout : null;
     }
 
     private IQueryable<CheckoutSession> CheckoutGraph() => database.Checkouts
@@ -852,8 +854,10 @@ internal sealed class CheckoutService(
             request.TravellerAssignments.Count == 0 ||
             request.TravellerAssignments.Any(value =>
                 value.TravellerId == Guid.Empty || value.AgeAtTravel is < 0 or > 120) ||
-            request.TravellerAssignments.Select(value => value.TravellerId).Distinct().Count() !=
-            request.TravellerAssignments.Count)
+            request.TravellerAssignments.Any(value => request.OfferIds.Count > 1 && string.IsNullOrWhiteSpace(value.OfferId) ||
+                value.OfferId is not null && !request.OfferIds.Contains(value.OfferId, StringComparer.Ordinal)) ||
+            request.TravellerAssignments.Select(value => new { value.OfferId, value.TravellerId }).Distinct().Count() != request.TravellerAssignments.Count ||
+            request.OfferIds.Any(offerId => request.TravellerAssignments.All(value => value.OfferId != offerId)))
         {
             return "invalid_checkout_travellers";
         }

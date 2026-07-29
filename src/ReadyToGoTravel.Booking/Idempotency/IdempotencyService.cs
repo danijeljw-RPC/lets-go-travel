@@ -268,7 +268,7 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
                     .Where(char.IsLetterOrDigit)
                     .Select(char.ToLowerInvariant)
                     .ToArray());
-                if (IsForbiddenResponseField(normalizedName))
+                if (IsForbiddenResponseField(property.Name, normalizedName))
                 {
                     throw new InvalidOperationException("Idempotency responses cannot contain reusable credentials.");
                 }
@@ -285,12 +285,18 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
         }
     }
 
-    private static bool IsForbiddenResponseField(string normalizedName) =>
-        ForbiddenResponseFields.Any(forbidden =>
-            normalizedName.Equals(forbidden, StringComparison.Ordinal) ||
-            normalizedName.Contains(forbidden, StringComparison.Ordinal)) ||
+    private static bool IsForbiddenResponseField(string originalName, string normalizedName)
+    {
+        var tokens = System.Text.RegularExpressions.Regex.Matches(
+                originalName,
+                @"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|[0-9]+")
+            .Select(match => match.Value.ToLowerInvariant())
+            .ToHashSet(StringComparer.Ordinal);
+        return ForbiddenResponseFields.Any(forbidden =>
+                   normalizedName.Equals(forbidden, StringComparison.Ordinal) || tokens.Contains(forbidden)) ||
         (normalizedName.Contains("card", StringComparison.Ordinal) &&
          normalizedName.Contains("number", StringComparison.Ordinal));
+    }
 
     private static bool IsIdempotencyKeyRace(DbUpdateException exception)
     {
