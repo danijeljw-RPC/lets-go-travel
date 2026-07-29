@@ -11,6 +11,7 @@ using ReadyToGoTravel.Web.Authentication;
 using ReadyToGoTravel.Web.Client;
 using ReadyToGoTravel.Web.Components;
 using ReadyToGoTravel.Web.Localization;
+using ReadyToGoTravel.Web.Payments;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -85,6 +86,9 @@ builder.Services.AddHttpClient<PlatformApiClient>(client => ConfigureApiClient(c
 builder.Services.AddHttpClient<SearchApiClient>(client => ConfigureApiClient(client, apiBaseUrl));
 builder.Services.AddHttpClient<ConsumerApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
     .AddHttpMessageHandler<ApiAccessTokenHandler>();
+builder.Services.AddHttpClient<BookingApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
+    .AddHttpMessageHandler<ApiAccessTokenHandler>();
+builder.Services.AddScoped<HostedPaymentComponent>();
 
 var app = builder.Build();
 

@@ -11,6 +11,13 @@
         Compare supplier-neutral minimum totals. Offers are provisional, expire, and must be revalidated before checkout.
     </p>
 
+    @if (!string.IsNullOrWhiteSpace(HotelOfferId) || !string.IsNullOrWhiteSpace(FlightOfferId))
+    {
+        <p class="capability-notice">
+            One @(string.IsNullOrWhiteSpace(HotelOfferId) ? "flight" : "stay") is selected for a combined journey. Search and add at most one offer of the other type.
+        </p>
+    }
+
     @if (capabilities.Count == 0)
     {
         <p class="capability-notice">Search is not enabled for this environment and market.</p>
@@ -64,6 +71,19 @@
                         <p class="offer-price">@Money(offer.Price)</p>
                         <p class="list-meta">Includes @offer.Price.ReturnedCurrency @offer.Price.IncludedTaxes.ToString("N2") taxes and @offer.Price.ReturnedCurrency @offer.Price.IncludedFees.ToString("N2") fees.</p>
                         <p class="list-meta">Expires @offer.ExpiresAt.ToLocalTime().ToString("dd MMM yyyy HH:mm"); revalidation required.</p>
+                        <AuthorizeView>
+                            <Authorized>
+                                <a class="selection-action" href="@HotelCheckoutLink(offer.OfferId)">Select this stay</a>
+                                @if (string.IsNullOrWhiteSpace(FlightOfferId))
+                                {
+                                    <a class="selection-action" href="@SelectHotelForCombinedLink(offer.OfferId)">Add a flight</a>
+                                }
+                                else
+                                {
+                                    <a class="selection-action" href="@CombinedCheckoutLink(offer.OfferId, FlightOfferId)">Checkout stay + flight</a>
+                                }
+                            </Authorized>
+                        </AuthorizeView>
                     </article>
                 }
             </div>
@@ -110,6 +130,19 @@
                         <p class="offer-price">@Money(offer.Price)</p>
                         <p class="list-meta">Includes @offer.Price.ReturnedCurrency @offer.Price.IncludedTaxes.ToString("N2") taxes and @offer.Price.ReturnedCurrency @offer.Price.IncludedFees.ToString("N2") fees.</p>
                         <p class="list-meta">Expires @offer.ExpiresAt.ToLocalTime().ToString("dd MMM yyyy HH:mm"); revalidation required.</p>
+                        <AuthorizeView>
+                            <Authorized>
+                                <a class="selection-action" href="@FlightCheckoutLink(offer.OfferId)">Select this flight</a>
+                                @if (string.IsNullOrWhiteSpace(HotelOfferId))
+                                {
+                                    <a class="selection-action" href="@SelectFlightForCombinedLink(offer.OfferId)">Add a stay</a>
+                                }
+                                else
+                                {
+                                    <a class="selection-action" href="@CombinedCheckoutLink(HotelOfferId, offer.OfferId)">Checkout stay + flight</a>
+                                }
+                            </Authorized>
+                        </AuthorizeView>
                     </article>
                 }
             </div>
@@ -118,6 +151,12 @@
 </main>
 
 @code {
+    [SupplyParameterFromQuery(Name = "hotelOfferId")]
+    private string? HotelOfferId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "flightOfferId")]
+    private string? FlightOfferId { get; set; }
+
     [SupplyParameterFromForm(FormName = "hotel-search")]
     private HotelForm? Hotel { get; set; }
 
@@ -172,6 +211,21 @@
 
     private static string Money(SearchPriceSummary price) =>
         $"From {price.ReturnedCurrency} {price.MinimumTotal:N2} total";
+
+    private static string HotelCheckoutLink(string offerId) =>
+        $"/checkout?hotelOfferId={Uri.EscapeDataString(offerId)}";
+
+    private static string FlightCheckoutLink(string offerId) =>
+        $"/checkout?flightOfferId={Uri.EscapeDataString(offerId)}";
+
+    private static string SelectHotelForCombinedLink(string offerId) =>
+        $"/search?hotelOfferId={Uri.EscapeDataString(offerId)}";
+
+    private static string SelectFlightForCombinedLink(string offerId) =>
+        $"/search?flightOfferId={Uri.EscapeDataString(offerId)}";
+
+    private static string CombinedCheckoutLink(string hotelOfferId, string flightOfferId) =>
+        $"/checkout?hotelOfferId={Uri.EscapeDataString(hotelOfferId)}&flightOfferId={Uri.EscapeDataString(flightOfferId)}";
 
     private sealed class HotelForm
     {
