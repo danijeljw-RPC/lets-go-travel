@@ -1,0 +1,104 @@
+@page "/trips"
+@attribute [Authorize]
+@attribute [StreamRendering]
+@inject ConsumerApiClient ConsumerApi
+
+<PageTitle>Your trips · readytogo.travel</PageTitle>
+
+<main class="content-shell">
+    <p class="eyebrow">Your journeys</p>
+    <h1>Trips</h1>
+    <p class="intro compact-intro">Start with a simple trip shell. Flights and stays will attach here in the booking slice.</p>
+
+    <div class="two-column-editor">
+        <EditForm Model="FormModel" FormName="create-trip" OnValidSubmit="CreateAsync" class="editor-card">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <AntiforgeryToken />
+
+            <label for="trip-title">Trip name</label>
+            <InputText id="trip-title" @bind-Value="FormModel.Title" placeholder="Melbourne long weekend" />
+
+            <label for="trip-destination">Main destination</label>
+            <InputText id="trip-destination" @bind-Value="FormModel.Destination" placeholder="Melbourne" />
+
+            <div class="date-grid">
+                <div>
+                    <label for="trip-start">Start date</label>
+                    <InputDate id="trip-start" @bind-Value="FormModel.StartDate" />
+                </div>
+                <div>
+                    <label for="trip-end">End date</label>
+                    <InputDate id="trip-end" @bind-Value="FormModel.EndDate" />
+                </div>
+            </div>
+
+            <button class="primary-action" type="submit">Create trip</button>
+        </EditForm>
+
+        <section class="item-list" aria-labelledby="saved-trips-title">
+            <h2 id="saved-trips-title">Saved trips</h2>
+            @if (trips.Count == 0)
+            {
+                <p class="empty-state">No trips yet. Give the first one a name.</p>
+            }
+            else
+            {
+                @foreach (var trip in trips)
+                {
+                    <article class="list-card">
+                        <p class="card-label">@trip.Status</p>
+                        <h3>@trip.Title</h3>
+                        <p>@(trip.PrimaryDestination ?? "Destination not set")</p>
+                        @if (trip.StartDate is not null)
+                        {
+                            <p class="list-meta">@trip.StartDate.Value.ToString("dd MMM yyyy") → @(trip.EndDate?.ToString("dd MMM yyyy") ?? "open")</p>
+                        }
+                    </article>
+                }
+            }
+        </section>
+    </div>
+</main>
+
+@code {
+    [SupplyParameterFromForm(FormName = "create-trip")]
+    private TripForm? Form { get; set; }
+
+    private TripForm FormModel => Form ??= new();
+
+    private IReadOnlyList<TripSummary> trips = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        trips = await ConsumerApi.GetTripsAsync();
+    }
+
+    private async Task CreateAsync()
+    {
+        var created = await ConsumerApi.CreateTripAsync(
+            FormModel.Title,
+            FormModel.Destination,
+            FormModel.StartDate,
+            FormModel.EndDate);
+
+        if (created is not null)
+        {
+            trips = [created, .. trips];
+            Form = new TripForm();
+        }
+    }
+
+    private sealed class TripForm
+    {
+        [Required, StringLength(120)]
+        public string Title { get; set; } = string.Empty;
+
+        [StringLength(120)]
+        public string? Destination { get; set; }
+
+        public DateOnly? StartDate { get; set; }
+
+        public DateOnly? EndDate { get; set; }
+    }
+}

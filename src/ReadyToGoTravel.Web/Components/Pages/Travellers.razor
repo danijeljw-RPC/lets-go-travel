@@ -1,0 +1,130 @@
+@page "/travellers"
+@attribute [Authorize]
+@attribute [StreamRendering]
+@inject ConsumerApiClient ConsumerApi
+
+<PageTitle>Travellers · readytogo.travel</PageTitle>
+
+<main class="content-shell">
+    <p class="eyebrow">Travel party</p>
+    <h1>Travellers</h1>
+    <p class="intro compact-intro">
+        Save only the names that make planning easier. Passport details and birth dates are never
+        requested or retained here.
+    </p>
+
+    <div class="notice privacy-notice">
+        <strong>Booking-time details stay booking-time only.</strong>
+        If an airline or hotel needs sensitive information, you will enter it into that booking flow each time.
+    </div>
+
+    <div class="two-column-editor">
+        <EditForm Model="FormModel" FormName="create-traveller" OnValidSubmit="CreateAsync" class="editor-card">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <AntiforgeryToken />
+
+            <label for="given-name">Given name</label>
+            <InputText id="given-name" @bind-Value="FormModel.GivenName" autocomplete="off" />
+
+            <label for="family-name">Family name</label>
+            <InputText id="family-name" @bind-Value="FormModel.FamilyName" autocomplete="off" />
+
+            <label for="relationship">Relationship label (optional)</label>
+            <InputText id="relationship" @bind-Value="FormModel.RelationshipLabel" placeholder="Partner, child, friend" />
+
+            <label class="check-row">
+                <InputCheckbox @bind-Value="FormModel.IsMinor" />
+                <span>This traveller is under 18.</span>
+            </label>
+
+            @if (FormModel.IsMinor)
+            {
+                <label class="check-row">
+                    <InputCheckbox @bind-Value="FormModel.GuardianAuthorityConfirmed" />
+                    <span>I confirm I am authorised to manage travel for this minor.</span>
+                </label>
+            }
+
+            <button class="primary-action" type="submit">Add traveller</button>
+        </EditForm>
+
+        <section class="item-list" aria-labelledby="saved-travellers-title">
+            <h2 id="saved-travellers-title">Saved travellers</h2>
+            @if (travellers.Count == 0)
+            {
+                <p class="empty-state">No saved travellers.</p>
+            }
+            else
+            {
+                @foreach (var traveller in travellers)
+                {
+                    <article class="list-card">
+                        <p class="card-label">@(traveller.IsMinor ? "Minor" : "Adult")</p>
+                        <h3>@traveller.GivenName @traveller.FamilyName</h3>
+                        @if (!string.IsNullOrWhiteSpace(traveller.RelationshipLabel))
+                        {
+                            <p>@traveller.RelationshipLabel</p>
+                        }
+                    </article>
+                }
+            }
+        </section>
+    </div>
+</main>
+
+@code {
+    [SupplyParameterFromForm(FormName = "create-traveller")]
+    private TravellerForm? Form { get; set; }
+
+    private TravellerForm FormModel => Form ??= new();
+
+    private IReadOnlyList<TravellerSummary> travellers = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        travellers = await ConsumerApi.GetTravellersAsync();
+    }
+
+    private async Task CreateAsync()
+    {
+        var created = await ConsumerApi.CreateTravellerAsync(
+            FormModel.GivenName,
+            FormModel.FamilyName,
+            FormModel.RelationshipLabel,
+            FormModel.IsMinor,
+            FormModel.GuardianAuthorityConfirmed);
+
+        if (created is not null)
+        {
+            travellers = [created, .. travellers];
+            Form = new TravellerForm();
+        }
+    }
+
+    private sealed class TravellerForm : IValidatableObject
+    {
+        [Required, StringLength(100)]
+        public string GivenName { get; set; } = string.Empty;
+
+        [Required, StringLength(100)]
+        public string FamilyName { get; set; } = string.Empty;
+
+        [StringLength(80)]
+        public string? RelationshipLabel { get; set; }
+
+        public bool IsMinor { get; set; }
+
+        public bool GuardianAuthorityConfirmed { get; set; }
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (IsMinor && !GuardianAuthorityConfirmed)
+            {
+                yield return new ValidationResult(
+                    "Guardian authority must be confirmed for a minor.",
+                    [nameof(GuardianAuthorityConfirmed)]);
+            }
+        }
+    }
+}

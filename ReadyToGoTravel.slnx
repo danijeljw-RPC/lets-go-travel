@@ -12,5 +12,6 @@
     <Project Path="tests/ReadyToGoTravel.Architecture.Tests/ReadyToGoTravel.Architecture.Tests.csproj" />
     <Project Path="tests/ReadyToGoTravel.BuildingBlocks.Tests/ReadyToGoTravel.BuildingBlocks.Tests.csproj" />
     <Project Path="tests/ReadyToGoTravel.Consumer.Tests/ReadyToGoTravel.Consumer.Tests.csproj" />
+    <Project Path="tests/ReadyToGoTravel.Web.Tests/ReadyToGoTravel.Web.Tests.csproj" />
   </Folder>
 </Solution>

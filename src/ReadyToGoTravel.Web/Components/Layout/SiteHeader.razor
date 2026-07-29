@@ -1,0 +1,39 @@
+@inject NavigationManager Navigation
+@inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> Text
+
+<header class="site-header">
+    <a class="wordmark" href="/" aria-label="readytogo.travel home">
+        <span class="wordmark-mark" aria-hidden="true">go</span>
+        <span>readytogo.travel</span>
+    </a>
+
+    <nav class="account-nav" aria-label="Account navigation">
+        <AuthorizeView>
+            <Authorized>
+                <a href="/trips">@Text["Trips"]</a>
+                <a href="/travellers">@Text["Travellers"]</a>
+                <a href="/account">@Text["Account"]</a>
+                <form method="post" action="/account/sign-out">
+                    <AntiforgeryToken />
+                    <button class="link-button" type="submit">@Text["SignOut"]</button>
+                </form>
+            </Authorized>
+            <NotAuthorized>
+                <a class="sign-in-link" href="/account/sign-in?returnUrl=%2Faccount">@Text["SignIn"]</a>
+            </NotAuthorized>
+        </AuthorizeView>
+
+        <form method="post" action="/locale" class="locale-form">
+            <AntiforgeryToken />
+            <input type="hidden" name="returnUrl" value="@CurrentPath" />
+            <label class="visually-hidden" for="locale">Language</label>
+            <select id="locale" name="locale" aria-label="Language" onchange="this.form.submit()">
+                <option value="en-AU">EN · AU</option>
+            </select>
+        </form>
+    </nav>
+</header>
+
+@code {
+    private string CurrentPath => new Uri(Navigation.Uri).PathAndQuery;
+}

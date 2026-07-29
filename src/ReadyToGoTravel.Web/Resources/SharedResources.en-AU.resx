@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="HeroEyebrow" xml:space="preserve"><value>Flights + stays, one clear journey</value></data>
+  <data name="HeroTitle" xml:space="preserve"><value>Your next trip, ready when you are.</value></data>
+  <data name="HeroIntro" xml:space="preserve"><value>Search flights, hotels, or both together. Build the trip first, then book through one simple journey.</value></data>
+  <data name="SignIn" xml:space="preserve"><value>Sign in</value></data>
+  <data name="Account" xml:space="preserve"><value>Account</value></data>
+  <data name="Trips" xml:space="preserve"><value>Trips</value></data>
+  <data name="Travellers" xml:space="preserve"><value>Travellers</value></data>
+  <data name="SignOut" xml:space="preserve"><value>Sign out</value></data>
+</root>

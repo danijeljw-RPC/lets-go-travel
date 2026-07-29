@@ -1,0 +1,81 @@
+@page "/account"
+@attribute [Authorize]
+@attribute [StreamRendering]
+@inject ConsumerApiClient ConsumerApi
+
+<PageTitle>Your account · readytogo.travel</PageTitle>
+
+<main class="content-shell narrow-shell">
+    <p class="eyebrow">Your travel account</p>
+    <h1>Set up the essentials</h1>
+    <p class="intro compact-intro">
+        We keep this light. Your sign-in is handled by our identity service; RTGT stores only the
+        account preferences needed to build and support your trips.
+    </p>
+
+    @if (saved)
+    {
+        <div class="notice success-notice" role="status">Your account preferences are saved.</div>
+    }
+
+    <EditForm Model="FormModel" FormName="account-profile" OnValidSubmit="SaveAsync" class="editor-card">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <AntiforgeryToken />
+
+        <label for="preferred-locale">Language and region</label>
+        <InputSelect id="preferred-locale" @bind-Value="FormModel.PreferredLocale">
+            <option value="en-AU">English (Australia)</option>
+        </InputSelect>
+
+        <label class="check-row">
+            <InputCheckbox @bind-Value="FormModel.AdultConfirmed" />
+            <span>I confirm I am at least 18 years old and can accept the booking terms.</span>
+        </label>
+
+        <button class="primary-action" type="submit">Save account</button>
+    </EditForm>
+
+    <section class="privacy-panel" aria-labelledby="privacy-title">
+        <p class="card-label">Privacy by default</p>
+        <h2 id="privacy-title">Sensitive traveller details are not saved</h2>
+        <p>
+            Passport details and dates of birth are entered only when a supplier needs them for a
+            booking. Reusable storage is disabled for launch and can only be introduced later with
+            explicit opt-in and a separate privacy review.
+        </p>
+    </section>
+</main>
+
+@code {
+    [SupplyParameterFromForm(FormName = "account-profile")]
+    private AccountForm? Form { get; set; }
+
+    private AccountForm FormModel => Form ??= new();
+
+    private bool saved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var profile = await ConsumerApi.GetProfileAsync();
+        if (profile is not null)
+        {
+            FormModel.PreferredLocale = profile.PreferredLocale;
+            FormModel.AdultConfirmed = true;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        saved = await ConsumerApi.SaveProfileAsync(FormModel.PreferredLocale, FormModel.AdultConfirmed) is not null;
+    }
+
+    private sealed class AccountForm
+    {
+        [Required]
+        public string PreferredLocale { get; set; } = "en-AU";
+
+        [Range(typeof(bool), "true", "true", ErrorMessage = "You must confirm that you are at least 18.")]
+        public bool AdultConfirmed { get; set; }
+    }
+}
