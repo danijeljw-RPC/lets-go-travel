@@ -5,6 +5,8 @@ namespace ReadyToGoTravel.Booking.Checkout;
 
 public sealed class CheckoutRevision
 {
+    private readonly List<CheckoutRevisionComponent> components;
+
     private CheckoutRevision(
         Guid id,
         int number,
@@ -16,7 +18,7 @@ public sealed class CheckoutRevision
     {
         Id = id;
         Number = number;
-        Components = components;
+        this.components = components.ToList();
         TransactionCurrency = transactionCurrency;
         TermsHash = termsHash;
         ExpiresAt = expiresAt;
@@ -27,11 +29,22 @@ public sealed class CheckoutRevision
             .ToArray();
     }
 
+    private CheckoutRevision(
+        Guid id,
+        int number,
+        string transactionCurrency,
+        string termsHash,
+        DateTimeOffset expiresAt,
+        DateTimeOffset resolvedAt)
+        : this(id, number, [], transactionCurrency, termsHash, expiresAt, resolvedAt)
+    {
+    }
+
     public Guid Id { get; }
 
     public int Number { get; }
 
-    public IReadOnlyList<CheckoutRevisionComponent> Components { get; }
+    public IReadOnlyList<CheckoutRevisionComponent> Components => components;
 
     public IReadOnlyList<CheckoutPriceComponent> PriceComponents { get; }
 

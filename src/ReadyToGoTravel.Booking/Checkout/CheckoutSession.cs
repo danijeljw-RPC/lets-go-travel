@@ -130,6 +130,24 @@ public sealed class CheckoutSession
         ExpiresAt = revision.ExpiresAt;
     }
 
+    private CheckoutSession(
+        Guid id,
+        Guid customerId,
+        Guid tripId,
+        CheckoutStatus status,
+        DateTimeOffset createdAt,
+        DateTimeOffset updatedAt,
+        DateTimeOffset expiresAt)
+    {
+        Id = id;
+        CustomerId = customerId;
+        TripId = tripId;
+        Status = status;
+        CreatedAt = createdAt;
+        UpdatedAt = updatedAt;
+        ExpiresAt = expiresAt;
+    }
+
     public Guid Id { get; }
 
     public Guid CustomerId { get; }
