@@ -69,8 +69,8 @@ Fresh completion checks on 2026-07-29 produced:
 - locked solution restore: passed;
 - solution formatter verification: passed after normalizing the generated migration and the inherited Slice 3 import ordering;
 - warning-as-error Release build: passed with zero warnings and zero errors;
-- full solution test run before the live-smoke regressions: 146/146 passed; final post-fix verification records 149/149 below in the implementation plan execution record;
-- repository documentation structure/link validation: passed for 105 files before this report and is rerun after documentation completion;
+- full solution test run before the live-smoke regressions: 146/146 passed; final post-review verification records 152/152 below in the implementation plan execution record;
+- repository documentation structure/link validation: passed for all 106 files after documentation completion;
 - Consumer and Booking migrations: applied successfully to a fresh PostgreSQL 17.10 database, with both migration IDs and expected `consumer`/`booking` schemas inspected;
 - Development live smoke: hotel, flight, combined, repricing, duplicate-return and pending-recovery paths completed with the states recorded above;
 - Production live smoke: HTTP `503 booking_capability_unavailable`;
@@ -88,7 +88,7 @@ The raw `markdownlint-cli2 "docs/**/*.md"` command reports 345 pre-existing viol
 - `c320fcc` and `3500aa1` — add and capability-gate sandbox checkout providers.
 - `c7dc367`, `04b306a` and `0f68fbf` — expose and harden the authenticated checkout API.
 - `c117ed7` and `ff05439` — add and harden the hosted checkout experience.
-- final completion commit — add the deterministic migration, live-smoke fixes, public/operational documentation, verification record and this outcome report.
+- `c4b1a51` — add the deterministic migration, live-smoke fixes, public/operational documentation, verification record and this outcome report.
 
 Branch: `codex/slice-4-checkout-booking`. Pull-request base: `dev`. The controller creates the pull request with `gh` after review and does not merge it as part of Slice 4 implementation.
 

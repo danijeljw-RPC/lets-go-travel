@@ -44,7 +44,7 @@ public sealed class LiteApiFixtureSearchProvider(TimeProvider timeProvider)
                 && offer.Children == request.ChildAges.Count
                 && offer.Rooms == request.Rooms)
             .Select(offer => new HotelSearchOffer(
-                OpaqueId("off_", fixture.Provider, fixture.Environment, offer.SupplierReference),
+                SearchOfferId(fixture.Provider, fixture.Environment, offer.SupplierReference, searchedAt),
                 offer.PropertyName,
                 offer.Destination,
                 offer.RoomName,
@@ -96,7 +96,7 @@ public sealed class LiteApiFixtureSearchProvider(TimeProvider timeProvider)
                 && offer.Infants == request.Infants
                 && string.Equals(offer.CabinClass, request.CabinClass.ToString(), StringComparison.OrdinalIgnoreCase))
             .Select(offer => new FlightSearchOffer(
-                OpaqueId("off_", fixture.Provider, fixture.Environment, offer.SupplierReference),
+                SearchOfferId(fixture.Provider, fixture.Environment, offer.SupplierReference, searchedAt),
                 offer.MarketingCarrier,
                 offer.CabinClass,
                 offer.Stops,
@@ -188,6 +188,17 @@ public sealed class LiteApiFixtureSearchProvider(TimeProvider timeProvider)
     {
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\u001f', values)));
         return prefix + Convert.ToHexString(digest.AsSpan(0, 12)).ToLowerInvariant();
+    }
+
+    private static string SearchOfferId(
+        string provider,
+        string environment,
+        string supplierReference,
+        DateTimeOffset searchedAt)
+    {
+        var generation = searchedAt.ToUnixTimeMilliseconds().ToString("x", CultureInfo.InvariantCulture);
+        var signature = OpaqueId(string.Empty, provider, environment, supplierReference, generation)[..16];
+        return $"{OpaqueId("off_", provider, environment, supplierReference)}_{generation}_{signature}";
     }
 
     private sealed record HotelFixture(

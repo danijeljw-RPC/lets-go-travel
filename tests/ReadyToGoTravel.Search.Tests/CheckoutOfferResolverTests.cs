@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -51,6 +52,92 @@ public sealed class CheckoutOfferResolverTests
         Assert.True(first.IsSuccess);
         Assert.True(second.IsSuccess);
         Assert.Equal(first.Value!.ExpiresAt, second.Value!.ExpiresAt);
+    }
+
+    [Fact]
+    public async Task FreshSearchAfterOriginalOfferExpiryProducesANewResolvableOffer()
+    {
+        var clock = new AdjustableTimeProvider(Now);
+        var provider = new LiteApiFixtureSearchProvider(clock);
+        var resolver = new LiteApiFixtureOfferResolver(clock, CapabilityRegistry.CreateDefaults());
+        var request = new HotelSearchRequest(
+            "Melbourne",
+            new DateOnly(2026, 10, 10),
+            new DateOnly(2026, 10, 12),
+            2,
+            [],
+            1,
+            "AUD",
+            "AU");
+
+        var originalSearch = await provider.SearchAsync(request, SearchEnvironment.Sandbox);
+        var originalOffer = originalSearch.Offers.Single();
+        var originalResolution = await resolver.ResolveAsync(originalOffer.OfferId, SearchEnvironment.Sandbox);
+        clock.Advance(TimeSpan.FromMinutes(21));
+
+        var expiredOriginal = await resolver.ResolveAsync(originalOffer.OfferId, SearchEnvironment.Sandbox);
+        var freshSearch = await provider.SearchAsync(request, SearchEnvironment.Sandbox);
+        var freshOffer = freshSearch.Offers.Single();
+        var freshResolution = await resolver.ResolveAsync(freshOffer.OfferId, SearchEnvironment.Sandbox);
+        var originalStillExpired = await resolver.ResolveAsync(originalOffer.OfferId, SearchEnvironment.Sandbox);
+
+        Assert.True(originalResolution.IsSuccess);
+        Assert.Equal(originalOffer.ExpiresAt, originalResolution.Value!.ExpiresAt);
+        Assert.Equal("checkout_offer_expired", expiredOriginal.ErrorCode);
+        Assert.NotEqual(originalOffer.OfferId, freshOffer.OfferId);
+        Assert.True(freshResolution.IsSuccess);
+        Assert.Equal(freshOffer.ExpiresAt, freshResolution.Value!.ExpiresAt);
+        Assert.Equal("checkout_offer_expired", originalStillExpired.ErrorCode);
+    }
+
+    [Fact]
+    public async Task TamperedOfferGenerationIsRejected()
+    {
+        var clock = new AdjustableTimeProvider(Now);
+        var provider = new LiteApiFixtureSearchProvider(clock);
+        var resolver = new LiteApiFixtureOfferResolver(clock, CapabilityRegistry.CreateDefaults());
+        var request = new HotelSearchRequest(
+            "Melbourne",
+            new DateOnly(2026, 10, 10),
+            new DateOnly(2026, 10, 12),
+            2,
+            [],
+            1,
+            "AUD",
+            "AU");
+        var search = await provider.SearchAsync(request, SearchEnvironment.Sandbox);
+        var offerId = search.Offers.Single().OfferId;
+        var tampered = offerId[..^1] + (offerId[^1] == '0' ? '1' : '0');
+
+        var result = await resolver.ResolveAsync(tampered, SearchEnvironment.Sandbox);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("checkout_offer_not_found", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task StrippedOfferGenerationIsRejected()
+    {
+        var clock = new AdjustableTimeProvider(Now);
+        var provider = new LiteApiFixtureSearchProvider(clock);
+        var resolver = new LiteApiFixtureOfferResolver(clock, CapabilityRegistry.CreateDefaults());
+        var request = new HotelSearchRequest(
+            "Melbourne",
+            new DateOnly(2026, 10, 10),
+            new DateOnly(2026, 10, 12),
+            2,
+            [],
+            1,
+            "AUD",
+            "AU");
+        var search = await provider.SearchAsync(request, SearchEnvironment.Sandbox);
+        var offerId = search.Offers.Single().OfferId;
+        var stripped = offerId[..offerId.IndexOf('_', "off_".Length)];
+
+        var result = await resolver.ResolveAsync(stripped, SearchEnvironment.Sandbox);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("checkout_offer_not_found", result.ErrorCode);
     }
 
     [Fact]
@@ -213,8 +300,13 @@ public sealed class CheckoutOfferResolverTests
 
     private static string OpaqueOfferId(string fixtureReference)
     {
-        var digest = SHA256.HashData(Encoding.UTF8.GetBytes($"LiteAPI\u001fsandbox\u001f{fixtureReference}"));
-        return "off_" + Convert.ToHexString(digest.AsSpan(0, 12)).ToLowerInvariant();
+        var baseDigest = SHA256.HashData(Encoding.UTF8.GetBytes($"LiteAPI\u001fsandbox\u001f{fixtureReference}"));
+        var baseId = "off_" + Convert.ToHexString(baseDigest.AsSpan(0, 12)).ToLowerInvariant();
+        var generation = Now.ToUnixTimeMilliseconds().ToString("x", CultureInfo.InvariantCulture);
+        var signatureDigest = SHA256.HashData(
+            Encoding.UTF8.GetBytes($"LiteAPI\u001fsandbox\u001f{fixtureReference}\u001f{generation}"));
+        var signature = Convert.ToHexString(signatureDigest.AsSpan(0, 12)).ToLowerInvariant()[..16];
+        return $"{baseId}_{generation}_{signature}";
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider

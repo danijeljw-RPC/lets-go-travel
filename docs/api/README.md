@@ -49,3 +49,9 @@ All checkout routes require an authenticated active customer. Ownership comes fr
 `Idempotency-Key` is required on checkout creation, acceptance, payment-session, payment-return and booking submission. A replay with the same request returns the durable response, while changed input under the same key returns `409 idempotency_conflict`. Recovery is retrieval-only and does not require a key.
 
 Development uses sanitized deterministic LiteAPI fixtures and the checkout endpoint limit is 20 requests per minute per source. Production registers no payment or booking provider and returns `503 booking_capability_unavailable`; credentials alone cannot enable it. Supplier webhooks, scheduled reconciliation, immutable canonical booking versions and notifications remain Slice 5.
+
+Public state values are case-sensitive and returned exactly as follows:
+
+- `CheckoutStatus`: `AwaitingAcceptance`, `ReadyForPayment`, `PaymentPending`, `BookingPending`, `Completed`, `Failed`, `RequiresSupport`, `Expired`;
+- `PaymentStatus`: `NotStarted`, `ActionRequired`, `Processing`, `Authorised`, `Captured`, `Failed`, `OutcomeUnknown`, `RefundRequired`; and
+- `ComponentBookingStatus`: `OfferSelected`, `PaymentPending`, `BookingPending`, `Confirmed`, `Failed`, `RefundRequired`, `RequiresSupport`.
