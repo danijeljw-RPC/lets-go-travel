@@ -17,4 +17,9 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ReadyToGoTravel.Search\ReadyToGoTravel.Search.csproj" />
+    <EmbeddedResource Include="SupplierIntegrations/LiteApi/Fixtures/*.json" />
+  </ItemGroup>
+
 </Project>

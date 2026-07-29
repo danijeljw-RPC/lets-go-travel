@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ReadyToGoTravel.Booking\ReadyToGoTravel.Booking.csproj" />
+    <ProjectReference Include="..\..\src\ReadyToGoTravel.Search\ReadyToGoTravel.Search.csproj" />
   </ItemGroup>
 
 </Project>
