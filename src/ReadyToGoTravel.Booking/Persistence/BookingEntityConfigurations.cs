@@ -175,7 +175,9 @@ internal sealed class IdempotencyRecordConfiguration : IEntityTypeConfiguration<
         builder.Property(value => value.CustomerId).HasColumnName("customer_id").IsRequired();
         builder.Property(value => value.Operation).HasColumnName("operation").HasMaxLength(80).IsRequired();
         builder.Property(value => value.Key).HasColumnName("key").HasMaxLength(255).IsRequired();
-        builder.HasIndex(value => new { value.CustomerId, value.Operation, value.Key }).IsUnique();
+        builder.HasIndex(value => new { value.CustomerId, value.Operation, value.Key })
+            .HasDatabaseName("ux_idempotency_records_customer_operation_key")
+            .IsUnique();
         builder.Property(value => value.Fingerprint).HasColumnName("fingerprint").HasMaxLength(64).IsRequired();
         builder.Property(value => value.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(16).IsRequired();
         builder.Property(value => value.ResponseStatusCode).HasColumnName("response_status_code");

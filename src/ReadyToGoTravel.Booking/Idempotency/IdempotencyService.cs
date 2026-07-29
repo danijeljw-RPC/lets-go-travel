@@ -21,6 +21,9 @@ public static class IdempotentResponse
 {
     public static IdempotentResponse<TResponse> Completed<TResponse>(int statusCode, TResponse value) =>
         new(IdempotencyOutcome.Completed, statusCode, value);
+
+    public static IdempotentResponse<TResponse> InProgress<TResponse>(int statusCode, TResponse value) =>
+        new(IdempotencyOutcome.InProgress, statusCode, value);
 }
 
 public interface IIdempotencyService
@@ -30,6 +33,7 @@ public interface IIdempotencyService
         string operation,
         string key,
         string fingerprint,
+        IdempotentResponse<TResponse> inProgressResponse,
         Func<CancellationToken, Task<IdempotentResponse<TResponse>>> action,
         CancellationToken cancellationToken);
 }
@@ -107,8 +111,17 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
     private static readonly string[] ForbiddenResponseFields =
     [
         "accesstoken",
+        "pan",
+        "primaryaccountnumber",
+        "cardnumber",
+        "cvv",
+        "cvc",
+        "sensitiveauthenticationdata",
+        "identitydocument",
+        "passport",
         "suppliercredential",
         "suppliercredentials",
+        "apikey",
         "reusablepaymenttoken",
     ];
 
@@ -117,13 +130,19 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
         string operation,
         string key,
         string fingerprint,
+        IdempotentResponse<TResponse> inProgressResponse,
         Func<CancellationToken, Task<IdempotentResponse<TResponse>>> action,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentException.ThrowIfNullOrWhiteSpace(fingerprint);
+        ArgumentNullException.ThrowIfNull(inProgressResponse);
         ArgumentNullException.ThrowIfNull(action);
+        if (inProgressResponse.Outcome != IdempotencyOutcome.InProgress)
+        {
+            throw new ArgumentException("The durable response must be InProgress.", nameof(inProgressResponse));
+        }
 
         var existing = await context.IdempotencyRecords.SingleOrDefaultAsync(value =>
             value.CustomerId == customerId &&
@@ -136,10 +155,31 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
             return Replay<TResponse>(existing, fingerprint);
         }
 
+        var inProgressBody = SerializeSafeResponse(inProgressResponse.Value);
         var now = timeProvider.GetUtcNow().ToUniversalTime();
-        var record = IdempotencyRecord.Begin(customerId, operation, key, fingerprint, now);
+        var record = IdempotencyRecord.Begin(
+            customerId,
+            operation,
+            key,
+            fingerprint,
+            inProgressResponse.StatusCode,
+            inProgressBody,
+            now);
         context.IdempotencyRecords.Add(record);
-        await context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsIdempotencyKeyRace(exception))
+        {
+            context.ChangeTracker.Clear();
+            var winningRecord = await context.IdempotencyRecords.SingleAsync(value =>
+                value.CustomerId == customerId &&
+                value.Operation == operation &&
+                value.Key == key,
+                cancellationToken);
+            return Replay<TResponse>(winningRecord, fingerprint);
+        }
 
         var response = await action(cancellationToken);
         var responseBody = SerializeSafeResponse(response.Value);
@@ -183,7 +223,7 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
                     .Where(char.IsLetterOrDigit)
                     .Select(char.ToLowerInvariant)
                     .ToArray());
-                if (ForbiddenResponseFields.Contains(normalizedName, StringComparer.Ordinal))
+                if (IsForbiddenResponseField(normalizedName))
                 {
                     throw new InvalidOperationException("Idempotency responses cannot contain reusable credentials.");
                 }
@@ -198,5 +238,37 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
                 EnsureResponseContainsNoReusableSecrets(item);
             }
         }
+    }
+
+    private static bool IsForbiddenResponseField(string normalizedName) =>
+        ForbiddenResponseFields.Any(forbidden =>
+            normalizedName.Equals(forbidden, StringComparison.Ordinal) ||
+            normalizedName.Contains(forbidden, StringComparison.Ordinal)) ||
+        (normalizedName.Contains("card", StringComparison.Ordinal) &&
+         normalizedName.Contains("number", StringComparison.Ordinal));
+
+    private static bool IsIdempotencyKeyRace(DbUpdateException exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            var sqlState = current.GetType().GetProperty("SqlState")?.GetValue(current)?.ToString();
+            var constraintName = current.GetType().GetProperty("ConstraintName")?.GetValue(current)?.ToString();
+            if (string.Equals(sqlState, "23505", StringComparison.Ordinal) &&
+                string.Equals(constraintName, "ux_idempotency_records_customer_operation_key", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            var sqliteErrorCode = current.GetType().GetProperty("SqliteErrorCode")?.GetValue(current);
+            if (sqliteErrorCode is int sqliteCode && sqliteCode == 19 &&
+                current.Message.Contains("idempotency_records.customer_id", StringComparison.Ordinal) &&
+                current.Message.Contains("idempotency_records.operation", StringComparison.Ordinal) &&
+                current.Message.Contains("idempotency_records.key", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

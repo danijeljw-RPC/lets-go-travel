@@ -14,6 +14,8 @@ internal sealed class IdempotencyRecord
         string operation,
         string key,
         string fingerprint,
+        int? responseStatusCode,
+        string responseBody,
         DateTimeOffset createdAt,
         DateTimeOffset expiresAt)
     {
@@ -23,6 +25,8 @@ internal sealed class IdempotencyRecord
         Key = key;
         Fingerprint = fingerprint;
         Status = IdempotencyRecordStatus.InProgress;
+        ResponseStatusCode = responseStatusCode;
+        ResponseBody = responseBody;
         CreatedAt = createdAt;
         UpdatedAt = createdAt;
         ExpiresAt = expiresAt;
@@ -55,12 +59,16 @@ internal sealed class IdempotencyRecord
         string operation,
         string key,
         string fingerprint,
+        int responseStatusCode,
+        string responseBody,
         DateTimeOffset now) => new(
         Guid.CreateVersion7(now),
         customerId,
         operation,
         key,
         fingerprint,
+        responseStatusCode,
+        responseBody,
         now,
         now.AddDays(7));
 
