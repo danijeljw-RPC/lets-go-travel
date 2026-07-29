@@ -1,7 +1,4 @@
-using System.Globalization;
 using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ReadyToGoTravel.Search.Capabilities;
@@ -11,7 +8,8 @@ namespace ReadyToGoTravel.Search.SupplierIntegrations.LiteApi;
 
 public sealed class LiteApiFixtureOfferResolver(
     TimeProvider timeProvider,
-    ICapabilityRegistry capabilityRegistry) : ICheckoutOfferResolver
+    ICapabilityRegistry capabilityRegistry,
+    LiteApiFixtureIssuedOfferRegistry issuedOffers) : ICheckoutOfferResolver
 {
     private static readonly JsonSerializerOptions FixtureJsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -28,15 +26,17 @@ public sealed class LiteApiFixtureOfferResolver(
             return CheckoutOfferResolutionResult.Failure("booking_capability_unavailable");
         }
 
+        if (!issuedOffers.TryGet(offerId, out var issuedOffer))
+        {
+            return CheckoutOfferResolutionResult.Failure("checkout_offer_not_found");
+        }
+
         var fixture = await LoadFixtureAsync(cancellationToken);
         var offer = fixture.Offers.SingleOrDefault(candidate =>
-            IsOfferIdForFixture(
-                offerId,
-                OpaqueId("off_", fixture.Provider, fixture.Environment, candidate.FixtureReference),
-                fixture.Provider,
-                fixture.Environment,
-                candidate.FixtureReference));
-        if (offer is null)
+            string.Equals(candidate.FixtureReference, issuedOffer!.FixtureReference, StringComparison.Ordinal));
+        if (offer is null
+            || !string.Equals(fixture.Provider, issuedOffer!.Provider, StringComparison.Ordinal)
+            || !string.Equals(fixture.Environment, issuedOffer.Environment, StringComparison.OrdinalIgnoreCase))
         {
             return CheckoutOfferResolutionResult.Failure("checkout_offer_not_found");
         }
@@ -75,15 +75,7 @@ public sealed class LiteApiFixtureOfferResolver(
             return CheckoutOfferResolutionResult.Failure("checkout_market_unavailable");
         }
 
-        var fixtureOfferId = OpaqueId("off_", fixture.Provider, fixture.Environment, offer.FixtureReference);
-        _ = TryReadIssuedAt(
-            offerId,
-            fixtureOfferId,
-            fixture.Provider,
-            fixture.Environment,
-            offer.FixtureReference,
-            out var issuedAt);
-        var expiresAt = issuedAt.AddMinutes(offer.LifetimeMinutes);
+        var expiresAt = issuedOffer.ExpiresAt;
         if (offer.Scenario == "expired" || expiresAt <= now)
         {
             return CheckoutOfferResolutionResult.Failure("checkout_offer_expired");
@@ -126,73 +118,6 @@ public sealed class LiteApiFixtureOfferResolver(
 
         return await JsonSerializer.DeserializeAsync<CheckoutOffersFixture>(stream, FixtureJsonOptions, cancellationToken)
             ?? throw new InvalidDataException("Embedded checkout offer fixture was empty.");
-    }
-
-    private static string OpaqueId(string prefix, params string[] values)
-    {
-        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\u001f', values)));
-        return prefix + Convert.ToHexString(digest.AsSpan(0, 12)).ToLowerInvariant();
-    }
-
-    private static bool IsOfferIdForFixture(
-        string offerId,
-        string fixtureOfferId,
-        string provider,
-        string environment,
-        string fixtureReference) => TryReadIssuedAt(
-            offerId,
-            fixtureOfferId,
-            provider,
-            environment,
-            fixtureReference,
-            out _);
-
-    private static bool TryReadIssuedAt(
-        string offerId,
-        string fixtureOfferId,
-        string provider,
-        string environment,
-        string fixtureReference,
-        out DateTimeOffset issuedAt)
-    {
-        issuedAt = default;
-        var prefix = fixtureOfferId + "_";
-        if (!offerId.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var generationParts = offerId[prefix.Length..].Split('_');
-        if (generationParts.Length != 2
-            || !long.TryParse(
-                generationParts[0],
-                NumberStyles.AllowHexSpecifier,
-                CultureInfo.InvariantCulture,
-                out var unixMilliseconds))
-        {
-            return false;
-        }
-
-        var expectedSignature = OpaqueId(
-            string.Empty,
-            provider,
-            environment,
-            fixtureReference,
-            generationParts[0])[..16];
-        if (!string.Equals(generationParts[1], expectedSignature, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        try
-        {
-            issuedAt = DateTimeOffset.FromUnixTimeMilliseconds(unixMilliseconds);
-            return true;
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            return false;
-        }
     }
 
     private sealed record CheckoutOffersFixture(

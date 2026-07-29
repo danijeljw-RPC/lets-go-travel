@@ -17,8 +17,9 @@ public sealed class CheckoutOfferResolverTests
     [Fact]
     public async Task ResolverReturnsFreshPlatformRevisionForOpaqueHotelOffer()
     {
-        var provider = new LiteApiFixtureSearchProvider(new FixedTimeProvider(Now));
-        var resolver = Resolver();
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
+        var provider = new LiteApiFixtureSearchProvider(new FixedTimeProvider(Now), issuedOffers);
+        var resolver = Resolver(issuedOffers: issuedOffers);
         var hotelRequest = new HotelSearchRequest(
             "Melbourne",
             new DateOnly(2026, 10, 10),
@@ -42,8 +43,9 @@ public sealed class CheckoutOfferResolverTests
     public async Task RepeatedResolutionOfUnchangedFixturePreservesExpiry()
     {
         var clock = new AdjustableTimeProvider(Now);
-        var resolver = new LiteApiFixtureOfferResolver(clock, CapabilityRegistry.CreateDefaults());
-        var offerId = OpaqueOfferId("sandbox-hotel-001");
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
+        var resolver = new LiteApiFixtureOfferResolver(clock, CapabilityRegistry.CreateDefaults(), issuedOffers);
+        var offerId = IssueOffer(issuedOffers, "sandbox-hotel-001");
 
         var first = await resolver.ResolveAsync(offerId, SearchEnvironment.Sandbox);
         clock.Advance(TimeSpan.FromSeconds(1));
@@ -58,8 +60,9 @@ public sealed class CheckoutOfferResolverTests
     public async Task FreshSearchAfterOriginalOfferExpiryProducesANewResolvableOffer()
     {
         var clock = new AdjustableTimeProvider(Now);
-        var provider = new LiteApiFixtureSearchProvider(clock);
-        var resolver = new LiteApiFixtureOfferResolver(clock, CapabilityRegistry.CreateDefaults());
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
+        var provider = new LiteApiFixtureSearchProvider(clock, issuedOffers);
+        var resolver = new LiteApiFixtureOfferResolver(clock, CapabilityRegistry.CreateDefaults(), issuedOffers);
         var request = new HotelSearchRequest(
             "Melbourne",
             new DateOnly(2026, 10, 10),
@@ -91,11 +94,12 @@ public sealed class CheckoutOfferResolverTests
     }
 
     [Fact]
-    public async Task TamperedOfferGenerationIsRejected()
+    public async Task TamperedOpaqueOfferIdIsRejected()
     {
         var clock = new AdjustableTimeProvider(Now);
-        var provider = new LiteApiFixtureSearchProvider(clock);
-        var resolver = new LiteApiFixtureOfferResolver(clock, CapabilityRegistry.CreateDefaults());
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
+        var provider = new LiteApiFixtureSearchProvider(clock, issuedOffers);
+        var resolver = new LiteApiFixtureOfferResolver(clock, CapabilityRegistry.CreateDefaults(), issuedOffers);
         var request = new HotelSearchRequest(
             "Melbourne",
             new DateOnly(2026, 10, 10),
@@ -116,11 +120,33 @@ public sealed class CheckoutOfferResolverTests
     }
 
     [Fact]
-    public async Task StrippedOfferGenerationIsRejected()
+    public async Task ForgedFutureOfferGenerationWithRecomputedPublicTagIsRejected()
     {
         var clock = new AdjustableTimeProvider(Now);
-        var provider = new LiteApiFixtureSearchProvider(clock);
-        var resolver = new LiteApiFixtureOfferResolver(clock, CapabilityRegistry.CreateDefaults());
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
+        var resolver = new LiteApiFixtureOfferResolver(clock, CapabilityRegistry.CreateDefaults(), issuedOffers);
+        var baseDigest = SHA256.HashData(
+            Encoding.UTF8.GetBytes("LiteAPI\u001fsandbox\u001fsandbox-hotel-001"));
+        var baseId = "off_" + Convert.ToHexString(baseDigest.AsSpan(0, 12)).ToLowerInvariant();
+        var forgedGeneration = Now.AddDays(1).ToUnixTimeMilliseconds().ToString("x", CultureInfo.InvariantCulture);
+        var forgedTagDigest = SHA256.HashData(
+            Encoding.UTF8.GetBytes($"LiteAPI\u001fsandbox\u001fsandbox-hotel-001\u001f{forgedGeneration}"));
+        var forgedTag = Convert.ToHexString(forgedTagDigest.AsSpan(0, 12)).ToLowerInvariant()[..16];
+        var forgedOfferId = $"{baseId}_{forgedGeneration}_{forgedTag}";
+
+        var result = await resolver.ResolveAsync(forgedOfferId, SearchEnvironment.Sandbox);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("checkout_offer_not_found", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task IssuedOfferIsRejectedAfterInMemoryRegistryRestart()
+    {
+        var provider = new LiteApiFixtureSearchProvider(
+            new FixedTimeProvider(Now),
+            new LiteApiFixtureIssuedOfferRegistry());
+        var restartedResolver = Resolver();
         var request = new HotelSearchRequest(
             "Melbourne",
             new DateOnly(2026, 10, 10),
@@ -131,10 +157,26 @@ public sealed class CheckoutOfferResolverTests
             "AUD",
             "AU");
         var search = await provider.SearchAsync(request, SearchEnvironment.Sandbox);
-        var offerId = search.Offers.Single().OfferId;
-        var stripped = offerId[..offerId.IndexOf('_', "off_".Length)];
 
-        var result = await resolver.ResolveAsync(stripped, SearchEnvironment.Sandbox);
+        var result = await restartedResolver.ResolveAsync(
+            search.Offers.Single().OfferId,
+            SearchEnvironment.Sandbox);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("checkout_offer_not_found", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task LegacyHashOnlyOfferIdIsRejected()
+    {
+        var clock = new AdjustableTimeProvider(Now);
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
+        var resolver = new LiteApiFixtureOfferResolver(clock, CapabilityRegistry.CreateDefaults(), issuedOffers);
+        var legacyDigest = SHA256.HashData(
+            Encoding.UTF8.GetBytes("LiteAPI\u001fsandbox\u001fsandbox-hotel-001"));
+        var legacyOfferId = "off_" + Convert.ToHexString(legacyDigest.AsSpan(0, 12)).ToLowerInvariant();
+
+        var result = await resolver.ResolveAsync(legacyOfferId, SearchEnvironment.Sandbox);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("checkout_offer_not_found", result.ErrorCode);
@@ -175,8 +217,9 @@ public sealed class CheckoutOfferResolverTests
     [Fact]
     public async Task ResolverReturnsCurrentRepricedFlightRevision()
     {
-        var provider = new LiteApiFixtureSearchProvider(new FixedTimeProvider(Now));
-        var resolver = Resolver();
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
+        var provider = new LiteApiFixtureSearchProvider(new FixedTimeProvider(Now), issuedOffers);
+        var resolver = Resolver(issuedOffers: issuedOffers);
         var request = new FlightSearchRequest(
             [new FlightSearchLeg("SYD", "MEL", new DateOnly(2026, 10, 10))],
             1,
@@ -200,8 +243,9 @@ public sealed class CheckoutOfferResolverTests
     [InlineData("sandbox-hotel-expired-001", "checkout_offer_expired")]
     public async Task ResolverRejectsUnavailableFixtureScenarios(string fixtureReference, string errorCode)
     {
-        var resolver = Resolver();
-        var opaqueOfferId = OpaqueOfferId(fixtureReference);
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
+        var resolver = Resolver(issuedOffers: issuedOffers);
+        var opaqueOfferId = IssueOffer(issuedOffers, fixtureReference);
 
         var result = await resolver.ResolveAsync(opaqueOfferId, SearchEnvironment.Sandbox);
 
@@ -212,9 +256,14 @@ public sealed class CheckoutOfferResolverTests
     [Fact]
     public async Task ResolverFailsClosedWhenPointOfSaleIsNotEnabledForTheFixtureMarket()
     {
-        var resolver = Resolver(Registry(capability => capability with { PointOfSale = "NZ" }));
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
+        var resolver = Resolver(
+            Registry(capability => capability with { PointOfSale = "NZ" }),
+            issuedOffers);
 
-        var result = await resolver.ResolveAsync(OpaqueOfferId("sandbox-hotel-001"), SearchEnvironment.Sandbox);
+        var result = await resolver.ResolveAsync(
+            IssueOffer(issuedOffers, "sandbox-hotel-001"),
+            SearchEnvironment.Sandbox);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("booking_capability_unavailable", result.ErrorCode);
@@ -223,9 +272,14 @@ public sealed class CheckoutOfferResolverTests
     [Fact]
     public async Task ResolverFailsClosedWhenTheFixtureProviderIsNotEnabled()
     {
-        var resolver = Resolver(Registry(capability => capability with { Provider = "OtherProvider" }));
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
+        var resolver = Resolver(
+            Registry(capability => capability with { Provider = "OtherProvider" }),
+            issuedOffers);
 
-        var result = await resolver.ResolveAsync(OpaqueOfferId("sandbox-hotel-001"), SearchEnvironment.Sandbox);
+        var result = await resolver.ResolveAsync(
+            IssueOffer(issuedOffers, "sandbox-hotel-001"),
+            SearchEnvironment.Sandbox);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("booking_capability_unavailable", result.ErrorCode);
@@ -234,11 +288,14 @@ public sealed class CheckoutOfferResolverTests
     [Fact]
     public async Task ResolverFailsClosedWhenTheHotelProductIsNotEnabledForVerificationAndBooking()
     {
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
         var resolver = Resolver(Registry(capability => capability.Product == SearchProduct.Accommodation
             ? capability with { Product = SearchProduct.Flight }
-            : capability));
+            : capability), issuedOffers);
 
-        var result = await resolver.ResolveAsync(OpaqueOfferId("sandbox-hotel-001"), SearchEnvironment.Sandbox);
+        var result = await resolver.ResolveAsync(
+            IssueOffer(issuedOffers, "sandbox-hotel-001"),
+            SearchEnvironment.Sandbox);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("booking_capability_unavailable", result.ErrorCode);
@@ -247,12 +304,15 @@ public sealed class CheckoutOfferResolverTests
     [Fact]
     public async Task ResolverFailsClosedWhenPriceVerificationIsDisabled()
     {
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
         var resolver = Resolver(Registry(capability => capability.Operation == SearchOperation.PriceVerification
             && capability.Product == SearchProduct.Accommodation
             ? capability with { Enabled = false }
-            : capability));
+            : capability), issuedOffers);
 
-        var result = await resolver.ResolveAsync(OpaqueOfferId("sandbox-hotel-001"), SearchEnvironment.Sandbox);
+        var result = await resolver.ResolveAsync(
+            IssueOffer(issuedOffers, "sandbox-hotel-001"),
+            SearchEnvironment.Sandbox);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("booking_capability_unavailable", result.ErrorCode);
@@ -261,12 +321,15 @@ public sealed class CheckoutOfferResolverTests
     [Fact]
     public async Task ResolverFailsClosedWhenBookingIsDisabled()
     {
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
         var resolver = Resolver(Registry(capability => capability.Operation == SearchOperation.Booking
             && capability.Product == SearchProduct.Accommodation
             ? capability with { Enabled = false }
-            : capability));
+            : capability), issuedOffers);
 
-        var result = await resolver.ResolveAsync(OpaqueOfferId("sandbox-hotel-001"), SearchEnvironment.Sandbox);
+        var result = await resolver.ResolveAsync(
+            IssueOffer(issuedOffers, "sandbox-hotel-001"),
+            SearchEnvironment.Sandbox);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("booking_capability_unavailable", result.ErrorCode);
@@ -275,21 +338,27 @@ public sealed class CheckoutOfferResolverTests
     [Fact]
     public async Task ResolverFailsClosedWhenTheFlightCarrierIsNotEnabled()
     {
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
         var resolver = Resolver(Registry(capability => capability.Operation == SearchOperation.Booking
             && capability.Product == SearchProduct.Flight
             && capability.CarrierCode == "QF"
             ? capability with { Enabled = false }
-            : capability));
+            : capability), issuedOffers);
 
-        var result = await resolver.ResolveAsync(OpaqueOfferId("sandbox-flight-qf-001"), SearchEnvironment.Sandbox);
+        var result = await resolver.ResolveAsync(
+            IssueOffer(issuedOffers, "sandbox-flight-qf-001"),
+            SearchEnvironment.Sandbox);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("booking_capability_unavailable", result.ErrorCode);
     }
 
-    private static LiteApiFixtureOfferResolver Resolver(ICapabilityRegistry? registry = null) => new(
+    private static LiteApiFixtureOfferResolver Resolver(
+        ICapabilityRegistry? registry = null,
+        LiteApiFixtureIssuedOfferRegistry? issuedOffers = null) => new(
         new FixedTimeProvider(Now),
-        registry ?? CapabilityRegistry.CreateDefaults());
+        registry ?? CapabilityRegistry.CreateDefaults(),
+        issuedOffers ?? new LiteApiFixtureIssuedOfferRegistry());
 
     private static CapabilityRegistry Registry(Func<SearchCapability, SearchCapability> map) =>
         CapabilityRegistry.Create(
@@ -298,16 +367,14 @@ public sealed class CheckoutOfferResolverTests
                 .Select(map)
                 .ToArray());
 
-    private static string OpaqueOfferId(string fixtureReference)
-    {
-        var baseDigest = SHA256.HashData(Encoding.UTF8.GetBytes($"LiteAPI\u001fsandbox\u001f{fixtureReference}"));
-        var baseId = "off_" + Convert.ToHexString(baseDigest.AsSpan(0, 12)).ToLowerInvariant();
-        var generation = Now.ToUnixTimeMilliseconds().ToString("x", CultureInfo.InvariantCulture);
-        var signatureDigest = SHA256.HashData(
-            Encoding.UTF8.GetBytes($"LiteAPI\u001fsandbox\u001f{fixtureReference}\u001f{generation}"));
-        var signature = Convert.ToHexString(signatureDigest.AsSpan(0, 12)).ToLowerInvariant()[..16];
-        return $"{baseId}_{generation}_{signature}";
-    }
+    private static string IssueOffer(
+        LiteApiFixtureIssuedOfferRegistry issuedOffers,
+        string fixtureReference) => issuedOffers.Issue(
+            "LiteAPI",
+            "sandbox",
+            fixtureReference,
+            Now,
+            Now.AddMinutes(20));
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {

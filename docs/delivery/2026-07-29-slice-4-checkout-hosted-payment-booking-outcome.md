@@ -25,7 +25,7 @@ The Blazor `/checkout` page consumes only the public API. Search selection passe
 
 Every selected offer is resolved on the server at checkout creation and immediately before payment preparation. A changed price, currency, material term, product detail, provider revision/binding or expiry clears acceptance and returns `price_acceptance_required`; payment cannot continue until the customer accepts the exact current revision.
 
-The live Development smoke observed the QF sandbox search total of AUD 289.40 become an authoritative checkout total of AUD 309.40. The customer accepted the checkout revision before payment. Repeated resolution of an unchanged sanitized fixture now preserves its original provider expiry, so unchanged revalidation does not manufacture a false reprice.
+The live Development smoke observed the QF sandbox search total of AUD 289.40 become an authoritative checkout total of AUD 309.40. The customer accepted the checkout revision before payment. Repeated resolution of an unchanged sanitized fixture now preserves its original provider expiry, so unchanged revalidation does not manufacture a false reprice. Each fixture search issues a cryptographically random opaque handle into a server-owned in-memory registry. The resolver accepts only handles in that registry, so clients cannot manufacture a later expiry. A server restart deliberately invalidates outstanding sandbox handles as `checkout_offer_not_found`; a fresh search issues a distinct resolvable handle while an original expired handle stays expired for the lifetime of its registry.
 
 ## Hosted Payment and PCI Boundary
 
@@ -60,7 +60,7 @@ Tasks 1 through 5 recorded observed RED/GREEN cycles for the Consumer boundary, 
 - separate component bookings returned the same provider booking reference; the regression first observed equal `book_flight_pending` references and PostgreSQL had reported unique-index violation `23505`; and
 - separate hosted sessions returned the same provider payment reference; the regression first observed equal `pay_action_required` references and PostgreSQL had reported a duplicate provider-return reference.
 
-The focused GREEN checks passed, followed by Search 31/31 and Booking 65/65.
+The focused GREEN checks passed, followed by Search 31/31 and Booking 65/65. Independent review then exposed two offer-identity defects through further observed RED/GREEN cycles. First, a stable fixture offer ID remained permanently expired after its first lifetime; a fresh search now receives a distinct handle while the original remains expired. Second, an unkeyed generation tag could be recomputed by a client with a future issue time; the exact forged-future regression originally resolved successfully and now returns `checkout_offer_not_found`. A restart regression also proves that an ID absent from a new server-owned registry fails closed. Final Search verification is 36/36.
 
 ## Verification Record
 
@@ -69,7 +69,7 @@ Fresh completion checks on 2026-07-29 produced:
 - locked solution restore: passed;
 - solution formatter verification: passed after normalizing the generated migration and the inherited Slice 3 import ordering;
 - warning-as-error Release build: passed with zero warnings and zero errors;
-- full solution test run before the live-smoke regressions: 146/146 passed; final post-review verification records 152/152 below in the implementation plan execution record;
+- full solution test run before the live-smoke regressions: 146/146 passed; final post-review verification records 154/154 below in the implementation plan execution record;
 - repository documentation structure/link validation: passed for all 106 files after documentation completion;
 - Consumer and Booking migrations: applied successfully to a fresh PostgreSQL 17.10 database, with both migration IDs and expected `consumer`/`booking` schemas inspected;
 - Development live smoke: hotel, flight, combined, repricing, duplicate-return and pending-recovery paths completed with the states recorded above;
@@ -89,6 +89,7 @@ The raw `markdownlint-cli2 "docs/**/*.md"` command reports 345 pre-existing viol
 - `c7dc367`, `04b306a` and `0f68fbf` — expose and harden the authenticated checkout API.
 - `c117ed7` and `ff05439` — add and harden the hosted checkout experience.
 - `c4b1a51` — add the deterministic migration, live-smoke fixes, public/operational documentation, verification record and this outcome report.
+- `46c26e2` — refresh expired sandbox offers and correct the completion documentation.
 
 Branch: `codex/slice-4-checkout-booking`. Pull-request base: `dev`. The controller creates the pull request with `gh` after review and does not merge it as part of Slice 4 implementation.
 

@@ -26,6 +26,7 @@ public static class SearchModule
 
         if (enableFixtures)
         {
+            services.AddSingleton<LiteApiFixtureIssuedOfferRegistry>();
             services.AddSingleton<LiteApiFixtureSearchProvider>();
             services.AddSingleton<LiteApiFixtureOfferResolver>();
             services.AddSingleton<IHotelSearchProvider>(provider =>

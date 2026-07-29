@@ -688,11 +688,13 @@ The PR body summarizes scope, tests, production gates, explicit Slice 5 exclusio
 
 Implementation completed on 2026-07-29 through delegated tasks with independent review/fix gates. The deterministic Booking migration `20260729030000_InitialBookingSchema` and the existing Consumer migration were applied to a fresh PostgreSQL 17.10 database. Inspection confirmed only the expected `consumer` and `booking` tables plus the Booking uniqueness constraints.
 
-Fresh local verification passed locked restore, solution formatting, a warning-as-error Release build, all 152 tests, repository documentation validation, changed-document markdown lint and all four container builds. Live Development smoke recorded hotel `Completed`, QF flight `BookingPending`, combined `BookingPending`, duplicate return convergence, safe pending recovery and AUD 289.40-to-309.40 repricing; Production returned HTTP `503 booking_capability_unavailable`.
+Fresh local verification passed locked restore, solution formatting, a warning-as-error Release build, all 154 tests, repository documentation validation, changed-document markdown lint and all four container builds. Live Development smoke recorded hotel `Completed`, QF flight `BookingPending`, combined `BookingPending`, duplicate return convergence, safe pending recovery and AUD 289.40-to-309.40 repricing; Production returned HTTP `503 booking_capability_unavailable`.
 
 The full unconfigured `markdownlint-cli2 "docs/**/*.md"` command still reports 345 pre-existing repository violations. The vulnerable-package audit was not run because the approval boundary rejected transmitting repository package metadata to the external advisory service. These are recorded verification limitations, not silently treated as passes.
 
 Live PostgreSQL smoke exposed three sanitized-fixture integration defects: moving expiry falsely invalidated unchanged acceptance, provider booking references collided between checkouts and provider payment/return references collided between checkouts. Each received an observed focused RED, minimum fix and focused/full GREEN verification. The [Slice 4 outcome report](../../delivery/2026-07-29-slice-4-checkout-hosted-payment-booking-outcome.md) contains the complete evidence and exclusions.
+
+Independent review also exposed that stable search offer IDs could remain permanently expired and that the first generation tag was an unkeyed client-recomputable hash. Fixture searches now issue cryptographically random opaque handles into one in-memory registry shared by the search provider and resolver. Only server-issued handles resolve, expiry is immutable, a fresh search gets a distinct handle and a process restart fails outstanding sandbox handles closed as `checkout_offer_not_found`.
 
 ## Plan Self-review
 
