@@ -314,6 +314,48 @@ public sealed class BookingApiTests
     }
 
     [Fact]
+    public async Task InitialConfirmedBookingWithoutExternalReferenceRequiresSupportAndCompletesIdempotency()
+    {
+        var booking = new DeterministicBookingProvider();
+        booking.BookResults[CheckoutOfferProduct.Flight] = new BookingProviderExecutionResult(
+            BookingProviderStatus.Confirmed,
+            null,
+            null);
+        await using var application = await TestApplication.CreateAsync(booking: booking);
+        var checkout = await application.CreateCheckoutAsync("owner", FlightOfferIds);
+        checkout = await application.AcceptAsync(checkout);
+        checkout = await application.PreparePaymentAsync(checkout.Id, "payment-session-missing-initial-reference");
+        checkout = await application.ReturnPaymentAsync(checkout.Id, "payment-return-missing-initial-reference");
+
+        var first = await application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/book",
+            new { },
+            "book-missing-initial-reference");
+        var replay = await application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/book",
+            new { },
+            "book-missing-initial-reference");
+
+        first.EnsureSuccessStatusCode();
+        replay.EnsureSuccessStatusCode();
+        var result = (await replay.Content.ReadFromJsonAsync<Checkout>())!;
+        Assert.Equal("RequiresSupport", result.Status);
+        Assert.Equal(1, result.RecoveryCaseCount);
+        Assert.Equal(1, booking.BookCalls);
+
+        await using var scope = application.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<BookingDbContext>();
+        Assert.Equal(1, await database.RecoveryCases.CountAsync());
+        var bookRecords = await database.IdempotencyRecords
+            .Where(record =>
+                record.Operation == $"checkout-book:{checkout.Id:N}" ||
+                record.Operation.StartsWith($"provider-book:{checkout.Id:N}:"))
+            .ToArrayAsync();
+        Assert.Equal(2, bookRecords.Length);
+        Assert.All(bookRecords, record => Assert.Equal("Completed", record.Status.ToString()));
+    }
+
+    [Fact]
     public async Task PendingBookingRecoveryCanBecomeConfirmed()
     {
         var booking = new DeterministicBookingProvider();
@@ -961,6 +1003,8 @@ public sealed class BookingApiTests
 
         public bool BlockUntilTwoRetrieveCalls { get; init; }
 
+        public int BookCalls { get; private set; }
+
         public Dictionary<CheckoutOfferProduct, BookingProviderExecutionResult> BookResults { get; } = new()
         {
             [CheckoutOfferProduct.Hotel] = new BookingProviderExecutionResult(
@@ -981,6 +1025,7 @@ public sealed class BookingApiTests
             BookingCommand command,
             CancellationToken cancellationToken = default)
         {
+            BookCalls++;
             LastAgeAtTravel = command.Travellers?.Single().AgeAtTravel;
             var product = command.Product == ReadyToGoTravel.Booking.Checkout.CheckoutProduct.Hotel
                 ? CheckoutOfferProduct.Hotel

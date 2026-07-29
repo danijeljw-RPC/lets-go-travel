@@ -518,6 +518,17 @@ internal sealed class CheckoutService(
                                     $"checkout-book:{checkout.Id:N}:{component.Id:N}",
                                     travellers),
                                 providerCancellationToken);
+                            if (execution.Status == BookingProviderStatus.Confirmed &&
+                                string.IsNullOrWhiteSpace(execution.ExternalReference))
+                            {
+                                checkout.Recover(
+                                    component.Id,
+                                    "booking_confirmation_reference_required",
+                                    timeProvider);
+                                await database.SaveChangesAsync(providerCancellationToken);
+                                break;
+                            }
+
                             var recorded = checkout.RecordBookingResult(
                                 component.Id,
                                 CheckoutOfferMapper.ToDomainResult(execution),
