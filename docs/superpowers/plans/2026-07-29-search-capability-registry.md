@@ -42,11 +42,11 @@
 - Produces: `HotelSearchRequest`, `FlightSearchRequest`, `OfferPrice.Create(...)`, `SearchCapability`, `ICapabilityRegistry.GetSnapshot(...)` and `SearchEnvironment`.
 - Consumes: `TimeProvider` and platform UUIDv7 identifiers.
 
-- [ ] **Step 1: Scaffold the module and test project**
+- [x] **Step 1: Scaffold the module and test project**
 
 Add both projects to `ReadyToGoTravel.slnx`, reference the module from its tests and expose internals to the test assembly.
 
-- [ ] **Step 2: Write failing domain and capability tests**
+- [x] **Step 2: Write failing domain and capability tests**
 
 ```csharp
 [Fact]
@@ -66,17 +66,17 @@ public void AustralianSandboxRegistryRecordsObservedCarriersWithoutProductionCla
 }
 ```
 
-- [ ] **Step 3: Run focused tests and confirm failure**
+- [x] **Step 3: Run focused tests and confirm failure**
 
 Run: `dotnet test tests/ReadyToGoTravel.Search.Tests/ReadyToGoTravel.Search.Tests.csproj`
 
 Expected: FAIL because the search contracts, price model and registry do not exist.
 
-- [ ] **Step 4: Implement the minimum platform-owned model**
+- [x] **Step 4: Implement the minimum platform-owned model**
 
 Validate IATA codes as three uppercase letters, ISO currencies as three uppercase letters, point-of-sale countries as two uppercase letters, positive traveller/room counts, ordered dates and included price components not exceeding the minimum total. Registry entries explicitly distinguish observed sandbox search from production enablement.
 
-- [ ] **Step 5: Run focused and architecture tests; commit**
+- [x] **Step 5: Run focused and architecture tests; commit**
 
 Run: `dotnet test tests/ReadyToGoTravel.Search.Tests/ReadyToGoTravel.Search.Tests.csproj && dotnet test tests/ReadyToGoTravel.Architecture.Tests/ReadyToGoTravel.Architecture.Tests.csproj`
 
