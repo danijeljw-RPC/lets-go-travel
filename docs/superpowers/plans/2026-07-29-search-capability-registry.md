@@ -133,25 +133,25 @@ Commit as `feat: map sanitized LiteAPI search fixtures`.
 - Produces: `GET /api/v1/search/capabilities`, `POST /api/v1/search/hotels` and `POST /api/v1/search/flights`.
 - Consumes: the Task 2 provider interfaces and the existing API correlation, rate-limit and `ProblemDetails` behavior.
 
-- [ ] **Step 1: Build an in-process host and write failing HTTP tests**
+- [x] **Step 1: Build an in-process host and write failing HTTP tests**
 
 Cover invalid dates/IATA/currency, deterministic hotel and flight fixtures, explicit offer expiry/revalidation, QF/JQ/VA observed-only capability fields, unknown JSON rejection and production fail-closed behavior.
 
-- [ ] **Step 2: Run tests and confirm missing routes**
+- [x] **Step 2: Run tests and confirm missing routes**
 
 Run: `dotnet test tests/ReadyToGoTravel.Search.Tests/ReadyToGoTravel.Search.Tests.csproj --filter SearchApiTests`
 
 Expected: FAIL because `/api/v1/search/*` routes do not exist.
 
-- [ ] **Step 3: Implement module registration and endpoints**
+- [x] **Step 3: Implement module registration and endpoints**
 
 `AddSearchModule(environment, enableFixtures)` rejects fixture mode for `Production`, registers the capability snapshot and fixture provider only for `Development`/`Testing`, and validates requests before provider dispatch. Unavailable capability returns `503` with `search_capability_unavailable`; validation returns `400` with a stable specific code.
 
-- [ ] **Step 4: Compose API configuration and a search-specific limiter**
+- [x] **Step 4: Compose API configuration and a search-specific limiter**
 
 Default `appsettings.json` uses `Production` with fixtures disabled. Development uses `Sandbox` with fixtures enabled. Apply a fixed-window `search` policy of 30 requests per minute per source to the three search routes.
 
-- [ ] **Step 5: Run API, search and full tests; commit**
+- [x] **Step 5: Run API, search and full tests; commit**
 
 Run: `dotnet test ReadyToGoTravel.slnx`
 

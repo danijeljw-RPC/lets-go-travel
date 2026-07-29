@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ReadyToGoTravel.Consumer\ReadyToGoTravel.Consumer.csproj" />
+    <ProjectReference Include="..\ReadyToGoTravel.Search\ReadyToGoTravel.Search.csproj" />
   </ItemGroup>
 
 </Project>
