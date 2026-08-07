@@ -17,6 +17,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ReadyToGoTravel.Booking.Bookings;
+using ReadyToGoTravel.Booking.Idempotency;
 using ReadyToGoTravel.Booking.Payments;
 using ReadyToGoTravel.Booking.Persistence;
 using ReadyToGoTravel.Booking.Providers;
@@ -246,6 +247,47 @@ public sealed class BookingApiTests
             "payment-session-concurrent-two");
         Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
         Assert.NotNull((await replay.Content.ReadFromJsonAsync<Checkout>())!.PaymentSession);
+    }
+
+    [Fact]
+    public async Task StaleProviderPaymentPreparationCanResumeWithItsStableOperationKey()
+    {
+        var payment = new DeterministicPaymentProvider();
+        await using var application = await TestApplication.CreateAsync(payment: payment);
+        var checkout = await application.CreateCheckoutAsync("owner", HotelOfferIds);
+        checkout = await application.AcceptAsync(checkout);
+        await using (var scope = application.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<BookingDbContext>();
+            var stored = await database.Checkouts
+                .Include(value => value.Revisions)
+                .SingleAsync(value => value.Id == checkout.Id);
+            var fingerprint = IdempotencyFingerprint.Create(new
+            {
+                CheckoutId = stored.Id,
+                RevisionNumber = stored.CurrentRevision.Number,
+                stored.CurrentRevision.TermsHash,
+            });
+            database.IdempotencyRecords.Add(IdempotencyRecord.Begin(
+                stored.CustomerId,
+                $"provider-payment-session:{stored.Id:N}:{stored.CurrentRevision.Number}",
+                "single-operation",
+                fingerprint,
+                StatusCodes.Status202Accepted,
+                "null",
+                new DateTimeOffset(2026, 7, 29, 11, 55, 0, TimeSpan.Zero)));
+            await database.SaveChangesAsync();
+        }
+
+        var response = await application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/payment-session",
+            new { },
+            "payment-session-resume-stale-provider-operation");
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull((await response.Content.ReadFromJsonAsync<Checkout>())!.PaymentSession);
+        Assert.Equal(1, payment.PrepareCalls);
     }
 
     [Fact]
@@ -614,6 +656,36 @@ public sealed class BookingApiTests
 
         Assert.Equal("RequiresSupport", checkout.Status);
         Assert.Equal(1, checkout.RecoveryCaseCount);
+    }
+
+    [Fact]
+    public async Task RepeatedProcessingRecoveryRemainsPendingWithoutCreatingSupportWork()
+    {
+        var payment = new DeterministicPaymentProvider();
+        payment.RetrieveResults.Enqueue(new CustomerPaymentStatusResult(
+            "pay-captured",
+            PaymentProviderStatus.Processing,
+            "return-processing",
+            null));
+        payment.RetrieveResults.Enqueue(new CustomerPaymentStatusResult(
+            "pay-captured",
+            PaymentProviderStatus.Processing,
+            "return-processing",
+            null));
+        await using var application = await TestApplication.CreateAsync(payment: payment);
+        var checkout = await application.CreateCheckoutAsync("owner", HotelOfferIds);
+        checkout = await application.AcceptAsync(checkout);
+        checkout = await application.PreparePaymentAsync(checkout.Id, "payment-session-processing-recovery");
+        checkout = await application.ReturnPaymentAsync(checkout.Id, "payment-return-processing-recovery");
+        Assert.Equal("PaymentPending", checkout.Status);
+
+        var response = await application.Client.PostAsJsonAsync($"/api/v1/checkouts/{checkout.Id}/recover", new { });
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        checkout = (await response.Content.ReadFromJsonAsync<Checkout>())!;
+        Assert.Equal("PaymentPending", checkout.Status);
+        Assert.Equal("Processing", Assert.Single(checkout.Payments).Status);
+        Assert.Equal(0, checkout.RecoveryCaseCount);
     }
 
     [Fact]
@@ -1060,7 +1132,7 @@ public sealed class BookingApiTests
 
         public async Task<HostedPaymentPreparation> PrepareAsync(
             CustomerPaymentPlan plan,
-            string returnKey,
+            string operationKey,
             CancellationToken cancellationToken = default)
         {
             PrepareCalls++;

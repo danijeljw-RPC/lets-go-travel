@@ -86,4 +86,6 @@ internal sealed class IdempotencyRecord
         ResponseBody = responseBody;
         UpdatedAt = now;
     }
+
+    internal void RefreshLease(DateTimeOffset now) => UpdatedAt = now;
 }

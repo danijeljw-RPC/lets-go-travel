@@ -33,6 +33,7 @@ internal sealed class CheckoutService(
     TimeProvider timeProvider)
 {
     private const int PendingRetryAfterSeconds = 15;
+    private static readonly TimeSpan ProviderOperationRetryDelay = TimeSpan.FromMinutes(1);
 
     public async Task<CheckoutServiceResult> CreateAsync(
         string subject,
@@ -301,7 +302,9 @@ internal sealed class CheckoutService(
                             CheckoutResponseMapper.Map(checkout, session),
                             null);
                     },
-                    actionCancellationToken);
+                    actionCancellationToken,
+                    retryInProgress: true,
+                    retryInProgressAfter: ProviderOperationRetryDelay);
             },
             cancellationToken,
             retryInProgress: true);

@@ -204,7 +204,7 @@ internal sealed class IdempotencyRecordConfiguration : IEntityTypeConfiguration<
         builder.Property(value => value.ResponseStatusCode).HasColumnName("response_status_code");
         builder.Property(value => value.ResponseBody).HasColumnName("response_body");
         builder.Property(value => value.CreatedAt).HasColumnName("created_at").IsRequired();
-        builder.Property(value => value.UpdatedAt).HasColumnName("updated_at").IsRequired();
+        builder.Property(value => value.UpdatedAt).HasColumnName("updated_at").IsRequired().IsConcurrencyToken();
         builder.Property(value => value.ExpiresAt).HasColumnName("expires_at").IsRequired();
     }
 }

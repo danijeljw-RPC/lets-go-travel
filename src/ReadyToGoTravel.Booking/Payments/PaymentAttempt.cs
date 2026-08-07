@@ -93,6 +93,14 @@ public sealed class PaymentAttempt
             return "invalid_payment_provider_outcome";
         }
 
+        if (Status == PaymentStatus.Processing &&
+            nextStatus == PaymentStatus.Processing &&
+            string.Equals(ProviderReturnReference, result.ProviderReturnReference, StringComparison.Ordinal) &&
+            string.Equals(FailureCode, result.ErrorCode, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
         if (!CanTransitionTo(nextStatus))
         {
             return "invalid_payment_transition";

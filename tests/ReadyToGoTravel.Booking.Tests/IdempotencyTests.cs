@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using ReadyToGoTravel.Booking.Idempotency;
@@ -239,6 +240,67 @@ public sealed class IdempotencyTests
         var record = await verification.IdempotencyRecords.SingleAsync();
         Assert.Equal("Completed", record.Status.ToString());
         Assert.Contains("captured", record.ResponseBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StaleRetryLeaseAllowsOnlyOneWorkerToResumeTheOperation()
+    {
+        await using var fixture = await SharedBookingDatabaseFixture.CreateAsync();
+        var customerId = Guid.CreateVersion7();
+        var pending = new CurrentResource("checkout-lease", "payment_pending");
+        await using (var setup = new BookingDbContext(
+                         new DbContextOptionsBuilder<BookingDbContext>()
+                             .UseSqlite(fixture.ConnectionString)
+                             .Options))
+        {
+            setup.IdempotencyRecords.Add(IdempotencyRecord.Begin(
+                customerId,
+                "provider-payment-session",
+                "single-operation",
+                "same-fingerprint",
+                202,
+                JsonSerializer.Serialize(pending),
+                DateTimeOffset.UtcNow.Subtract(TimeSpan.FromMinutes(5))));
+            await setup.SaveChangesAsync();
+        }
+
+        var actionEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseAction = new TaskCompletionSource<IdempotentResponse<CurrentResource>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var executions = 0;
+        async Task<IdempotentResponse<CurrentResource>> Run(CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref executions);
+            actionEntered.TrySetResult();
+            return await releaseAction.Task.WaitAsync(cancellationToken);
+        }
+
+        var first = fixture.FirstService.ExecuteAsync(
+            customerId,
+            "provider-payment-session",
+            "single-operation",
+            "same-fingerprint",
+            IdempotentResponse.InProgress(202, pending),
+            Run,
+            default,
+            retryInProgress: true,
+            retryInProgressAfter: TimeSpan.FromMinutes(1));
+        await actionEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var second = await fixture.SecondService.ExecuteAsync(
+            customerId,
+            "provider-payment-session",
+            "single-operation",
+            "same-fingerprint",
+            IdempotentResponse.InProgress(202, pending),
+            Run,
+            default,
+            retryInProgress: true,
+            retryInProgressAfter: TimeSpan.FromMinutes(1));
+
+        Assert.Equal(IdempotencyOutcome.InProgress, second.Outcome);
+        Assert.Equal(1, executions);
+        releaseAction.SetResult(IdempotentResponse.Completed(200, pending));
+        Assert.Equal(IdempotencyOutcome.Completed, (await first).Outcome);
     }
 
     [Theory]

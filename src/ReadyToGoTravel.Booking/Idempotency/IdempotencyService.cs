@@ -37,7 +37,8 @@ public interface IIdempotencyService
         IdempotentResponse<TResponse> inProgressResponse,
         Func<CancellationToken, Task<IdempotentResponse<TResponse>>> action,
         CancellationToken cancellationToken,
-        bool retryInProgress = false);
+        bool retryInProgress = false,
+        TimeSpan? retryInProgressAfter = null);
 }
 
 public static class IdempotencyFingerprint
@@ -135,13 +136,28 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
         IdempotentResponse<TResponse> inProgressResponse,
         Func<CancellationToken, Task<IdempotentResponse<TResponse>>> action,
         CancellationToken cancellationToken,
-        bool retryInProgress = false)
+        bool retryInProgress = false,
+        TimeSpan? retryInProgressAfter = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentException.ThrowIfNullOrWhiteSpace(fingerprint);
         ArgumentNullException.ThrowIfNull(inProgressResponse);
         ArgumentNullException.ThrowIfNull(action);
+        if (retryInProgressAfter.HasValue && retryInProgressAfter.Value <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(retryInProgressAfter),
+                "The in-progress retry delay must be positive.");
+        }
+
+        if (retryInProgressAfter.HasValue && !retryInProgress)
+        {
+            throw new ArgumentException(
+                "An in-progress retry delay requires retryInProgress.",
+                nameof(retryInProgressAfter));
+        }
+
         if (inProgressResponse.Outcome != IdempotencyOutcome.InProgress)
         {
             throw new ArgumentException("The durable response must be InProgress.", nameof(inProgressResponse));
@@ -159,6 +175,30 @@ internal sealed class IdempotencyService(BookingDbContext context, TimeProvider 
             if (replay.Outcome != IdempotencyOutcome.InProgress || !retryInProgress)
             {
                 return replay;
+            }
+
+            if (retryInProgressAfter.HasValue)
+            {
+                var leaseAcquiredAt = timeProvider.GetUtcNow().ToUniversalTime();
+                if (existing.UpdatedAt.Add(retryInProgressAfter.Value) > leaseAcquiredAt)
+                {
+                    return replay;
+                }
+
+                existing.RefreshLease(leaseAcquiredAt);
+                try
+                {
+                    await context.SaveChangesAsync(cancellationToken);
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    var recordId = existing.Id;
+                    context.Entry(existing).State = EntityState.Detached;
+                    var winner = await context.IdempotencyRecords
+                        .AsNoTracking()
+                        .SingleAsync(value => value.Id == recordId, cancellationToken);
+                    return Replay<TResponse>(winner, fingerprint);
+                }
             }
 
             var continuedResponse = await action(cancellationToken);

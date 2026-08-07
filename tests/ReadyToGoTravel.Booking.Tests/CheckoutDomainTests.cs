@@ -38,6 +38,19 @@ public sealed class CheckoutDomainTests
     }
 
     [Fact]
+    public void CurrentRevisionUsesTheHighestNumberWhenRevisionsAreMaterializedOutOfOrder()
+    {
+        var checkout = CreateAcceptedCheckout([HotelOffer("hotel-1")]);
+        Assert.True(checkout.ApplyResolvedOffers(
+            [HotelOffer("hotel-1") with { MinimumTotal = 440m, Revision = "hotel-r2" }],
+            Clock).IsSuccess);
+        var revisions = Assert.IsType<List<CheckoutRevision>>(checkout.Revisions);
+        revisions.Reverse();
+
+        Assert.Equal(2, checkout.CurrentRevision.Number);
+    }
+
+    [Fact]
     public void CombinedJourneyIsCompleteOnlyWhenEveryComponentIsConfirmed()
     {
         var checkout = CreateBookingCheckout([HotelOffer("hotel-1"), FlightOffer("flight-1")]);
@@ -83,6 +96,19 @@ public sealed class CheckoutDomainTests
         Assert.False(result.IsSuccess);
         Assert.Equal("invalid_payment_transition", result.ErrorCode);
         Assert.Equal(PaymentStatus.Captured, checkout.PaymentAttempts.Single().Status);
+    }
+
+    [Fact]
+    public void RepeatedUnchangedProcessingPaymentIsIdempotent()
+    {
+        var checkout = CreatePaymentCheckout();
+        Assert.True(checkout.RecordPayment(PaymentProviderResult.Processing("return_123"), Clock).IsSuccess);
+
+        var result = checkout.RecordPayment(PaymentProviderResult.Processing("return_123"), Clock);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(CheckoutStatus.PaymentPending, checkout.Status);
+        Assert.Equal(PaymentStatus.Processing, checkout.PaymentAttempts.Single().Status);
     }
 
     [Fact]

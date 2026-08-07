@@ -23,14 +23,14 @@ public sealed class LiteApiFixturePaymentProvider : ICustomerPaymentProvider
 
     public async Task<HostedPaymentPreparation> PrepareAsync(
         CustomerPaymentPlan plan,
-        string returnKey,
+        string operationKey,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(plan);
-        ArgumentException.ThrowIfNullOrWhiteSpace(returnKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
         var fixture = await LoadFixtureAsync(cancellationToken);
         var scenario = fixture.Payments.Single(value => value.Scenario == "action-required");
-        var suffix = OpaqueSuffix(returnKey);
+        var suffix = OpaqueSuffix(operationKey);
         return new HostedPaymentPreparation(
             $"{scenario.PaymentReference}_{suffix}",
             $"{scenario.BrowserToken ?? throw new InvalidDataException("Hosted payment fixture requires a browser token.")}_{suffix}",

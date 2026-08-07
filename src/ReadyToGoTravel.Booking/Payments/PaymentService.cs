@@ -6,7 +6,7 @@ public interface IPaymentService
 {
     Task<PaymentPreparation> PrepareAsync(
         CustomerPaymentPlan plan,
-        string returnKey,
+        string operationKey,
         CancellationToken cancellationToken = default);
 
     Task<CustomerPaymentStatusResult> VerifyReturnAsync(
@@ -32,13 +32,15 @@ public sealed class PaymentService(ICustomerPaymentProvider customerPaymentProvi
 {
     public async Task<PaymentPreparation> PrepareAsync(
         CustomerPaymentPlan plan,
-        string returnKey,
+        string operationKey,
         CancellationToken cancellationToken = default)
     {
         var policy = new PaymentPlan("hosted-payment", "SupplierOrProviderManaged",
             "ProviderHostedCustomerPayment", "OpaqueSupplierSettlementInstruction", plan.Amount, plan.Currency,
             "HostedComponent", "SupplierOrProvider", false);
-        return new PaymentPreparation(policy, await customerPaymentProvider.PrepareAsync(plan, returnKey, cancellationToken));
+        return new PaymentPreparation(
+            policy,
+            await customerPaymentProvider.PrepareAsync(plan, operationKey, cancellationToken));
     }
 
     public Task<CustomerPaymentStatusResult> VerifyReturnAsync(

@@ -172,7 +172,8 @@ public sealed class CheckoutSession
 
     public IReadOnlyList<CheckoutRevision> Revisions => revisions;
 
-    public CheckoutRevision CurrentRevision => revisions[^1];
+    public CheckoutRevision CurrentRevision => revisions.MaxBy(value => value.Number)
+        ?? throw new InvalidOperationException("A checkout must contain at least one revision.");
 
     public CheckoutAcceptance? AcceptedRevision { get; private set; }
     public PaymentPlan? PaymentPlan { get; private set; }

@@ -30,9 +30,13 @@ public sealed record CustomerPaymentStatusResult(
 
 public interface ICustomerPaymentProvider
 {
+    /// <summary>
+    /// Prepares a hosted payment session. Repeated calls with the same operation key must return
+    /// the same provider payment reference so an abandoned application attempt can resume safely.
+    /// </summary>
     Task<HostedPaymentPreparation> PrepareAsync(
         CustomerPaymentPlan plan,
-        string returnKey,
+        string operationKey,
         CancellationToken cancellationToken = default);
 
     Task<CustomerPaymentStatusResult> RetrieveAsync(
