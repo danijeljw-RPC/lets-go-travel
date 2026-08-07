@@ -102,6 +102,11 @@ public sealed record CheckoutAcceptance(
     string PolicyVersion,
     DateTimeOffset AcceptedAt);
 
+public static class CheckoutAcceptancePolicy
+{
+    public const string CurrentVersion = "checkout-v1";
+}
+
 public sealed class BookingRecoveryCase
 {
     internal BookingRecoveryCase(Guid id, Guid? componentBookingId, string reason, DateTimeOffset createdAt)
@@ -126,6 +131,7 @@ public sealed class BookingRecoveryCase
 
 public sealed class CheckoutSession
 {
+    private const decimal MaximumStoredMoney = 9999999999999999.99m;
     private readonly List<CheckoutRevision> revisions = [];
     private readonly List<TravellerSnapshot> travellerSnapshots = [];
     private readonly List<ComponentBooking> components = [];
@@ -226,6 +232,11 @@ public sealed class CheckoutSession
             return DomainResult<CheckoutSession>.Failure("checkout_currency_mismatch");
         }
 
+        if (!HasValidMoney(offers))
+        {
+            return DomainResult<CheckoutSession>.Failure("checkout_price_invalid");
+        }
+
         var revision = CheckoutRevision.Create(1, offers, timeProvider);
         var checkout = new CheckoutSession(Guid.CreateVersion7(now), customerId, tripId, revision, now);
         checkout.travellerSnapshots.AddRange(travellers.Select(value => TravellerSnapshot.CopyOf(value, now)));
@@ -245,9 +256,19 @@ public sealed class CheckoutSession
             return DomainResult<CheckoutSession>.Failure("checkout_cannot_be_repriced");
         }
 
-        if (!HasValidComposition(offers) || offers.Select(value => value.Currency).Distinct(StringComparer.Ordinal).Count() != 1)
+        if (!HasValidComposition(offers))
         {
             return DomainResult<CheckoutSession>.Failure("invalid_checkout_composition");
+        }
+
+        if (offers.Select(value => value.Currency).Distinct(StringComparer.Ordinal).Count() != 1)
+        {
+            return DomainResult<CheckoutSession>.Failure("checkout_currency_mismatch");
+        }
+
+        if (!HasValidMoney(offers))
+        {
+            return DomainResult<CheckoutSession>.Failure("checkout_price_invalid");
         }
 
         var now = timeProvider.GetUtcNow().ToUniversalTime();
@@ -288,7 +309,7 @@ public sealed class CheckoutSession
             acceptedTotal != CurrentRevision.Total ||
             !string.Equals(currency, CurrentRevision.TransactionCurrency, StringComparison.Ordinal) ||
             !string.Equals(termsHash, CurrentRevision.TermsHash, StringComparison.Ordinal) ||
-            string.IsNullOrWhiteSpace(policyVersion))
+            !string.Equals(policyVersion, CheckoutAcceptancePolicy.CurrentVersion, StringComparison.Ordinal))
         {
             return DomainResult<CheckoutSession>.Failure("checkout_acceptance_mismatch");
         }
@@ -494,6 +515,13 @@ public sealed class CheckoutSession
         offers.Count is 1 or 2 &&
         offers.All(value => value.Product is CheckoutProduct.Hotel or CheckoutProduct.Flight) &&
         offers.Select(value => value.Product).Distinct().Count() == offers.Count;
+
+    private static bool HasValidMoney(IReadOnlyCollection<ResolvedCheckoutOffer> offers) =>
+        offers.All(value =>
+            value.MinimumTotal > 0m &&
+            value.MinimumTotal <= MaximumStoredMoney &&
+            decimal.Round(value.MinimumTotal, 2) == value.MinimumTotal) &&
+        offers.Sum(value => value.MinimumTotal) <= MaximumStoredMoney;
 
     private bool HasMaterialOfferChange(CheckoutRevision candidate)
     {

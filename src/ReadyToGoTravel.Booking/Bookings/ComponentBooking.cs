@@ -88,13 +88,13 @@ public sealed class ComponentBooking
     internal void MarkPaymentPending(DateTimeOffset now)
     {
         Status = ComponentBookingStatus.PaymentPending;
-        UpdatedAt = now;
+        Touch(now);
     }
 
     internal void BeginBooking(DateTimeOffset now)
     {
         Status = ComponentBookingStatus.BookingPending;
-        UpdatedAt = now;
+        Touch(now);
     }
 
     internal string? Record(BookingProviderResult result, DateTimeOffset now)
@@ -129,7 +129,7 @@ public sealed class ComponentBooking
                 return "invalid_booking_provider_result";
         }
 
-        UpdatedAt = now;
+        Touch(now);
         return null;
     }
 
@@ -138,7 +138,7 @@ public sealed class ComponentBooking
         if (Status == ComponentBookingStatus.Failed)
         {
             Status = ComponentBookingStatus.RefundRequired;
-            UpdatedAt = now;
+            Touch(now);
         }
     }
 
@@ -148,7 +148,10 @@ public sealed class ComponentBooking
         {
             Status = ComponentBookingStatus.RequiresSupport;
             FailureCode = reason;
-            UpdatedAt = now;
+            Touch(now);
         }
     }
+
+    private void Touch(DateTimeOffset now) =>
+        UpdatedAt = now > UpdatedAt ? now : UpdatedAt.AddTicks(1);
 }

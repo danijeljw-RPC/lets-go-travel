@@ -24,6 +24,50 @@ public sealed class CheckoutDomainTests
     }
 
     [Fact]
+    public void CheckoutRejectsMixedCurrencyComponents()
+    {
+        var result = CheckoutSession.Create(
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            [HotelOffer("hotel-1"), FlightOffer("flight-1") with { Currency = "NZD" }],
+            Travellers("hotel-1", "flight-1"),
+            Clock);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("checkout_currency_mismatch", result.ErrorCode);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void CheckoutRejectsNonPositiveOfferTotals(decimal total)
+    {
+        var result = CheckoutSession.Create(
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            [HotelOffer("hotel-1") with { MinimumTotal = total }],
+            Travellers(),
+            Clock);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("checkout_price_invalid", result.ErrorCode);
+    }
+
+    [Fact]
+    public void CheckoutRejectsOfferTotalsThatWouldBeRoundedByPersistence()
+    {
+        var result = CheckoutSession.Create(
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            [HotelOffer("hotel-1") with { MinimumTotal = 400.001m }],
+            Travellers(),
+            Clock);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("checkout_price_invalid", result.ErrorCode);
+    }
+
+    [Fact]
     public void RepricingInvalidatesCustomerAcceptance()
     {
         var checkout = CreateAcceptedCheckout([HotelOffer("hotel-1")]);
@@ -34,6 +78,72 @@ public sealed class CheckoutDomainTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(CheckoutStatus.AwaitingAcceptance, checkout.Status);
+        Assert.Null(checkout.AcceptedRevision);
+    }
+
+    [Fact]
+    public void RepricingRejectsAnInvalidOfferTotal()
+    {
+        var checkout = CreateAcceptedCheckout([HotelOffer("hotel-1")]);
+
+        var result = checkout.ApplyResolvedOffers(
+            [HotelOffer("hotel-1") with { MinimumTotal = -1m, Revision = "hotel-r2" }],
+            Clock);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("checkout_price_invalid", result.ErrorCode);
+        Assert.Equal(1, checkout.CurrentRevision.Number);
+    }
+
+    [Fact]
+    public void RepricingRejectsMixedCurrencyComponents()
+    {
+        var checkout = CreateAcceptedCheckout([HotelOffer("hotel-1"), FlightOffer("flight-1")]);
+
+        var result = checkout.ApplyResolvedOffers(
+            [HotelOffer("hotel-1"), FlightOffer("flight-1") with { Currency = "NZD", Revision = "flight-r2" }],
+            Clock);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("checkout_currency_mismatch", result.ErrorCode);
+        Assert.Equal(1, checkout.CurrentRevision.Number);
+    }
+
+    [Theory]
+    [InlineData(401, "AUD")]
+    [InlineData(400, "NZD")]
+    public void AcceptanceRejectsAClientTotalOrCurrencyMismatch(decimal total, string currency)
+    {
+        var checkout = CreateCheckout([HotelOffer("hotel-1")]);
+
+        var result = checkout.AcceptRevision(
+            checkout.CurrentRevision.Number,
+            total,
+            currency,
+            checkout.CurrentRevision.TermsHash,
+            "checkout-v1",
+            Clock);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("checkout_acceptance_mismatch", result.ErrorCode);
+        Assert.Null(checkout.AcceptedRevision);
+    }
+
+    [Fact]
+    public void AcceptanceRejectsAnUnknownCheckoutPolicyVersion()
+    {
+        var checkout = CreateCheckout([HotelOffer("hotel-1")]);
+
+        var result = checkout.AcceptRevision(
+            checkout.CurrentRevision.Number,
+            checkout.CurrentRevision.Total,
+            checkout.CurrentRevision.TransactionCurrency,
+            checkout.CurrentRevision.TermsHash,
+            "client-selected-policy",
+            Clock);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("checkout_acceptance_mismatch", result.ErrorCode);
         Assert.Null(checkout.AcceptedRevision);
     }
 
@@ -170,7 +280,7 @@ public sealed class CheckoutDomainTests
             checkout.CurrentRevision.Total,
             checkout.CurrentRevision.TransactionCurrency,
             checkout.CurrentRevision.TermsHash,
-            "fixture-policy-v1",
+            CheckoutAcceptancePolicy.CurrentVersion,
             Clock);
         Assert.True(acceptance.IsSuccess);
         return checkout;
@@ -236,8 +346,16 @@ public sealed class CheckoutDomainTests
         Clock.GetUtcNow().AddHours(1),
         Clock.GetUtcNow());
 
-    private static IReadOnlyCollection<TravellerSnapshot> Travellers() =>
-    [new TravellerSnapshot("hotel-1", Guid.CreateVersion7(), "Ari", "Taylor", false, null)];
+    private static TravellerSnapshot[] Travellers(params string[] offerIds) =>
+        (offerIds.Length == 0 ? ["hotel-1"] : offerIds)
+        .Select(offerId => new TravellerSnapshot(
+            offerId,
+            Guid.CreateVersion7(),
+            "Ari",
+            "Taylor",
+            false,
+            null))
+        .ToArray();
 
     private sealed class FixtureTimeProvider(DateTimeOffset now) : TimeProvider
     {

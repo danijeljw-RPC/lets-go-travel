@@ -132,6 +132,8 @@ public static class BookingEndpoints
                 principal.FindFirstValue("sub")!, checkoutId, request, key, cancellationToken));
     }
 
+    // Recovery is intentionally exempt from Idempotency-Key because it only retrieves provider state
+    // and converges durable records; it never initiates a charge, settlement, or supplier booking.
     private static async Task<IResult> RecoverAsync(
         Guid checkoutId,
         EmptyCheckoutCommandRequest request,

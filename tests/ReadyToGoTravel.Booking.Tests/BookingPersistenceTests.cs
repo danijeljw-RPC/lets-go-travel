@@ -45,6 +45,68 @@ public sealed class BookingPersistenceTests
 
         Assert.True(index.IsUnique);
     }
+
+    [Fact]
+    public async Task ConcurrentSameStatusComponentUpdatesCannotOverwriteProviderState()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"ready-to-go-travel-component-concurrency-{Guid.CreateVersion7():N}.db");
+        var options = new DbContextOptionsBuilder<BookingDbContext>()
+            .UseSqlite($"Data Source={databasePath}")
+            .Options;
+        var initialTime = new FixtureTimeProvider(
+            new DateTimeOffset(2026, 7, 29, 12, 0, 0, TimeSpan.Zero));
+
+        try
+        {
+            Guid componentId;
+            await using (var setup = new BookingDbContext(options))
+            {
+                await setup.Database.EnsureCreatedAsync();
+                var checkout = CheckoutFactory.CreateWithTraveller("Ari", "Taylor");
+                Assert.True(checkout.AcceptRevision(
+                    checkout.CurrentRevision.Number,
+                    checkout.CurrentRevision.Total,
+                    checkout.CurrentRevision.TransactionCurrency,
+                    checkout.CurrentRevision.TermsHash,
+                    "checkout-v1",
+                    initialTime).IsSuccess);
+                Assert.True(checkout.BeginPayment("fixture", "pay-001", initialTime).IsSuccess);
+                Assert.True(checkout.RecordPayment(PaymentProviderResult.Captured("return-001"), initialTime).IsSuccess);
+                Assert.True(checkout.BeginBooking(initialTime).IsSuccess);
+                componentId = checkout.Components.Single().Id;
+                setup.Checkouts.Add(checkout);
+                await setup.SaveChangesAsync();
+            }
+
+            await using var first = new BookingDbContext(options);
+            await using var second = new BookingDbContext(options);
+            var firstCheckout = await first.Checkouts.Include(value => value.Components).SingleAsync();
+            var secondCheckout = await second.Checkouts.Include(value => value.Components).SingleAsync();
+            Assert.True(firstCheckout.RecordBookingResult(
+                componentId,
+                BookingProviderResult.Pending("provider-reference-one"),
+                initialTime).IsSuccess);
+            Assert.True(secondCheckout.RecordBookingResult(
+                componentId,
+                BookingProviderResult.Pending("provider-reference-two"),
+                initialTime).IsSuccess);
+
+            await first.SaveChangesAsync();
+
+            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    private sealed class FixtureTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
 }
 
 internal sealed class BookingDatabaseFixture(SqliteConnection connection, BookingDbContext context) : IAsyncDisposable

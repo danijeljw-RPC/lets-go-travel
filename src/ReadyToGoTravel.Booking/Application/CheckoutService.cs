@@ -512,83 +512,116 @@ internal sealed class CheckoutService(
                                 "booking_capability_unavailable");
                         }
 
-                        var begin = checkout.BeginBooking(timeProvider);
-                        if (!begin.IsSuccess)
+                        try
                         {
+                            if (checkout.Status == CheckoutStatus.PaymentPending)
+                            {
+                                var begin = checkout.BeginBooking(timeProvider);
+                                if (!begin.IsSuccess)
+                                {
+                                    return Completed(
+                                        StatusCodes.Status409Conflict,
+                                        CheckoutResponseMapper.Map(checkout),
+                                        begin.ErrorCode ?? "checkout_not_ready_for_booking");
+                                }
+
+                                await database.SaveChangesAsync(providerCancellationToken);
+                            }
+                            else if (checkout.Status != CheckoutStatus.BookingPending)
+                            {
+                                return Completed(
+                                    StatusCodes.Status409Conflict,
+                                    CheckoutResponseMapper.Map(checkout),
+                                    "checkout_not_ready_for_booking");
+                            }
+
+                            foreach (var component in checkout.Components.OrderBy(value => value.Product))
+                            {
+                                if (checkout.Status != CheckoutStatus.BookingPending)
+                                {
+                                    break;
+                                }
+
+                                if (component.Status != ComponentBookingStatus.BookingPending)
+                                {
+                                    continue;
+                                }
+
+                                var revisionComponent = checkout.CurrentRevision.Components.Single(value => value.OfferId == component.OfferId);
+                                var settlement = await paymentService.CreateSettlementAsync(checkout.PaymentPlan,
+                                    component.ProviderBinding, revisionComponent.MinimumTotal,
+                                    checkout.CurrentRevision.TransactionCurrency, paymentAttempt.ProviderPaymentReference,
+                                    providerCancellationToken);
+                                var execution = await provider.BookAsync(
+                                    new BookingCommand(
+                                        component.Product,
+                                        component.OfferId,
+                                        component.ProviderBinding,
+                                        $"checkout-book:{checkout.Id:N}:{component.Id:N}",
+                                        checkout.TravellerSnapshots.Where(value => value.OfferId == component.OfferId)
+                                            .Select(value => new BookingTravellerContext(value.TravellerId, value.GivenName,
+                                                value.FamilyName, value.IsMinor, value.AgeAtTravel)).ToArray(),
+                                        settlement.InstructionReference),
+                                    providerCancellationToken);
+                                if (execution.Status == BookingProviderStatus.Confirmed &&
+                                    string.IsNullOrWhiteSpace(execution.ExternalReference))
+                                {
+                                    checkout.Recover(
+                                        component.Id,
+                                        "booking_confirmation_reference_required",
+                                        timeProvider);
+                                    await database.SaveChangesAsync(providerCancellationToken);
+                                    break;
+                                }
+
+                                var recorded = checkout.RecordBookingResult(
+                                    component.Id,
+                                    CheckoutOfferMapper.ToDomainResult(execution),
+                                    timeProvider);
+                                if (!recorded.IsSuccess)
+                                {
+                                    checkout.Recover(
+                                        component.Id,
+                                        recorded.ErrorCode ?? "booking_result_conflict",
+                                        timeProvider);
+                                    await database.SaveChangesAsync(providerCancellationToken);
+                                    break;
+                                }
+
+                                if (execution.Status == BookingProviderStatus.Unknown)
+                                {
+                                    checkout.Recover(component.Id, "booking_outcome_unknown", timeProvider);
+                                }
+
+                                await database.SaveChangesAsync(providerCancellationToken);
+                            }
+
+                            var pending = checkout.Status == CheckoutStatus.BookingPending;
                             return Completed(
-                                StatusCodes.Status409Conflict,
-                                CheckoutResponseMapper.Map(checkout),
-                                begin.ErrorCode ?? "checkout_not_ready_for_booking");
+                                pending ? StatusCodes.Status202Accepted : StatusCodes.Status200OK,
+                                CheckoutResponseMapper.Map(
+                                    checkout,
+                                    retryAfterSeconds: pending ? PendingRetryAfterSeconds : null),
+                                null,
+                                pending ? PendingRetryAfterSeconds : null);
                         }
-
-                        await database.SaveChangesAsync(providerCancellationToken);
-                        foreach (var component in checkout.Components.OrderBy(value => value.Product))
+                        catch (DbUpdateConcurrencyException)
                         {
-                            if (checkout.Status != CheckoutStatus.BookingPending ||
-                                component.Status != ComponentBookingStatus.BookingPending)
-                            {
-                                break;
-                            }
-
-                            var revisionComponent = checkout.CurrentRevision.Components.Single(value => value.OfferId == component.OfferId);
-                            var settlement = await paymentService.CreateSettlementAsync(checkout.PaymentPlan,
-                                component.ProviderBinding, revisionComponent.MinimumTotal,
-                                checkout.CurrentRevision.TransactionCurrency, paymentAttempt.ProviderPaymentReference,
-                                providerCancellationToken);
-                            var execution = await provider.BookAsync(
-                                new BookingCommand(
-                                    component.Product,
-                                    component.OfferId,
-                                    component.ProviderBinding,
-                                    $"checkout-book:{checkout.Id:N}:{component.Id:N}",
-                                    checkout.TravellerSnapshots.Where(value => value.OfferId == component.OfferId)
-                                        .Select(value => new BookingTravellerContext(value.TravellerId, value.GivenName,
-                                            value.FamilyName, value.IsMinor, value.AgeAtTravel)).ToArray(),
-                                    settlement.InstructionReference),
-                                providerCancellationToken);
-                            if (execution.Status == BookingProviderStatus.Confirmed &&
-                                string.IsNullOrWhiteSpace(execution.ExternalReference))
-                            {
-                                checkout.Recover(
-                                    component.Id,
-                                    "booking_confirmation_reference_required",
-                                    timeProvider);
-                                await database.SaveChangesAsync(providerCancellationToken);
-                                break;
-                            }
-
-                            var recorded = checkout.RecordBookingResult(
-                                component.Id,
-                                CheckoutOfferMapper.ToDomainResult(execution),
-                                timeProvider);
-                            if (!recorded.IsSuccess)
-                            {
-                                checkout.Recover(
-                                    component.Id,
-                                    recorded.ErrorCode ?? "booking_result_conflict",
-                                    timeProvider);
-                                await database.SaveChangesAsync(providerCancellationToken);
-                                break;
-                            }
-
-                            if (execution.Status == BookingProviderStatus.Unknown)
-                            {
-                                checkout.Recover(component.Id, "booking_outcome_unknown", timeProvider);
-                            }
-
-                            await database.SaveChangesAsync(providerCancellationToken);
+                            DetachCheckoutGraph();
+                            var winner = await LoadCheckoutSnapshotAsync(checkout.Id, providerCancellationToken);
+                            var winnerPending = winner.Status is CheckoutStatus.PaymentPending or CheckoutStatus.BookingPending;
+                            return Completed(
+                                winnerPending ? StatusCodes.Status202Accepted : StatusCodes.Status200OK,
+                                CheckoutResponseMapper.Map(
+                                    winner,
+                                    retryAfterSeconds: winnerPending ? PendingRetryAfterSeconds : null),
+                                null,
+                                winnerPending ? PendingRetryAfterSeconds : null);
                         }
-
-                        var pending = checkout.Status == CheckoutStatus.BookingPending;
-                        return Completed(
-                            pending ? StatusCodes.Status202Accepted : StatusCodes.Status200OK,
-                            CheckoutResponseMapper.Map(
-                                checkout,
-                                retryAfterSeconds: pending ? PendingRetryAfterSeconds : null),
-                            null,
-                            pending ? PendingRetryAfterSeconds : null);
                     },
-                    actionCancellationToken);
+                    actionCancellationToken,
+                    retryInProgress: true,
+                    retryInProgressAfter: ProviderOperationRetryDelay);
             },
             cancellationToken,
             retryInProgress: true);

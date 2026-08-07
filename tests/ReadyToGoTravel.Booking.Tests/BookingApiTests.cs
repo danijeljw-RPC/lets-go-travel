@@ -393,6 +393,96 @@ public sealed class BookingApiTests
     }
 
     [Fact]
+    public async Task DistinctBookKeysShareOneDurableExternalOperation()
+    {
+        var booking = new DeterministicBookingProvider { BlockFirstBook = true };
+        await using var application = await TestApplication.CreateAsync(booking: booking);
+        var checkout = await application.CreateCheckoutAsync("owner", HotelOfferIds);
+        checkout = await application.AcceptAsync(checkout);
+        checkout = await application.PreparePaymentAsync(checkout.Id, "payment-session-book-race");
+        checkout = await application.ReturnPaymentAsync(checkout.Id, "payment-return-book-race");
+
+        var first = application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/book",
+            new { },
+            "book-race-one");
+        await booking.BookStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var second = application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/book",
+            new { },
+            "book-race-two");
+        await Task.WhenAny(second, Task.Delay(TimeSpan.FromSeconds(1)));
+        booking.ReleaseFirstBook();
+        var responses = await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.True(
+            responses.All(response => response.IsSuccessStatusCode),
+            string.Join("\n", await Task.WhenAll(responses.Select(response => response.Content.ReadAsStringAsync()))));
+        Assert.Equal(1, booking.BookCalls);
+        var current = await application.Client.GetFromJsonAsync<Checkout>($"/api/v1/checkouts/{checkout.Id}");
+        Assert.Equal("Completed", current!.Status);
+    }
+
+    [Fact]
+    public async Task StaleInterruptedCombinedBookingResumesOnlyThePendingComponent()
+    {
+        var booking = new DeterministicBookingProvider();
+        await using var application = await TestApplication.CreateAsync(booking: booking);
+        var checkout = await application.CreateCheckoutAsync("owner", CombinedOfferIds);
+        checkout = await application.AcceptAsync(checkout);
+        checkout = await application.PreparePaymentAsync(checkout.Id, "payment-session-interrupted-book");
+        checkout = await application.ReturnPaymentAsync(checkout.Id, "payment-return-interrupted-book");
+
+        await using (var scope = application.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<BookingDbContext>();
+            var clock = scope.ServiceProvider.GetRequiredService<TimeProvider>();
+            var stored = await database.Checkouts
+                .Include(value => value.Revisions)
+                    .ThenInclude(value => value.Components)
+                .Include(value => value.TravellerSnapshots)
+                .Include(value => value.Components)
+                .Include(value => value.PaymentAttempts)
+                .SingleAsync(value => value.Id == checkout.Id);
+            Assert.True(stored.BeginBooking(clock).IsSuccess);
+            var hotel = stored.Components.Single(value => value.Product == ReadyToGoTravel.Booking.Checkout.CheckoutProduct.Hotel);
+            Assert.True(stored.RecordBookingResult(
+                hotel.Id,
+                BookingProviderResult.Confirmed("book-hotel-before-crash"),
+                clock).IsSuccess);
+            await database.SaveChangesAsync();
+
+            var paymentAttempt = Assert.Single(stored.PaymentAttempts);
+            var providerOperationFingerprint = IdempotencyFingerprint.Create(new
+            {
+                CheckoutId = stored.Id,
+                PaymentAttemptId = paymentAttempt.Id,
+            });
+            database.IdempotencyRecords.Add(IdempotencyRecord.Begin(
+                stored.CustomerId,
+                $"provider-book:{stored.Id:N}:{paymentAttempt.Id:N}",
+                "single-operation",
+                providerOperationFingerprint,
+                StatusCodes.Status202Accepted,
+                "null",
+                clock.GetUtcNow().AddMinutes(-5)));
+            await database.SaveChangesAsync();
+        }
+
+        var response = await application.PostAsync(
+            $"/api/v1/checkouts/{checkout.Id}/book",
+            new { },
+            "book-resume-after-crash");
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var resumed = (await response.Content.ReadFromJsonAsync<Checkout>())!;
+        Assert.Equal("Completed", resumed.Status);
+        Assert.All(resumed.Components, component => Assert.Equal("Confirmed", component.Status));
+        Assert.Equal(1, booking.BookCalls);
+    }
+
+    [Fact]
     public async Task CapturedPaymentAndPartialBookingFailureRequireRefundAndSupport()
     {
         var booking = new DeterministicBookingProvider();
@@ -1191,11 +1281,19 @@ public sealed class BookingApiTests
     {
         private readonly TaskCompletionSource twoRetrievalsStarted = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource firstBookRelease = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private int bookCalls;
         private int retrieveCalls;
 
         public bool BlockUntilTwoRetrieveCalls { get; init; }
 
-        public int BookCalls { get; private set; }
+        public bool BlockFirstBook { get; init; }
+
+        public int BookCalls => Volatile.Read(ref bookCalls);
+
+        public TaskCompletionSource BookStarted { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Dictionary<CheckoutOfferProduct, BookingProviderExecutionResult> BookResults { get; } = new()
         {
@@ -1213,16 +1311,22 @@ public sealed class BookingApiTests
 
         public int? LastAgeAtTravel { get; private set; }
 
-        public Task<BookingProviderExecutionResult> BookAsync(
+        public async Task<BookingProviderExecutionResult> BookAsync(
             BookingCommand command,
             CancellationToken cancellationToken = default)
         {
-            BookCalls++;
+            var call = Interlocked.Increment(ref bookCalls);
             LastAgeAtTravel = command.Travellers?.Single().AgeAtTravel;
+            if (BlockFirstBook && call == 1)
+            {
+                BookStarted.TrySetResult();
+                await firstBookRelease.Task.WaitAsync(cancellationToken);
+            }
+
             var product = command.Product == ReadyToGoTravel.Booking.Checkout.CheckoutProduct.Hotel
                 ? CheckoutOfferProduct.Hotel
                 : CheckoutOfferProduct.Flight;
-            return Task.FromResult(BookResults[product]);
+            return BookResults[product];
         }
 
         public async Task<BookingProviderExecutionResult> RetrieveAsync(
@@ -1241,5 +1345,7 @@ public sealed class BookingApiTests
 
             return RetrieveResults[externalReference];
         }
+
+        public void ReleaseFirstBook() => firstBookRelease.TrySetResult();
     }
 }

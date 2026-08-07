@@ -57,6 +57,27 @@ public sealed class CheckoutOfferResolverTests
     }
 
     [Fact]
+    public void IssuingANewOfferEvictsExpiredRegistryEntries()
+    {
+        var issuedOffers = new LiteApiFixtureIssuedOfferRegistry();
+        var expiredOfferId = issuedOffers.Issue(
+            "LiteAPI",
+            "sandbox",
+            "sandbox-hotel-001",
+            Now.AddHours(-3),
+            Now.AddHours(-2));
+
+        _ = issuedOffers.Issue(
+            "LiteAPI",
+            "sandbox",
+            "sandbox-hotel-001",
+            Now,
+            Now.AddMinutes(20));
+
+        Assert.False(issuedOffers.TryGet(expiredOfferId, out _));
+    }
+
+    [Fact]
     public async Task FreshSearchAfterOriginalOfferExpiryProducesANewResolvableOffer()
     {
         var clock = new AdjustableTimeProvider(Now);

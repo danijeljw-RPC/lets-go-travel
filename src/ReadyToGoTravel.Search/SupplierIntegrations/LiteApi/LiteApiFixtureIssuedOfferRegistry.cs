@@ -5,6 +5,7 @@ namespace ReadyToGoTravel.Search.SupplierIntegrations.LiteApi;
 
 public sealed class LiteApiFixtureIssuedOfferRegistry
 {
+    private static readonly TimeSpan ExpiredOfferRetention = TimeSpan.FromHours(1);
     private readonly ConcurrentDictionary<string, IssuedFixtureOffer> issuedOffers = new(StringComparer.Ordinal);
 
     internal string Issue(
@@ -14,6 +15,12 @@ public sealed class LiteApiFixtureIssuedOfferRegistry
         DateTimeOffset issuedAt,
         DateTimeOffset expiresAt)
     {
+        var evictionCutoff = issuedAt - ExpiredOfferRetention;
+        foreach (var issuedOffer in issuedOffers.Where(value => value.Value.ExpiresAt <= evictionCutoff))
+        {
+            issuedOffers.TryRemove(issuedOffer.Key, out _);
+        }
+
         while (true)
         {
             var offerId = "off_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();

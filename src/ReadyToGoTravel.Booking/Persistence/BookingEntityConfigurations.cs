@@ -159,12 +159,12 @@ internal sealed class ComponentBookingConfiguration : IEntityTypeConfiguration<C
         builder.Property(value => value.Product).HasColumnName("product").HasConversion<string>().HasMaxLength(16).IsRequired();
         builder.Property(value => value.OfferId).HasColumnName("offer_id").HasMaxLength(255).IsRequired();
         builder.Property(value => value.ProviderBinding).HasColumnName("provider_binding").HasMaxLength(120).IsRequired();
-        builder.Property(value => value.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(32).IsRequired();
+        builder.Property(value => value.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(32).IsRequired().IsConcurrencyToken();
         builder.Property(value => value.ProviderBookingReference).HasColumnName("provider_booking_reference").HasMaxLength(255);
         builder.HasIndex(value => value.ProviderBookingReference).IsUnique().HasFilter("provider_booking_reference IS NOT NULL");
         builder.Property(value => value.FailureCode).HasColumnName("failure_code").HasMaxLength(120);
         builder.Property(value => value.CreatedAt).HasColumnName("created_at").IsRequired();
-        builder.Property(value => value.UpdatedAt).HasColumnName("updated_at").IsRequired();
+        builder.Property(value => value.UpdatedAt).HasColumnName("updated_at").IsRequired().IsConcurrencyToken();
     }
 }
 

@@ -77,7 +77,7 @@ Checkout status is one of:
 - `RequiresSupport` — automatic recovery cannot safely determine or complete the next action; or
 - `Expired` — no external operation may begin because the checkout lifetime elapsed.
 
-Only the current revision can be accepted. Acceptance records the revision, accepted total and currency, terms hash, policy version and UTC timestamp. A stale or different acceptance cannot start payment.
+Only the current revision can be accepted. Acceptance records the revision, accepted total and currency, terms hash, Booking-owned checkout-policy version and UTC timestamp. The API compares all client-returned acceptance fields with current server-authoritative values; a stale, altered or unknown-policy acceptance cannot start payment.
 
 Unconfirmed checkout state follows the approved 30-day retention class. Slice 7 implements expiry enforcement and deletion receipts; Slice 4 records the timestamps and classifications needed by that later work.
 
