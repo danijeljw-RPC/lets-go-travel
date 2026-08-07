@@ -11,7 +11,9 @@ using ReadyToGoTravel.Search.Providers;
 
 namespace ReadyToGoTravel.Search.SupplierIntegrations.LiteApi;
 
-public sealed class LiteApiFixtureSearchProvider(TimeProvider timeProvider)
+public sealed class LiteApiFixtureSearchProvider(
+    TimeProvider timeProvider,
+    LiteApiFixtureIssuedOfferRegistry issuedOffers)
     : IHotelSearchProvider, IFlightSearchProvider
 {
     private static readonly JsonSerializerOptions FixtureJsonOptions = new(JsonSerializerDefaults.Web)
@@ -44,7 +46,12 @@ public sealed class LiteApiFixtureSearchProvider(TimeProvider timeProvider)
                 && offer.Children == request.ChildAges.Count
                 && offer.Rooms == request.Rooms)
             .Select(offer => new HotelSearchOffer(
-                OpaqueId("off_", fixture.Provider, fixture.Environment, offer.SupplierReference),
+                issuedOffers.Issue(
+                    fixture.Provider,
+                    fixture.Environment,
+                    offer.SupplierReference,
+                    searchedAt,
+                    searchedAt.AddMinutes(offer.LifetimeMinutes)),
                 offer.PropertyName,
                 offer.Destination,
                 offer.RoomName,
@@ -96,7 +103,12 @@ public sealed class LiteApiFixtureSearchProvider(TimeProvider timeProvider)
                 && offer.Infants == request.Infants
                 && string.Equals(offer.CabinClass, request.CabinClass.ToString(), StringComparison.OrdinalIgnoreCase))
             .Select(offer => new FlightSearchOffer(
-                OpaqueId("off_", fixture.Provider, fixture.Environment, offer.SupplierReference),
+                issuedOffers.Issue(
+                    fixture.Provider,
+                    fixture.Environment,
+                    offer.SupplierReference,
+                    searchedAt,
+                    searchedAt.AddMinutes(offer.LifetimeMinutes)),
                 offer.MarketingCarrier,
                 offer.CabinClass,
                 offer.Stops,

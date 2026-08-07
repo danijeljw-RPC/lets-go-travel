@@ -484,6 +484,17 @@
         "dependencies": {
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.8, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.8, )",
+          "ReadyToGoTravel.Booking": "[1.0.0, )",
+          "ReadyToGoTravel.Consumer": "[1.0.0, )",
+          "ReadyToGoTravel.Search": "[1.0.0, )"
+        }
+      },
+      "readytogotravel.booking": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.8, )",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.8, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "ReadyToGoTravel.Consumer": "[1.0.0, )",
           "ReadyToGoTravel.Search": "[1.0.0, )"
         }

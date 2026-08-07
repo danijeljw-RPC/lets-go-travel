@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ReadyToGoTravel.Search.Capabilities;
+using ReadyToGoTravel.Search.Checkout;
 using ReadyToGoTravel.Search.Providers;
 using ReadyToGoTravel.Search.SupplierIntegrations.LiteApi;
 
@@ -25,11 +26,15 @@ public static class SearchModule
 
         if (enableFixtures)
         {
+            services.AddSingleton<LiteApiFixtureIssuedOfferRegistry>();
             services.AddSingleton<LiteApiFixtureSearchProvider>();
+            services.AddSingleton<LiteApiFixtureOfferResolver>();
             services.AddSingleton<IHotelSearchProvider>(provider =>
                 provider.GetRequiredService<LiteApiFixtureSearchProvider>());
             services.AddSingleton<IFlightSearchProvider>(provider =>
                 provider.GetRequiredService<LiteApiFixtureSearchProvider>());
+            services.AddSingleton<ICheckoutOfferResolver>(provider =>
+                provider.GetRequiredService<LiteApiFixtureOfferResolver>());
         }
 
         return services;

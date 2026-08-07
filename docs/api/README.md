@@ -34,4 +34,24 @@ Search requests and results are platform-owned. Results expose opaque offer IDs,
 
 Development uses sanitized deterministic LiteAPI sandbox fixtures. Default production configuration contains no search provider and returns `503 search_capability_unavailable`. Qantas, Jetstar and Virgin Australia appear only as observed sandbox search capability; production booking, ticketing and servicing remain disabled.
 
-Checkout, booking, supplier webhooks, reconciliation and support endpoints are later slices and are not implied by the search surface.
+## Implemented Checkout and Booking Surface
+
+All checkout routes require an authenticated active customer. Ownership comes from the validated `sub` claim, another customer's identifier returns `404 checkout_not_found`, and checkout requests accept platform offer IDs rather than supplier references or authoritative prices.
+
+- `POST /api/v1/checkouts` creates a hotel, flight or hotel-plus-flight checkout from an owned trip and traveller assignment;
+- `GET /api/v1/checkouts/{checkoutId}` returns the current owned checkout with separate payment and component-booking states;
+- `POST /api/v1/checkouts/{checkoutId}/acceptance` accepts the exact current price and terms revision;
+- `POST /api/v1/checkouts/{checkoutId}/payment-session` revalidates the offer and prepares provider-hosted payment;
+- `POST /api/v1/checkouts/{checkoutId}/payment-return` submits one opaque browser completion reference for server-side verification;
+- `POST /api/v1/checkouts/{checkoutId}/book` submits eligible component bookings; and
+- `POST /api/v1/checkouts/{checkoutId}/recover` retrieves pending or unknown provider state without issuing a new charge or booking.
+
+`Idempotency-Key` is required on checkout creation, acceptance, payment-session, payment-return and booking submission. A replay with the same request returns the durable response, while changed input under the same key returns `409 idempotency_conflict`. Recovery is retrieval-only and does not require a key.
+
+Development uses sanitized deterministic LiteAPI fixtures and the checkout endpoint limit is 20 requests per minute per source. Fixture searches issue cryptographically random opaque offer handles held only in the current server process with immutable expiries. A server restart invalidates outstanding sandbox handles, which then fail closed as `checkout_offer_not_found`; a new search issues new handles. Production registers no payment or booking provider and returns `503 booking_capability_unavailable`; credentials alone cannot enable it. Supplier webhooks, scheduled reconciliation, immutable canonical booking versions and notifications remain Slice 5.
+
+Public state values are case-sensitive and returned exactly as follows:
+
+- `CheckoutStatus`: `AwaitingAcceptance`, `ReadyForPayment`, `PaymentPending`, `BookingPending`, `Completed`, `Failed`, `RequiresSupport`, `Expired`;
+- `PaymentStatus`: `NotStarted`, `ActionRequired`, `Processing`, `Authorised`, `Captured`, `Failed`, `OutcomeUnknown`, `RefundRequired`; and
+- `ComponentBookingStatus`: `OfferSelected`, `PaymentPending`, `BookingPending`, `Confirmed`, `Failed`, `RefundRequired`, `RequiresSupport`.

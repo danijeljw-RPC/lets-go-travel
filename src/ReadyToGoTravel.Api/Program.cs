@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using ReadyToGoTravel.Api.Endpoints;
 using ReadyToGoTravel.Api.Infrastructure;
+using ReadyToGoTravel.Booking;
+using ReadyToGoTravel.Booking.Http;
 using ReadyToGoTravel.Consumer;
 using ReadyToGoTravel.Consumer.Http;
 using ReadyToGoTravel.Search;
@@ -20,6 +22,16 @@ builder.Services.AddPlatformAuthentication(builder.Configuration);
 var consumerConnectionString = builder.Configuration.GetConnectionString("Consumer")
     ?? throw new InvalidOperationException("ConnectionStrings:Consumer is required.");
 builder.Services.AddConsumerModule((_, options) => options.UseNpgsql(consumerConnectionString));
+var bookingEnvironmentValue = builder.Configuration["Booking:Environment"] ?? "Production";
+if (!Enum.TryParse<SearchEnvironment>(bookingEnvironmentValue, true, out var bookingEnvironment))
+{
+    throw new InvalidOperationException("Booking:Environment must be Sandbox or Production.");
+}
+
+builder.Services.AddBookingModule(
+    (_, options) => options.UseNpgsql(consumerConnectionString),
+    bookingEnvironment,
+    builder.Configuration.GetValue<bool>("Booking:EnableFixtures"));
 var searchEnvironmentValue = builder.Configuration["Search:Environment"] ?? "Production";
 if (!Enum.TryParse<SearchEnvironment>(searchEnvironmentValue, true, out var searchEnvironment))
 {
@@ -39,6 +51,7 @@ builder.Services.AddProblemDetails(options =>
 });
 builder.Services.AddRateLimiter(options =>
 {
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("public-api", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -54,6 +67,15 @@ builder.Services.AddRateLimiter(options =>
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 30,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1),
+            }));
+    options.AddPolicy("checkout", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1),
             }));
@@ -84,6 +106,7 @@ var api = app.MapGroup("/api/v1")
 api.MapPlatformEndpoints();
 api.MapConsumerEndpoints();
 api.MapSearchEndpoints();
+api.MapBookingEndpoints();
 
 app.MapFallback("/api/{**path}", (HttpContext context) =>
     Results.Problem(

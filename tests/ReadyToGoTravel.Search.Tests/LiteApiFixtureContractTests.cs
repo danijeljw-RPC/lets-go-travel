@@ -13,7 +13,9 @@ public sealed class LiteApiFixtureContractTests
     [Fact]
     public async Task HotelFixtureMapsToPlatformPriceAndExpiry()
     {
-        var provider = new LiteApiFixtureSearchProvider(new FixedTimeProvider(Now));
+        var provider = new LiteApiFixtureSearchProvider(
+            new FixedTimeProvider(Now),
+            new LiteApiFixtureIssuedOfferRegistry());
         var request = new HotelSearchRequest(
             "Melbourne",
             new DateOnly(2026, 10, 10),
@@ -41,7 +43,9 @@ public sealed class LiteApiFixtureContractTests
     [Fact]
     public async Task FlightFixtureMapsObservedAustralianCarriersWithoutSupplierReferences()
     {
-        var provider = new LiteApiFixtureSearchProvider(new FixedTimeProvider(Now));
+        var provider = new LiteApiFixtureSearchProvider(
+            new FixedTimeProvider(Now),
+            new LiteApiFixtureIssuedOfferRegistry());
         var request = new FlightSearchRequest(
             [new FlightSearchLeg("SYD", "MEL", new DateOnly(2026, 10, 10))],
             1,
@@ -70,7 +74,9 @@ public sealed class LiteApiFixtureContractTests
     [Fact]
     public async Task UnsupportedPointOfSaleReturnsNoFixtureOffers()
     {
-        var provider = new LiteApiFixtureSearchProvider(new FixedTimeProvider(Now));
+        var provider = new LiteApiFixtureSearchProvider(
+            new FixedTimeProvider(Now),
+            new LiteApiFixtureIssuedOfferRegistry());
         var request = new HotelSearchRequest(
             "Melbourne",
             new DateOnly(2026, 10, 10),

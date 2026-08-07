@@ -6,7 +6,7 @@
 
 Evidence reconciliation completed on 2026-07-29. **MVP implementation is approved to start.** Supplier-neutral code, sandbox adapters, disabled production integrations and compliance-first controls may proceed. The remaining items are production-activation evidence, exercised operational controls or named approvals; none is an unanswered product-scope question.
 
-Implementation checkpoint: supplier-neutral search and capability Slice 3 is complete. It introduced no new product-owner review or production activation. Sanitized LiteAPI fixtures run only in development/testing, production search fails closed, and Qantas, Jetstar and Virgin Australia remain observed search carriers only. Slice 4 may proceed behind the existing supplier, payment and carrier gates.
+Implementation checkpoint: checkout, hosted-payment and component-booking Slice 4 is complete. Sanitized LiteAPI fixtures run only in development/testing; Production registers no payment or booking provider and returns `booking_capability_unavailable`. Qantas, Jetstar and Virgin Australia remain observed sandbox carriers only. Slice 5 webhook, scheduled reconciliation, immutable-version and notification work is next. OI-0002, OI-0003 and OI-0006 remain open production gates; Slice 4 completion does not supply their contract, carrier or PCI approval evidence.
 
 ## Production Activation Reviews
 

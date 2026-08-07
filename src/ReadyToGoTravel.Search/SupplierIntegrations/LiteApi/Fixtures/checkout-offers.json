@@ -1,0 +1,63 @@
+{
+  "provider": "LiteAPI",
+  "environment": "sandbox",
+  "pointOfSale": "AU",
+  "offers": [
+    {
+      "fixtureReference": "sandbox-hotel-001",
+      "providerBinding": "booking-confirmed",
+      "product": "hotel",
+      "carrierCode": null,
+      "productDetail": "Harbour Lane Hotel, King studio",
+      "minimumTotal": 420.00,
+      "currency": "AUD",
+      "termsHash": "terms-hotel-v1",
+      "revision": "hotel-r1",
+      "lifetimeMinutes": 20,
+      "marketEnabled": true,
+      "scenario": "unchanged"
+    },
+    {
+      "fixtureReference": "sandbox-flight-qf-001",
+      "providerBinding": "booking-pending",
+      "product": "flight",
+      "carrierCode": "QF",
+      "productDetail": "QF401 SYD-MEL",
+      "minimumTotal": 309.40,
+      "currency": "AUD",
+      "termsHash": "terms-flight-qf-v2",
+      "revision": "flight-qf-r3",
+      "lifetimeMinutes": 15,
+      "marketEnabled": true,
+      "scenario": "repriced"
+    },
+    {
+      "fixtureReference": "sandbox-hotel-disabled-001",
+      "providerBinding": "booking-confirmed",
+      "product": "hotel",
+      "carrierCode": null,
+      "productDetail": "Disabled market fixture",
+      "minimumTotal": 380.00,
+      "currency": "AUD",
+      "termsHash": "terms-disabled-v1",
+      "revision": "hotel-disabled-r1",
+      "lifetimeMinutes": 20,
+      "marketEnabled": false,
+      "scenario": "disabled-market"
+    },
+    {
+      "fixtureReference": "sandbox-hotel-expired-001",
+      "providerBinding": "booking-confirmed",
+      "product": "hotel",
+      "carrierCode": null,
+      "productDetail": "Expired fixture",
+      "minimumTotal": 400.00,
+      "currency": "AUD",
+      "termsHash": "terms-expired-v1",
+      "revision": "hotel-expired-r1",
+      "lifetimeMinutes": -1,
+      "marketEnabled": true,
+      "scenario": "expired"
+    }
+  ]
+}

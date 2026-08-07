@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using ReadyToGoTravel.Consumer.Application;
 using ReadyToGoTravel.Consumer.Persistence;
 
 namespace ReadyToGoTravel.Consumer;
@@ -15,6 +16,7 @@ public static class ConsumerModule
 
         services.TryAddSingleton(TimeProvider.System);
         services.AddDbContext<ConsumerDbContext>(configureDatabase);
+        services.AddScoped<IConsumerBookingContext, ConsumerBookingContextResolver>();
         services.AddHealthChecks()
             .AddDbContextCheck<ConsumerDbContext>("consumer_database", tags: ["ready"]);
 

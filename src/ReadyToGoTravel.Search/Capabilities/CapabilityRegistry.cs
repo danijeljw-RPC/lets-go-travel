@@ -48,6 +48,14 @@ public interface ICapabilityRegistry
         string pointOfSale,
         SearchOperation operation,
         string? carrierCode = null);
+
+    bool IsEnabled(
+        string provider,
+        SearchEnvironment environment,
+        string pointOfSale,
+        SearchProduct product,
+        SearchOperation operation,
+        string? carrierCode = null);
 }
 
 public sealed class CapabilityRegistry : ICapabilityRegistry
@@ -85,6 +93,28 @@ public sealed class CapabilityRegistry : ICapabilityRegistry
                 false,
                 CapabilityEvidenceStatus.ProductionEvidenceRequired,
                 "Production access, booking and settlement evidence remain required."),
+            new(
+                "LiteAPI",
+                SearchEnvironment.Sandbox,
+                "AU",
+                SearchProduct.Accommodation,
+                SearchOperation.PriceVerification,
+                null,
+                true,
+                false,
+                CapabilityEvidenceStatus.Fixture,
+                "Sanitized deterministic sandbox fixture supports hotel price verification only."),
+            new(
+                "LiteAPI",
+                SearchEnvironment.Sandbox,
+                "AU",
+                SearchProduct.Accommodation,
+                SearchOperation.Booking,
+                null,
+                true,
+                false,
+                CapabilityEvidenceStatus.Fixture,
+                "Sanitized deterministic sandbox fixture supports hotel booking only."),
         };
 
         foreach (var carrier in new[] { "QF", "JQ", "VA" })
@@ -111,9 +141,41 @@ public sealed class CapabilityRegistry : ICapabilityRegistry
                 false,
                 CapabilityEvidenceStatus.ProductionEvidenceRequired,
                 "Production entitlement and end-to-end carrier evidence remain required."));
+
+            if (carrier == "QF")
+            {
+                capabilities.Add(new SearchCapability(
+                    "LiteAPI",
+                    SearchEnvironment.Sandbox,
+                    "AU",
+                    SearchProduct.Flight,
+                    SearchOperation.PriceVerification,
+                    carrier,
+                    true,
+                    false,
+                    CapabilityEvidenceStatus.Fixture,
+                    "Sanitized deterministic sandbox fixture supports QF flight price verification only."));
+                capabilities.Add(new SearchCapability(
+                    "LiteAPI",
+                    SearchEnvironment.Sandbox,
+                    "AU",
+                    SearchProduct.Flight,
+                    SearchOperation.Booking,
+                    carrier,
+                    true,
+                    false,
+                    CapabilityEvidenceStatus.Fixture,
+                    "Sanitized deterministic sandbox fixture supports QF flight booking only."));
+            }
         }
 
         return new CapabilityRegistry(capabilities);
+    }
+
+    public static CapabilityRegistry Create(IReadOnlyList<SearchCapability> capabilities)
+    {
+        ArgumentNullException.ThrowIfNull(capabilities);
+        return new CapabilityRegistry(capabilities.ToArray());
     }
 
     public IReadOnlyList<SearchCapability> GetSnapshot(SearchEnvironment environment, string pointOfSale) =>
@@ -132,4 +194,22 @@ public sealed class CapabilityRegistry : ICapabilityRegistry
             && capability.Enabled
             && (carrierCode is null
                 || string.Equals(capability.CarrierCode, carrierCode, StringComparison.OrdinalIgnoreCase)));
+
+    public bool IsEnabled(
+        string provider,
+        SearchEnvironment environment,
+        string pointOfSale,
+        SearchProduct product,
+        SearchOperation operation,
+        string? carrierCode = null) =>
+        capabilities.Any(capability =>
+            string.Equals(capability.Provider, provider, StringComparison.OrdinalIgnoreCase)
+            && capability.Environment == environment
+            && string.Equals(capability.PointOfSale, pointOfSale, StringComparison.OrdinalIgnoreCase)
+            && capability.Product == product
+            && capability.Operation == operation
+            && capability.Enabled
+            && (carrierCode is null
+                ? capability.CarrierCode is null
+                : string.Equals(capability.CarrierCode, carrierCode, StringComparison.OrdinalIgnoreCase)));
 }

@@ -8,7 +8,7 @@ The repository contains the .NET 10 MVP foundation and its canonical product doc
 
 ## Application Foundation
 
-The solution currently produces four independently deployable processes and two internal feature modules:
+The solution currently produces four independently deployable processes and three internal feature modules:
 
 - `ReadyToGoTravel.Api` — versioned ASP.NET Core Web API, health checks and OpenAPI.
 - `ReadyToGoTravel.Web` — Blazor SSR customer web host that consumes the public API.
@@ -16,6 +16,7 @@ The solution currently produces four independently deployable processes and two 
 - `ReadyToGoTravel.FlightReconciliation.Worker` — isolated scheduled flight reconciliation host.
 - `ReadyToGoTravel.Consumer` — subject-owned customer, trip and low-risk traveller rules, persistence and API composition; it is not a deployable.
 - `ReadyToGoTravel.Search` — supplier-neutral search contracts, minimum-total pricing, capability policy and sanitized LiteAPI fixtures; it is not a deployable.
+- `ReadyToGoTravel.Booking` — durable checkout, hosted-payment orchestration, component booking, recovery and idempotency state; it is not a deployable.
 
 Build and verify locally with:
 
@@ -29,7 +30,7 @@ dotnet test ReadyToGoTravel.slnx --configuration Release --no-build
 
 For a working local PostgreSQL and Keycloak environment, follow the [local consumer foundation runbook](docs/deployment/local-development.md). It uses deterministic API/web ports, a public PKCE development client and an imported realm with no built-in users or secrets.
 
-Slices 2 and 3 provide Keycloak-compatible consumer foundations plus supplier-neutral hotel and flight search. Development uses sanitized LiteAPI fixtures at `/search`; production search fails closed, booking actions are absent and Qantas, Jetstar and Virgin Australia remain observed search carriers rather than production booking claims. See the [Slice 3 outcome report](docs/delivery/2026-07-29-slice-3-search-capability-outcome.md).
+Slices 2 through 4 provide Keycloak-compatible consumer foundations, supplier-neutral search and authenticated checkout/booking. Development uses sanitized LiteAPI fixtures at `/search` and `/checkout`; Production registers no payment or booking provider and returns `503 booking_capability_unavailable`. Qantas, Jetstar and Virgin Australia remain observed sandbox carriers rather than production booking claims. See the [Slice 4 outcome report](docs/delivery/2026-07-29-slice-4-checkout-hosted-payment-booking-outcome.md).
 
 The application foundation and sandbox development are approved. Supplier booking, payment and webhook capabilities must remain disabled in production until the corresponding gates in the [review register](docs/decisions/review-register.md) are approved.
 

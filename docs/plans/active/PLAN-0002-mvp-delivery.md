@@ -45,7 +45,7 @@ scope:
 
 ## Status
 
-Active. Slices 1 through 3 are implemented and verified. Slice 4 checkout, hosted payment and booking is next. Production supplier/payment capabilities remain disabled until their review-register gates are approved.
+Active. Slices 1 through 4 are implemented and verified. Slice 5 webhooks, reconciliation, immutable booking versions and notifications is next. Production supplier/payment capabilities remain disabled until their review-register gates are approved.
 
 ## Purpose
 
@@ -56,7 +56,7 @@ Deliver the consumer MVP through independently testable vertical slices while pr
 - [x] Slice 1: .NET 10 solution, API contract, Blazor SSR, workers, containers and CI.
 - [x] Slice 2: Keycloak identity, locale, customers, trips and travellers.
 - [x] Slice 3: supplier-neutral hotel/flight search, pricing and capability registry.
-- [ ] Slice 4: checkout, LiteAPI hosted payment, hotel/flight booking and combined journeys.
+- [x] Slice 4: checkout, LiteAPI hosted payment, hotel/flight booking and combined journeys.
 - [ ] Slice 5: webhooks, reconciliation, immutable versions and notifications.
 - [ ] Slice 6: first-party support tickets, guest magic links and private attachments.
 - [ ] Slice 7: retention/privacy operations and production-readiness certification.
@@ -71,13 +71,14 @@ Deliver the consumer MVP through independently testable vertical slices while pr
 
 ## Current Plan
 
-Slice 3 followed the completed [Search and Capability Registry Implementation Plan](../../superpowers/plans/2026-07-29-search-capability-registry.md). Its [outcome report](../../delivery/2026-07-29-slice-3-search-capability-outcome.md) records scope and verification. The next implementation plan must cover Slice 4 only: checkout, LiteAPI hosted payment, hotel/flight booking and combined journeys while production capabilities remain gated.
+Slice 4 followed the completed [Checkout, Hosted Payment and Booking Implementation Plan](../../superpowers/plans/2026-07-29-checkout-hosted-payment-booking.md). Its [outcome report](../../delivery/2026-07-29-slice-4-checkout-hosted-payment-booking-outcome.md) records scope, verification and unchanged production gates. The next implementation plan must cover Slice 5 only: authenticated webhook ingress, scheduled reconciliation, immutable canonical booking versions and customer notifications.
 
 ## Change Log
 
 - 2026-07-29: Completed Slice 1 with the .NET 10 solution, public API contract, Blazor SSR host, cooperative workers, non-root containers, locked CI and automated documentation validation.
 - 2026-07-29: Completed Slice 2 with subject-owned consumer profiles, locale handling, trips, low-risk travellers, PostgreSQL migrations, authenticated API routes, Blazor SSR account pages and a pinned local Keycloak/PostgreSQL runtime.
 - 2026-07-29: Completed Slice 3 with supplier-neutral hotel/flight contracts, minimum-total pricing, sanitized LiteAPI fixtures, an environment/market/operation/carrier capability registry, public API routes and a Blazor SSR search shell. Production search remains disabled.
+- 2026-07-29: Completed Slice 4 with server-resolved checkout, renewed price acceptance, hosted-payment isolation, separately evidenced hotel/flight component bookings, durable idempotency, immediate recovery, PostgreSQL migration, authenticated API routes and a Blazor checkout experience. Production payment and booking remain disabled.
 
 ## Production Gates
 

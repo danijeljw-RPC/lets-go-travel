@@ -98,6 +98,16 @@
           "Microsoft.IdentityModel.Tokens": "8.0.1"
         }
       },
+      "readytogotravel.booking": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.8, )",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.8, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "ReadyToGoTravel.Consumer": "[1.0.0, )",
+          "ReadyToGoTravel.Search": "[1.0.0, )"
+        }
+      },
       "readytogotravel.consumer": {
         "type": "Project",
         "dependencies": {
