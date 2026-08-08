@@ -15,6 +15,7 @@ public static class BookingEndpoints
             .RequireRateLimiting("checkout");
         checkouts.MapPost(string.Empty, CreateAsync);
         checkouts.MapGet("/{checkoutId:guid}", GetAsync);
+        checkouts.MapGet("/{checkoutId:guid}/history", GetHistoryAsync);
         checkouts.MapPost("/{checkoutId:guid}/acceptance", AcceptAsync);
         checkouts.MapPost("/{checkoutId:guid}/payment-session", PreparePaymentAsync);
         checkouts.MapPost("/{checkoutId:guid}/payment-return", ReturnPaymentAsync);
@@ -51,6 +52,28 @@ public static class BookingEndpoints
         CancellationToken cancellationToken) => BookingHttpResults.From(
             context,
             await service.GetAsync(principal.FindFirstValue("sub")!, checkoutId, cancellationToken));
+
+    private static async Task<IResult> GetHistoryAsync(
+        Guid checkoutId,
+        ClaimsPrincipal principal,
+        BookingHistoryService service,
+        HttpContext context,
+        CancellationToken cancellationToken)
+    {
+        var history = await service.GetAsync(
+            principal.FindFirstValue("sub")!,
+            checkoutId,
+            cancellationToken);
+        return history is null
+            ? Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                extensions: new Dictionary<string, object?>
+                {
+                    ["code"] = "checkout_not_found",
+                    ["correlationId"] = context.TraceIdentifier,
+                })
+            : Results.Ok(history);
+    }
 
     private static async Task<IResult> AcceptAsync(
         Guid checkoutId,

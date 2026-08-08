@@ -1,6 +1,7 @@
 using ReadyToGoTravel.Booking.Bookings;
 using ReadyToGoTravel.Booking.Checkout;
 using ReadyToGoTravel.Booking.Payments;
+using ReadyToGoTravel.Booking.Reconciliation;
 using ReadyToGoTravel.Search.Checkout;
 
 namespace ReadyToGoTravel.Booking.Providers;
@@ -94,7 +95,10 @@ public sealed record BookingCommand(
 public sealed record BookingProviderExecutionResult(
     BookingProviderStatus Status,
     string? ExternalReference,
-    string? ErrorCode);
+    string? ErrorCode)
+{
+    public RetrievedBookingState? RetrievedState { get; init; }
+}
 
 public interface IBookingProvider
 {

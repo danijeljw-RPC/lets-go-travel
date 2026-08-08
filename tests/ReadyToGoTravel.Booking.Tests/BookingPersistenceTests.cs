@@ -1,10 +1,15 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using ReadyToGoTravel.Booking.Bookings;
 using ReadyToGoTravel.Booking.Checkout;
 using ReadyToGoTravel.Booking.Idempotency;
+using ReadyToGoTravel.Booking.Notifications;
 using ReadyToGoTravel.Booking.Payments;
 using ReadyToGoTravel.Booking.Persistence;
+using ReadyToGoTravel.Booking.Reconciliation;
+using ReadyToGoTravel.Booking.Webhooks;
 
 namespace ReadyToGoTravel.Booking.Tests;
 
@@ -101,6 +106,37 @@ public sealed class BookingPersistenceTests
         {
             File.Delete(databasePath);
         }
+    }
+
+    [Fact]
+    public void SliceFiveSchemaHasFinalIdempotencyAndAppendOnlyBoundaries()
+    {
+        var options = new DbContextOptionsBuilder<BookingDbContext>()
+            .UseNpgsql("Host=localhost;Database=rtgt;Username=rtgt")
+            .Options;
+        using var context = new BookingDbContext(options);
+
+        var version = context.Model.FindEntityType(typeof(BookingVersion))!;
+        Assert.Contains(version.GetIndexes(), index => index.IsUnique &&
+            index.Properties.Select(property => property.Name)
+                .SequenceEqual([nameof(BookingVersion.ComponentBookingId), nameof(BookingVersion.VersionNumber)]));
+        Assert.Contains(version.GetIndexes(), index => index.IsUnique &&
+            index.Properties.Select(property => property.Name)
+                .SequenceEqual([nameof(BookingVersion.ComponentBookingId), nameof(BookingVersion.CanonicalHash)]));
+
+        var webhook = context.Model.FindEntityType(typeof(WebhookInboxItem))!;
+        Assert.Contains(webhook.GetIndexes(), index => index.IsUnique &&
+            index.Properties.Select(property => property.Name)
+                .SequenceEqual([nameof(WebhookInboxItem.Provider), nameof(WebhookInboxItem.Environment), nameof(WebhookInboxItem.EventId)]));
+        var outbox = context.Model.FindEntityType(typeof(NotificationOutboxItem))!;
+        Assert.Contains(outbox.GetIndexes(), index => index.IsUnique &&
+            index.Properties.Single().Name == nameof(NotificationOutboxItem.DedupeKey));
+        Assert.True(context.Model.FindEntityType(typeof(ComponentBooking))!
+            .FindProperty(nameof(ComponentBooking.CurrentVersionNumber))!.IsConcurrencyToken);
+
+        var migrationScript = context.Database.GetService<IMigrator>().GenerateScript();
+        Assert.Contains("CREATE TRIGGER reject_booking_version_mutation", migrationScript, StringComparison.Ordinal);
+        Assert.Contains("BEFORE UPDATE OR DELETE ON booking.booking_versions", migrationScript, StringComparison.Ordinal);
     }
 
     private sealed class FixtureTimeProvider(DateTimeOffset now) : TimeProvider

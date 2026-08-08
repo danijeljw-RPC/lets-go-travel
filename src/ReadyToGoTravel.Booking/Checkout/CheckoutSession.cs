@@ -1,6 +1,7 @@
 using ReadyToGoTravel.Booking.Bookings;
 using ReadyToGoTravel.Booking.Domain;
 using ReadyToGoTravel.Booking.Payments;
+using ReadyToGoTravel.Booking.Reconciliation;
 
 namespace ReadyToGoTravel.Booking.Checkout;
 
@@ -138,7 +139,14 @@ public sealed class CheckoutSession
     private readonly List<PaymentAttempt> paymentAttempts = [];
     private readonly List<BookingRecoveryCase> recoveryCases = [];
 
-    private CheckoutSession(Guid id, Guid customerId, Guid tripId, CheckoutRevision revision, DateTimeOffset now)
+    private CheckoutSession(
+        Guid id,
+        Guid customerId,
+        Guid tripId,
+        CheckoutRevision revision,
+        string customerLocale,
+        string notificationTimeZoneId,
+        DateTimeOffset now)
     {
         Id = id;
         CustomerId = customerId;
@@ -148,6 +156,8 @@ public sealed class CheckoutSession
         CreatedAt = now;
         UpdatedAt = now;
         ExpiresAt = revision.ExpiresAt;
+        CustomerLocale = customerLocale;
+        NotificationTimeZoneId = notificationTimeZoneId;
     }
 
     private CheckoutSession(
@@ -155,6 +165,8 @@ public sealed class CheckoutSession
         Guid customerId,
         Guid tripId,
         CheckoutStatus status,
+        string customerLocale,
+        string notificationTimeZoneId,
         DateTimeOffset createdAt,
         DateTimeOffset updatedAt,
         DateTimeOffset expiresAt)
@@ -163,6 +175,8 @@ public sealed class CheckoutSession
         CustomerId = customerId;
         TripId = tripId;
         Status = status;
+        CustomerLocale = customerLocale;
+        NotificationTimeZoneId = notificationTimeZoneId;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
         ExpiresAt = expiresAt;
@@ -175,6 +189,10 @@ public sealed class CheckoutSession
     public Guid TripId { get; }
 
     public CheckoutStatus Status { get; private set; }
+
+    public string CustomerLocale { get; private set; }
+
+    public string NotificationTimeZoneId { get; private set; }
 
     public IReadOnlyList<CheckoutRevision> Revisions => revisions;
 
@@ -204,11 +222,15 @@ public sealed class CheckoutSession
         Guid tripId,
         IReadOnlyCollection<ResolvedCheckoutOffer> offers,
         IReadOnlyCollection<TravellerSnapshot> travellers,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        string customerLocale = "en-AU",
+        string notificationTimeZoneId = "Australia/Sydney")
     {
         ArgumentNullException.ThrowIfNull(offers);
         ArgumentNullException.ThrowIfNull(travellers);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentException.ThrowIfNullOrWhiteSpace(customerLocale);
+        ArgumentException.ThrowIfNullOrWhiteSpace(notificationTimeZoneId);
 
         var now = timeProvider.GetUtcNow().ToUniversalTime();
         if (!HasValidComposition(offers))
@@ -238,7 +260,14 @@ public sealed class CheckoutSession
         }
 
         var revision = CheckoutRevision.Create(1, offers, timeProvider);
-        var checkout = new CheckoutSession(Guid.CreateVersion7(now), customerId, tripId, revision, now);
+        var checkout = new CheckoutSession(
+            Guid.CreateVersion7(now),
+            customerId,
+            tripId,
+            revision,
+            customerLocale,
+            notificationTimeZoneId,
+            now);
         checkout.travellerSnapshots.AddRange(travellers.Select(value => TravellerSnapshot.CopyOf(value, now)));
         checkout.components.AddRange(revision.Components.Select(value => ComponentBooking.Create(value, now)));
         return DomainResult<CheckoutSession>.Success(checkout);
@@ -448,6 +477,36 @@ public sealed class CheckoutSession
 
         UpdateBookingStatus(now);
         return DomainResult<ComponentBooking>.Success(component);
+    }
+
+    internal void ApplyReconciledComponentStatus(
+        Guid componentBookingId,
+        RetrievedBookingStatus status,
+        DateTimeOffset now)
+    {
+        var component = components.SingleOrDefault(value => value.Id == componentBookingId)
+            ?? throw new InvalidOperationException("Component booking was not found in its checkout.");
+        component.ApplyRetrievedStatus(status, now);
+
+        if (components.Any(value => value.Status is
+            ComponentBookingStatus.Cancelled or
+            ComponentBookingStatus.Failed or
+            ComponentBookingStatus.RefundRequired or
+            ComponentBookingStatus.RequiresSupport))
+        {
+            Status = CheckoutStatus.RequiresSupport;
+        }
+        else if (components.All(value => value.Status is
+            ComponentBookingStatus.Confirmed or ComponentBookingStatus.Completed))
+        {
+            Status = CheckoutStatus.Completed;
+        }
+        else
+        {
+            Status = CheckoutStatus.BookingPending;
+        }
+
+        UpdatedAt = now > UpdatedAt ? now : UpdatedAt.AddTicks(1);
     }
 
     public DomainResult<BookingRecoveryCase> Recover(

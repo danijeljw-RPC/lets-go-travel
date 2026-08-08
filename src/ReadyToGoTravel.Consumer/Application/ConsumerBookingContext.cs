@@ -19,7 +19,8 @@ public interface IConsumerBookingContext
 public sealed record ConsumerBookingContext(
     Guid CustomerId,
     Guid TripId,
-    IReadOnlyList<ConsumerTraveller> Travellers);
+    IReadOnlyList<ConsumerTraveller> Travellers,
+    string PreferredLocale);
 
 public sealed record ConsumerBookingContextResult(
     ConsumerBookingContext? Value,
@@ -92,7 +93,7 @@ internal sealed class ConsumerBookingContextResolver(ConsumerDbContext context) 
         var byId = travellers.ToDictionary(value => value.TravellerId);
         var orderedTravellers = requestedTravellerIds.Select(value => byId[value]).ToArray();
         return new ConsumerBookingContextResult(
-            new ConsumerBookingContext(customer.Id, tripId, orderedTravellers),
+            new ConsumerBookingContext(customer.Id, tripId, orderedTravellers, customer.PreferredLocale),
             null);
     }
 }

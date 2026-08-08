@@ -21,6 +21,7 @@ using ReadyToGoTravel.Booking.Idempotency;
 using ReadyToGoTravel.Booking.Payments;
 using ReadyToGoTravel.Booking.Persistence;
 using ReadyToGoTravel.Booking.Providers;
+using ReadyToGoTravel.Booking.Reconciliation;
 using ReadyToGoTravel.Consumer;
 using ReadyToGoTravel.Consumer.Http;
 using ReadyToGoTravel.Search;
@@ -68,6 +69,77 @@ public sealed class BookingApiTests
     }
 
     [Fact]
+    public async Task BookingHistoryIsOwnerOnlyAndExcludesProviderAndRawEvidence()
+    {
+        await using var application = await TestApplication.CreateAsync();
+        var checkout = await application.CreateCheckoutAsync("owner", HotelOfferIds);
+        checkout = await application.AcceptAsync(checkout);
+        checkout = await application.PreparePaymentAsync(checkout.Id, "payment-session-history");
+        checkout = await application.ReturnPaymentAsync(checkout.Id, "payment-return-history");
+        checkout = await application.BookAsync(checkout.Id, "book-history");
+        await using (var scope = application.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<BookingDbContext>();
+            var stored = await database.Checkouts.Include(value => value.Components)
+                .SingleAsync(value => value.Id == checkout.Id);
+            var component = stored.Components.Single();
+            var observedAt = new DateTimeOffset(2026, 7, 29, 12, 10, 0, TimeSpan.Zero);
+            var initialState = new RetrievedBookingState(
+                ReadyToGoTravel.Booking.Checkout.CheckoutProduct.Hotel,
+                RetrievedBookingStatus.Confirmed,
+                "HTL-123",
+                new RetrievedHotelStay(
+                    "Harbour Lane Hotel",
+                    new DateOnly(2026, 8, 12),
+                    new DateOnly(2026, 8, 14),
+                    "King studio",
+                    ["Breakfast"],
+                    "Free cancellation until 2026-08-10"),
+                [],
+                420m,
+                "AUD",
+                observedAt);
+            var initial = CanonicalBookingVersioner.Create(
+                component,
+                initialState,
+                null,
+                observedAt,
+                "Initial",
+                "history-correlation-1");
+            Assert.True(component.ApplyReconciliationVersion(initial, observedAt));
+            var changed = CanonicalBookingVersioner.Create(
+                component,
+                initialState with
+                {
+                    Hotel = initialState.Hotel! with { Room = "Accessible king studio" },
+                },
+                initial,
+                observedAt.AddHours(1),
+                "Scheduled",
+                "history-correlation-2");
+            Assert.True(component.ApplyReconciliationVersion(changed, observedAt.AddHours(1)));
+            database.BookingVersions.AddRange(initial, changed);
+            await database.SaveChangesAsync();
+        }
+
+        var response = await application.Client.GetAsync($"/api/v1/checkouts/{checkout.Id}/history");
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(json);
+        var versions = document.RootElement.GetProperty("components")[0].GetProperty("versions");
+        Assert.Equal(2, versions.GetArrayLength());
+        Assert.DoesNotContain("providerBinding", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("providerBookingReference", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("canonicalSnapshot", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("rawBody", json, StringComparison.OrdinalIgnoreCase);
+
+        application.SetSubject("stranger");
+        await application.ActivateProfileAsync();
+        var forbidden = await application.Client.GetAsync($"/api/v1/checkouts/{checkout.Id}/history");
+        Assert.Equal(HttpStatusCode.NotFound, forbidden.StatusCode);
+    }
+
+    [Fact]
     public async Task CheckoutRemainsOwnedAfterTravellerRemovalAndTripArchive()
     {
         await using var application = await TestApplication.CreateAsync();
@@ -105,6 +177,9 @@ public sealed class BookingApiTests
         Assert.Equal("Completed", checkout.Status);
         Assert.Equal(offerIds.Length, checkout.Components.Length);
         Assert.All(checkout.Components, component => Assert.Equal("Confirmed", component.Status));
+        await using var scope = application.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<BookingDbContext>();
+        Assert.Equal(offerIds.Length, await database.ReconciliationWork.CountAsync());
     }
 
     [Fact]
@@ -593,6 +668,9 @@ public sealed class BookingApiTests
 
         Assert.Equal("Completed", checkout.Status);
         Assert.Equal("Confirmed", Assert.Single(checkout.Components).Status);
+        await using var scope = application.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<BookingDbContext>();
+        Assert.Equal(1, await database.ReconciliationWork.CountAsync());
     }
 
     [Fact]
