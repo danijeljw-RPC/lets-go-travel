@@ -4,7 +4,7 @@ title: MVP Delivery
 status: active
 owner: Product and Engineering
 created: 2026-07-29
-updated: 2026-07-29
+updated: 2026-08-08
 related_issues:
   - OI-0001
   - OI-0002
@@ -45,7 +45,7 @@ scope:
 
 ## Status
 
-Active. Slices 1 through 4 are implemented and verified. Slice 5 webhooks, reconciliation, immutable booking versions and notifications is next. Production supplier/payment capabilities remain disabled until their review-register gates are approved.
+Active. Slices 1 through 5 are implemented and verified. Slice 6 first-party support is next. Production supplier, payment, webhook and notification capabilities remain disabled until their review-register gates are approved.
 
 ## Purpose
 
@@ -57,7 +57,7 @@ Deliver the consumer MVP through independently testable vertical slices while pr
 - [x] Slice 2: Keycloak identity, locale, customers, trips and travellers.
 - [x] Slice 3: supplier-neutral hotel/flight search, pricing and capability registry.
 - [x] Slice 4: checkout, LiteAPI hosted payment, hotel/flight booking and combined journeys.
-- [ ] Slice 5: webhooks, reconciliation, immutable versions and notifications.
+- [x] Slice 5: webhooks, reconciliation, immutable versions and notifications.
 - [ ] Slice 6: first-party support tickets, guest magic links and private attachments.
 - [ ] Slice 7: retention/privacy operations and production-readiness certification.
 
@@ -71,7 +71,7 @@ Deliver the consumer MVP through independently testable vertical slices while pr
 
 ## Current Plan
 
-Slice 4 followed the completed [Checkout, Hosted Payment and Booking Implementation Plan](../../superpowers/plans/2026-07-29-checkout-hosted-payment-booking.md). Its [outcome report](../../delivery/2026-07-29-slice-4-checkout-hosted-payment-booking-outcome.md) records scope, verification and unchanged production gates. The next implementation plan must cover Slice 5 only: authenticated webhook ingress, scheduled reconciliation, immutable canonical booking versions and customer notifications.
+Slice 5 followed the completed [Booking Reconciliation Implementation Plan](../../superpowers/plans/2026-08-08-slice-5-booking-reconciliation.md). Its [outcome report](../../delivery/2026-08-08-slice-5-booking-reconciliation-outcome.md) records scope, verification and unchanged production gates. The next implementation plan must cover Slice 6 only: first-party support tickets, guest magic links and private attachments.
 
 ## Change Log
 
@@ -79,6 +79,7 @@ Slice 4 followed the completed [Checkout, Hosted Payment and Booking Implementat
 - 2026-07-29: Completed Slice 2 with subject-owned consumer profiles, locale handling, trips, low-risk travellers, PostgreSQL migrations, authenticated API routes, Blazor SSR account pages and a pinned local Keycloak/PostgreSQL runtime.
 - 2026-07-29: Completed Slice 3 with supplier-neutral hotel/flight contracts, minimum-total pricing, sanitized LiteAPI fixtures, an environment/market/operation/carrier capability registry, public API routes and a Blazor SSR search shell. Production search remains disabled.
 - 2026-07-29: Completed Slice 4 with server-resolved checkout, renewed price acceptance, hosted-payment isolation, separately evidenced hotel/flight component bookings, durable idempotency, immediate recovery, PostgreSQL migration, authenticated API routes and a Blazor checkout experience. Production payment and booking remain disabled.
+- 2026-08-08: Completed Slice 5 with authenticated fail-closed webhook ingress, durable inbox and reconciliation schedules, retrieval-driven immutable canonical booking versions, customer-safe history, deduplicated notification intents and private worker processing. Production webhook, supplier and email capabilities remain disabled.
 
 ## Production Gates
 

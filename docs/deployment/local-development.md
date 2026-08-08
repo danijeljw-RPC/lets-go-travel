@@ -2,7 +2,7 @@
 
 # Local Development
 
-This runbook starts the Slice 4 development dependencies without live supplier access or committed secrets. PostgreSQL 17.10 is the product-data store. Keycloak 26.7.0 owns local credentials and issues an API audience to the public PKCE web client. The imported realm contains no users, passwords or production configuration. Search, hosted payment and booking use sanitized deterministic fixtures only in Development.
+This runbook starts the Slice 5 development dependencies without live supplier or notification access or committed secrets. PostgreSQL 17.10 is the product-data store. Keycloak 26.7.0 owns local credentials and issues an API audience to the public PKCE web client. The imported realm contains no users, passwords or production configuration. Search, hosted payment, booking and retrieval use sanitized deterministic fixtures only in Development.
 
 ## Prerequisites
 
@@ -64,6 +64,15 @@ Start the web host in a second terminal:
 dotnet run --project src/ReadyToGoTravel.Web/ReadyToGoTravel.Web.csproj
 ```
 
+Start durable work in additional terminals when exercising reconciliation:
+
+```bash
+ConnectionStrings__Booking="Host=localhost;Port=5432;Database=rtgt;Username=rtgt;Password=${RTGT_POSTGRES_PASSWORD}" \
+  dotnet run --project src/ReadyToGoTravel.Worker/ReadyToGoTravel.Worker.csproj
+ConnectionStrings__Booking="Host=localhost;Port=5432;Database=rtgt;Username=rtgt;Password=${RTGT_POSTGRES_PASSWORD}" \
+  dotnet run --project src/ReadyToGoTravel.FlightReconciliation.Worker/ReadyToGoTravel.FlightReconciliation.Worker.csproj
+```
+
 Open `http://localhost:5081`. The API is at `http://localhost:5080`; its development OpenAPI document is `/openapi/v1.json`, liveness is `/health/live` and database-aware readiness is `/health/ready`.
 
 Choose **Sign in** and register the first local account in Keycloak. Local self-registration is intentional; the imported realm never ships a known customer password. The first account profile still requires the RTGT adult-purchaser attestation.
@@ -75,6 +84,20 @@ Open `/search`, run the deterministic Melbourne hotel search or Sydney-to-Melbou
 The QF checkout fixture demonstrates repricing from the search total to the current checkout total and therefore requires acceptance of the new authoritative revision. The hotel fixture reaches `Completed`; the QF flight fixture deliberately remains `BookingPending`, including inside a combined journey, so the recovery control can demonstrate safe retrieval without a blind retry. Payment and every component booking remain visibly separate.
 
 Default Production configuration keeps `Booking:Environment=Production` and `Booking:EnableFixtures=false`. With Production configuration, authenticated checkout creation returns `503 booking_capability_unavailable` even if a secret-like setting is present because no payment or booking provider is registered.
+
+## Exercise Webhook Receipt
+
+Webhook ingress remains disabled in checked-in Development configuration. For an intentional local-only exercise, provide the settings through environment variables and restart the API:
+
+```bash
+Booking__Webhooks__LiteApi__Enabled=true \
+Booking__Webhooks__LiteApi__Environment=Sandbox \
+Booking__Webhooks__LiteApi__CurrentSecret="replace-with-a-long-local-only-secret" \
+ConnectionStrings__Consumer="Host=localhost;Port=5432;Database=rtgt;Username=rtgt;Password=${RTGT_POSTGRES_PASSWORD}" \
+  dotnet run --project src/ReadyToGoTravel.Api/ReadyToGoTravel.Api.csproj
+```
+
+Send the exact configured secret in `Authorization` to `POST /api/v1/webhooks/liteapi/sandbox`. A valid LiteAPI-style envelope is acknowledged only after durable receipt. Processing extracts a booking reference from its stringified nested request/response, enqueues retrieval and lets reconciliation create provider-neutral history. Never reuse the local secret in another environment, commit it or interpret this exercise as OI-0005 production evidence.
 
 ## Stop or Reset
 
@@ -89,5 +112,5 @@ To deliberately erase the local PostgreSQL and Keycloak volumes, add `--volumes`
 ## Boundaries
 
 - The local realm is not a production realm template: production requires HTTPS, verified email and reviewed recovery, federation, session, administrative access and backup controls.
-- Supplier search, booking, hosted payment and webhook capabilities remain disabled in Production; only sanitized Development fixtures are available.
+- Supplier search, booking, hosted payment, webhook and outbound notification capabilities remain disabled in Production; only sanitized Development fixtures are available.
 - Reusable passport, identity-document and date-of-birth storage remains disabled; those details are not accepted by Slice 2 APIs or persisted in its schema.

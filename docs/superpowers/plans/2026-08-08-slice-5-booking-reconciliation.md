@@ -37,21 +37,21 @@
 - Produces: `RetrievedBookingState`, `BookingFlightSegment`, `CanonicalBookingVersioner.Create(ComponentBooking, RetrievedBookingState, BookingVersion?, DateTimeOffset, string, string)` and append-only `BookingVersion`.
 - Persists: provider-neutral canonical JSON/hash, version number, metadata flags, severity and stable diff JSON.
 
-- [ ] **Step 1: Write failing canonicalisation and immutability tests**
+- [x] **Step 1: Write failing canonicalisation and immutability tests**
 
 Add tests proving reordered segments hash identically, a meaningful field change produces a different hash and diff, unchanged state creates no second version, current projection changes with a new version, and EF rejects `Modified` or `Deleted` `BookingVersion` entries.
 
-- [ ] **Step 2: Run the focused tests and verify RED**
+- [x] **Step 2: Run the focused tests and verify RED**
 
 Run: `dotnet test tests/ReadyToGoTravel.Booking.Tests/ReadyToGoTravel.Booking.Tests.csproj -c Release --filter FullyQualifiedName~CanonicalBookingVersionTests`
 
 Expected: compilation/test failure because the canonical and version types do not exist.
 
-- [ ] **Step 3: Implement deterministic canonicalisation and append-only domain records**
+- [x] **Step 3: Implement deterministic canonicalisation and append-only domain records**
 
 Use explicit JSON DTOs, UTC timestamps, sorted segment identity and SHA-256. Exclude retrieval timestamp from the canonical hash. Add current canonical hash/version/last-reconciled/next-departure fields to `ComponentBooking`, and reject version mutation from `BookingDbContext.SaveChanges`/`SaveChangesAsync`.
 
-- [ ] **Step 4: Run focused tests and verify GREEN**
+- [x] **Step 4: Run focused tests and verify GREEN**
 
 Run the Task 1 focused command and confirm all canonical/version tests pass.
 
@@ -75,25 +75,25 @@ Run the Task 1 focused command and confirm all canonical/version tests pass.
 - `IReconciliationWorkProcessor.ProcessNextAsync(CheckoutProduct? product, string workerId, CancellationToken)` claims and processes at most one due row.
 - `IReconciliationScheduler.EnqueueImmediateAsync(Guid componentBookingId, string source, string correlationId, CancellationToken)` advances an existing schedule or inserts one.
 
-- [ ] **Step 1: Write failing schedule, lease and convergence tests**
+- [x] **Step 1: Write failing schedule, lease and convergence tests**
 
 Cover initial scheduling after a component receives a provider reference, missed-webhook scheduled retrieval, duplicate enqueue collapsing to one row, expired lease reclaim, active hotel daily cadence, flight daily/hourly cadence, terminal stop, retrieval failure retry, reference/product mismatch case creation and cancellation-token propagation.
 
-- [ ] **Step 2: Run focused reconciliation tests and verify RED**
+- [x] **Step 2: Run focused reconciliation tests and verify RED**
 
 Run: `dotnet test tests/ReadyToGoTravel.Booking.Tests/ReadyToGoTravel.Booking.Tests.csproj -c Release --filter FullyQualifiedName~ReconciliationTests`
 
 Expected: compilation/test failure because scheduler and processor contracts do not exist.
 
-- [ ] **Step 3: Implement atomic claims, retrieval and next-due calculation**
+- [x] **Step 3: Implement atomic claims, retrieval and next-due calculation**
 
 Use a single schedule row per component, an atomic conditional `ExecuteUpdateAsync` claim, a bounded lease, sanitised failures and exponential retry. Invoke only provider retrieval. On success, reload the component, apply the canonical version transactionally and calculate the next due time from product, lifecycle and earliest future flight departure.
 
-- [ ] **Step 4: Integrate checkout completion with initial work creation**
+- [x] **Step 4: Integrate checkout completion with initial work creation**
 
 After each persisted booking outcome with a provider reference, enqueue its reconciliation row using the same `BookingDbContext`; do not call retrieval or notification inline in the customer request.
 
-- [ ] **Step 5: Run focused tests and verify GREEN**
+- [x] **Step 5: Run focused tests and verify GREEN**
 
 Run the Task 2 focused command and confirm all reconciliation tests pass.
 
@@ -118,25 +118,25 @@ Run the Task 2 focused command and confirm all reconciliation tests pass.
 - `IWebhookInboxWriter.AcceptAsync(WebhookEnvelopeInput input, CancellationToken)` returns accepted, duplicate or conflict after persistence.
 - `IWebhookInboxProcessor.ProcessNextAsync(string workerId, CancellationToken)` claims at most one inbox record and enqueues reconciliation through `IReconciliationScheduler`.
 
-- [ ] **Step 1: Write failing webhook authentication and acknowledgement tests**
+- [x] **Step 1: Write failing webhook authentication and acknowledgement tests**
 
 Cover disabled endpoint, non-JSON, oversized body, missing/invalid/current/previous secret, environment mismatch, malformed top-level envelope, durable accepted `202`, identical duplicate `202`, same identity/different hash conflict, no token persistence and no consumer JWT requirement.
 
-- [ ] **Step 2: Run ingress tests and verify RED**
+- [x] **Step 2: Run ingress tests and verify RED**
 
 Run: `dotnet test tests/ReadyToGoTravel.Booking.Tests/ReadyToGoTravel.Booking.Tests.csproj -c Release --filter FullyQualifiedName~WebhookIngressTests`
 
 Expected: `404`/compilation failure because no webhook endpoint exists.
 
-- [ ] **Step 3: Implement the dedicated endpoint and inbox writer**
+- [x] **Step 3: Implement the dedicated endpoint and inbox writer**
 
 Read the request through a bounded stream, compare UTF-8 secret bytes with `CryptographicOperations.FixedTimeEquals`, parse only the envelope, validate route/payload environment and commit the exact body/hash before returning `202 Accepted`.
 
-- [ ] **Step 4: Write RED inbox-processing tests**
+- [x] **Step 4: Write RED inbox-processing tests**
 
 Cover known hotel/flight events, stringified nested request/response reference extraction, unsupported event case, malformed nested payload quarantine, missing booking reference case, duplicate internal replay and transient retry on database/provider scheduling failure.
 
-- [ ] **Step 5: Implement asynchronous inbox processing and verify GREEN**
+- [x] **Step 5: Implement asynchronous inbox processing and verify GREEN**
 
 Process allow-listed lifecycle events as immediate retrieval triggers only. Mark unsupported or poison events inspectably without changing current booking state from the webhook body. Run both Task 3 focused test filters.
 
@@ -159,21 +159,21 @@ Process allow-listed lifecycle events as immediate retrieval triggers only. Mark
 - `INotificationOutboxProcessor.ProcessNextAsync(string workerId, CancellationToken)` leases and delivers one due item.
 - Checkout snapshots `PreferredLocale` and the approved `Australia/Sydney` notification timezone through the Consumer application contract.
 
-- [ ] **Step 1: Write failing classifier, quiet-hour and outbox tests**
+- [x] **Step 1: Write failing classifier, quiet-hour and outbox tests**
 
 Cover initial-version no notification; informational, under-30-minute, 30-minute, airport/flight-number, hotel inclusion/policy, cancellation and relocation classification; quiet-hour deferral; material bypass; unique notification dedupe; transient retry; permanent failure visibility; and cancellation propagation.
 
-- [ ] **Step 2: Run notification tests and verify RED**
+- [x] **Step 2: Run notification tests and verify RED**
 
 Run: `dotnet test tests/ReadyToGoTravel.Booking.Tests/ReadyToGoTravel.Booking.Tests.csproj -c Release --filter FullyQualifiedName~NotificationTests`
 
 Expected: compilation/test failure because classifier/outbox contracts do not exist.
 
-- [ ] **Step 3: Implement transactional notification intent and worker delivery**
+- [x] **Step 3: Implement transactional notification intent and worker delivery**
 
 Create outbox rows in the same save as the new version/current projection. Use version/component/customer/template/channel as the unique delivery key. Calculate `not_before` in `Australia/Sydney`; record attempts and bounded retry without changing the booking transaction.
 
-- [ ] **Step 4: Verify customer locale snapshot and GREEN tests**
+- [x] **Step 4: Verify customer locale snapshot and GREEN tests**
 
 Run the Booking notification filter and `dotnet test tests/ReadyToGoTravel.Consumer.Tests/ReadyToGoTravel.Consumer.Tests.csproj -c Release --filter FullyQualifiedName~ConsumerBookingContextTests`.
 
@@ -199,21 +199,21 @@ Run the Booking notification filter and `dotnet test tests/ReadyToGoTravel.Consu
 - `GET /api/v1/checkouts/{checkoutId}/history` returns component product/status, ordered version metadata, flags and stable diff only after `sub` ownership validation.
 - General worker executes inbox, hotel reconciliation and notification cycles; flight worker executes flight reconciliation only.
 
-- [ ] **Step 1: Write failing owner-isolation and data-leakage tests**
+- [x] **Step 1: Write failing owner-isolation and data-leakage tests**
 
 Cover owner success, another customer `404`, anonymous `401`, combined-component separation, ordering, and absence of provider binding/reference, raw body, secret, internal error and notification destination fields.
 
-- [ ] **Step 2: Run history tests and verify RED**
+- [x] **Step 2: Run history tests and verify RED**
 
 Run: `dotnet test tests/ReadyToGoTravel.Booking.Tests/ReadyToGoTravel.Booking.Tests.csproj -c Release --filter FullyQualifiedName~BookingHistoryApiTests`
 
 Expected: `404` because the history route does not exist.
 
-- [ ] **Step 3: Implement history query and worker composition**
+- [x] **Step 3: Implement history query and worker composition**
 
 Query Booking-owned tables only after resolving the caller's customer ID. Register the shared Booking context in both private workers with their existing connection string, and keep their `ExecuteCycleAsync` methods cancellation-aware and bounded to one item per processor per cycle.
 
-- [ ] **Step 4: Run focused worker/history tests and verify GREEN**
+- [x] **Step 4: Run focused worker/history tests and verify GREEN**
 
 Run the history, architecture and building-block test projects.
 
@@ -229,17 +229,17 @@ Run the history, architecture and building-block test projects.
 - Adds booking versions, reconciliation work/attempts, webhook inbox, notification outbox and operational cases with all dedupe/claim indexes.
 - Installs PostgreSQL trigger `booking.reject_booking_version_mutation()` for `UPDATE`/`DELETE`.
 
-- [ ] **Step 1: Write failing persistence/model tests**
+- [x] **Step 1: Write failing persistence/model tests**
 
 Assert all unique indexes, concurrency tokens, maximum lengths, raw-body/provider fields not exposed from public contracts, version immutability guard and deterministic migration/model parity.
 
-- [ ] **Step 2: Generate and normalise the migration**
+- [x] **Step 2: Generate and normalise the migration**
 
 Run: `dotnet ef migrations add Slice5BookingReconciliation --project src/ReadyToGoTravel.Booking --startup-project src/ReadyToGoTravel.Api --context BookingDbContext --output-dir Persistence/Migrations`
 
 Rename the generated migration deterministically to `20260808010000`, add the PostgreSQL immutability function/trigger SQL, and keep the designer/snapshot identifiers aligned.
 
-- [ ] **Step 3: Run persistence and EF parity checks**
+- [x] **Step 3: Run persistence and EF parity checks**
 
 Run the Booking persistence tests, then `dotnet ef migrations has-pending-model-changes --project src/ReadyToGoTravel.Booking --startup-project src/ReadyToGoTravel.Api --context BookingDbContext` and expect no pending changes.
 
@@ -256,11 +256,11 @@ Run the Booking persistence tests, then `dotnet ef migrations has-pending-model-
 - Create: `docs/delivery/2026-08-08-slice-5-booking-reconciliation-outcome.md`
 - Modify: `docs/deployment/local-development.md`
 
-- [ ] **Step 1: Update docs with implemented behavior and unchanged gates**
+- [x] **Step 1: Update docs with implemented behavior and unchanged gates**
 
 Record endpoint authentication/acknowledgement, worker ownership, canonical/version schema, schedule rules, notification behavior, local configuration and verification. Mark Slice 5 implemented, but keep PLAN-0002 active for Slices 6–7 and OI-0002/OI-0003/OI-0005/OI-0006 production gates open.
 
-- [ ] **Step 2: Run focused and full verification**
+- [x] **Step 2: Run focused and full verification**
 
 Run:
 
