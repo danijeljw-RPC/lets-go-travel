@@ -1,0 +1,42 @@
+@page "/support"
+@attribute [Authorize]
+@attribute [StreamRendering]
+@inject SupportApiClient SupportApi
+
+<PageTitle>Support · readytogo.travel</PageTitle>
+
+<main class="content-shell">
+    <p class="eyebrow">Help</p>
+    <h1>Support tickets</h1>
+    <p class="intro compact-intro">Track your support requests or start a new one.</p>
+
+    <p><a class="primary-action" href="/support/new">New ticket</a></p>
+
+    <section class="item-list" aria-labelledby="tickets-title">
+        <h2 id="tickets-title">Your tickets</h2>
+        @if (tickets.Count == 0)
+        {
+            <p class="empty-state">No support tickets yet.</p>
+        }
+        else
+        {
+            @foreach (var ticket in tickets)
+            {
+                <article class="list-card">
+                    <p class="card-label">@ticket.Status@(ticket.IsUrgent ? " · Urgent" : string.Empty)</p>
+                    <h3><a href="@($"/support/{ticket.Id}")">@ticket.Category</a></h3>
+                    <p class="list-meta">Updated @ticket.UpdatedAt.ToString("dd MMM yyyy HH:mm")</p>
+                </article>
+            }
+        }
+    </section>
+</main>
+
+@code {
+    private IReadOnlyList<SupportTicketSummary> tickets = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        tickets = await SupportApi.GetTicketsAsync();
+    }
+}

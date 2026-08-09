@@ -1,0 +1,40 @@
+@page "/staff/support"
+@attribute [Authorize(Policy = "support-agent")]
+@attribute [StreamRendering]
+@inject SupportStaffApiClient StaffApi
+
+<PageTitle>Support queue · readytogo.travel</PageTitle>
+
+<main class="content-shell">
+    <p class="eyebrow">Staff</p>
+    <h1>Support queue</h1>
+    <p class="intro compact-intro">Every ticket, most recently updated first.</p>
+
+    <section class="item-list" aria-labelledby="queue-title">
+        <h2 id="queue-title">Tickets</h2>
+        @if (tickets.Count == 0)
+        {
+            <p class="empty-state">No support tickets.</p>
+        }
+        else
+        {
+            @foreach (var ticket in tickets)
+            {
+                <article class="list-card">
+                    <p class="card-label">@ticket.Status@(ticket.IsUrgent ? " · Urgent" : string.Empty)</p>
+                    <h3><a href="@($"/staff/support/{ticket.Id}")">@ticket.Category</a></h3>
+                    <p class="list-meta">Updated @ticket.UpdatedAt.ToString("dd MMM yyyy HH:mm")</p>
+                </article>
+            }
+        }
+    </section>
+</main>
+
+@code {
+    private IReadOnlyList<SupportTicketSummary> tickets = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        tickets = await StaffApi.GetTicketsAsync();
+    }
+}

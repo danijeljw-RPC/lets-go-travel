@@ -1,0 +1,115 @@
+@page "/staff/support/{TicketId:guid}"
+@attribute [Authorize(Policy = "support-agent")]
+@rendermode InteractiveServer
+@inject SupportStaffApiClient StaffApi
+
+<PageTitle>Support ticket · readytogo.travel</PageTitle>
+
+<main class="content-shell">
+    <p class="eyebrow">Staff</p>
+    @if (ticket is null)
+    {
+        <h1>Ticket not found</h1>
+    }
+    else
+    {
+        <h1>@ticket.Category ticket</h1>
+        <p class="card-label">@ticket.Status@(ticket.IsUrgent ? " · Urgent" : string.Empty)</p>
+        <p class="list-meta">@ticket.ContactName · @ticket.ContactEmail</p>
+        @if (!string.IsNullOrWhiteSpace(ticket.BookingReference))
+        {
+            <p class="list-meta">Booking reference: @ticket.BookingReference</p>
+        }
+
+        <section class="item-list" aria-labelledby="thread-title">
+            <h2 id="thread-title">Correspondence</h2>
+            @foreach (var message in ticket.Messages.OrderBy(m => m.SequenceNumber))
+            {
+                <article class="list-card">
+                    <p class="card-label">@message.AuthorType · @message.CreatedAt.ToString("dd MMM yyyy HH:mm")</p>
+                    <p>@message.Body</p>
+                </article>
+            }
+            @if (ticket.Attachments.Count > 0)
+            {
+                <h3>Attachments</h3>
+                @foreach (var attachment in ticket.Attachments)
+                {
+                    <p>@attachment.OriginalFileName (@attachment.ScanStatus)</p>
+                }
+            }
+        </section>
+
+        @if (ticket.Status != "Closed")
+        {
+            <EditForm Model="this" OnValidSubmit="ReplyAsync" class="editor-card">
+                <label for="staff-reply-body">Reply</label>
+                <InputTextArea id="staff-reply-body" @bind-Value="replyBody" rows="4" />
+                <button class="primary-action" type="submit" disabled="@(string.IsNullOrWhiteSpace(replyBody))">Send reply</button>
+            </EditForm>
+
+            <button class="primary-action" type="button" @onclick="CloseAsync">Close ticket</button>
+        }
+
+        <div class="editor-card">
+            <h3>Guest link</h3>
+            <button class="primary-action" type="button" @onclick="RotateAsync">Rotate link</button>
+            <button class="primary-action" type="button" @onclick="RevokeAsync">Revoke link</button>
+            @if (actionMessage is not null)
+            {
+                <p class="list-meta">@actionMessage</p>
+            }
+        </div>
+    }
+</main>
+
+@code {
+    [Parameter]
+    public Guid TicketId { get; set; }
+
+    private SupportTicketDetail? ticket;
+    private string replyBody = string.Empty;
+    private string? actionMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ticket = await StaffApi.GetTicketAsync(TicketId);
+    }
+
+    private async Task ReplyAsync()
+    {
+        if (string.IsNullOrWhiteSpace(replyBody))
+        {
+            return;
+        }
+
+        var updated = await StaffApi.ReplyAsync(TicketId, replyBody);
+        if (updated is not null)
+        {
+            ticket = updated;
+            replyBody = string.Empty;
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        if (await StaffApi.CloseAsync(TicketId))
+        {
+            ticket = await StaffApi.GetTicketAsync(TicketId);
+        }
+    }
+
+    private async Task RotateAsync()
+    {
+        actionMessage = await StaffApi.RotateGuestLinkAsync(TicketId)
+            ? "The guest link was rotated. The customer's previous link no longer works; a new one was emailed."
+            : "The guest link could not be rotated.";
+    }
+
+    private async Task RevokeAsync()
+    {
+        actionMessage = await StaffApi.RevokeGuestLinkAsync(TicketId)
+            ? "The guest link was revoked."
+            : "The guest link could not be revoked.";
+    }
+}
