@@ -2,7 +2,7 @@
 
 # Local Development
 
-This runbook starts the Slice 5 development dependencies without live supplier or notification access or committed secrets. PostgreSQL 17.10 is the product-data store. Keycloak 26.7.0 owns local credentials and issues an API audience to the public PKCE web client. The imported realm contains no users, passwords or production configuration. Search, hosted payment, booking and retrieval use sanitized deterministic fixtures only in Development.
+This runbook starts the Slice 6 development dependencies without live supplier, notification, object-storage or malware-scanning access or committed secrets. PostgreSQL 17.10 is the product-data store. Keycloak 26.7.0 owns local credentials and issues an API audience to the public PKCE web client; the imported realm also defines a `support-agent` realm role for the privileged staff console. The imported realm contains no users, passwords or production configuration. MinIO and ClamAV are optional local dependencies for exercising private support-ticket attachments; support-ticket creation, correspondence and ticket status work without them. Search, hosted payment, booking and retrieval use sanitized deterministic fixtures only in Development.
 
 ## Prerequisites
 
@@ -18,20 +18,27 @@ From the repository root:
 cp deploy/local/.env.example deploy/local/.env
 ```
 
-Replace both example passwords. `deploy/local/.env` is ignored by Git. These are development credentials only and must never be copied to production.
+Replace all example passwords, including `MINIO_ROOT_PASSWORD`. `deploy/local/.env` is ignored by Git. These are development credentials only and must never be copied to production.
 
-## Start PostgreSQL and Keycloak
+## Start PostgreSQL, Keycloak, MinIO and ClamAV
 
 ```bash
 docker compose --env-file deploy/local/.env --file deploy/local/compose.yaml up --detach
 docker compose --env-file deploy/local/.env --file deploy/local/compose.yaml ps
 ```
 
-Both services bind to loopback only. PostgreSQL listens on `127.0.0.1:5432`; Keycloak listens on `127.0.0.1:8080`. Wait until both health checks report `healthy`.
+All four services bind to loopback only. PostgreSQL listens on `127.0.0.1:5432`; Keycloak listens on `127.0.0.1:8080`; MinIO listens on `127.0.0.1:9000` (API) and `127.0.0.1:9001` (console); ClamAV listens on `127.0.0.1:3310`. Wait until all four health checks report `healthy` — ClamAV's virus-database load can take a minute or more on first start. The official ClamAV image ships `amd64` only, so `clamav` runs under emulation on Apple Silicon (`platform: linux/amd64`); expect a slower first pull and start there. If you only need Postgres and Keycloak, omit MinIO/ClamAV from your workflow; support tickets, correspondence and staff actions all work without them, and attachment uploads simply stay quarantined.
 
-## Apply the Consumer and Booking Migrations
+Create the MinIO bucket the first time you start it:
 
-Load the local variables, restore the pinned EF tool and apply the checked-in migration explicitly:
+```bash
+docker compose --env-file deploy/local/.env --file deploy/local/compose.yaml exec minio \
+  sh -c 'mc alias set local http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" && mc mb --ignore-existing local/rtgt-support-attachments'
+```
+
+## Apply the Consumer, Booking and Support Migrations
+
+Load the local variables, restore the pinned EF tool and apply the checked-in migrations explicitly:
 
 ```bash
 set -a
@@ -44,6 +51,10 @@ dotnet tool run dotnet-ef database update \
 dotnet tool run dotnet-ef database update \
   --project src/ReadyToGoTravel.Booking/ReadyToGoTravel.Booking.csproj \
   --context ReadyToGoTravel.Booking.Persistence.BookingDbContext \
+  --connection "Host=localhost;Port=5432;Database=rtgt;Username=rtgt;Password=${RTGT_POSTGRES_PASSWORD}"
+dotnet tool run dotnet-ef database update \
+  --project src/ReadyToGoTravel.Support/ReadyToGoTravel.Support.csproj \
+  --context ReadyToGoTravel.Support.Persistence.SupportDbContext \
   --connection "Host=localhost;Port=5432;Database=rtgt;Username=rtgt;Password=${RTGT_POSTGRES_PASSWORD}"
 ```
 
@@ -99,6 +110,29 @@ ConnectionStrings__Consumer="Host=localhost;Port=5432;Database=rtgt;Username=rtg
 
 Send the exact configured secret in `Authorization` to `POST /api/v1/webhooks/liteapi/sandbox`. A valid LiteAPI-style envelope is acknowledged only after durable receipt. Processing extracts a booking reference from its stringified nested request/response, enqueues retrieval and lets reconciliation create provider-neutral history. Never reuse the local secret in another environment, commit it or interpret this exercise as OI-0005 production evidence.
 
+## Exercise Support Tickets, Guest Links and Attachments
+
+Open `/support/new` while signed out to submit a guest ticket, or while signed in at `/support/new` to submit an authenticated ticket. Support tickets and their acknowledgement notifications work without MinIO or ClamAV; the checked-in disabled `ISupportNotificationSender` means no live email is sent, so retrieve the raw magic-link token from the running `ReadyToGoTravel.Worker` or API console logs, or from a direct query against `support.support_notification_outbox` (`payload_json` contains `GuestToken` for a guest ticket's acknowledgement). Open `/support/guest/{token}` to exercise the guest thread, reply and attachment flow for that ticket only.
+
+To exercise attachment upload/download, start MinIO and ClamAV (above), create the bucket, and start the API/worker with storage and scanning enabled:
+
+```bash
+Support__Storage__Enabled=true \
+Support__Storage__AccessKey="${MINIO_ROOT_USER}" \
+Support__Storage__SecretKey="${MINIO_ROOT_PASSWORD}" \
+Support__Scanning__ClamAv__Enabled=true \
+ConnectionStrings__Consumer="Host=localhost;Port=5432;Database=rtgt;Username=rtgt;Password=${RTGT_POSTGRES_PASSWORD}" \
+  dotnet run --project src/ReadyToGoTravel.Api/ReadyToGoTravel.Api.csproj
+Support__Storage__Enabled=true \
+Support__Storage__AccessKey="${MINIO_ROOT_USER}" \
+Support__Storage__SecretKey="${MINIO_ROOT_PASSWORD}" \
+Support__Scanning__ClamAv__Enabled=true \
+ConnectionStrings__Booking="Host=localhost;Port=5432;Database=rtgt;Username=rtgt;Password=${RTGT_POSTGRES_PASSWORD}" \
+  dotnet run --project src/ReadyToGoTravel.Worker/ReadyToGoTravel.Worker.csproj
+```
+
+Upload a PDF, JPEG, PNG or plain-text file under 10 MiB. It stays `Pending` until the running worker's attachment-scan cycle processes it against ClamAV; only a `Clean` result makes it downloadable, and the download link is a MinIO presigned URL valid for five minutes. Grant a Keycloak user the `support-agent` realm role (via the Keycloak admin console at `http://localhost:8080`) to reach `/staff/support` and exercise ticket reply, close, and guest-link rotate/revoke. Never reuse local MinIO/ClamAV configuration in another environment or interpret this exercise as production object-storage or malware-scanning evidence.
+
 ## Stop or Reset
 
 Stop containers while retaining local data:
@@ -114,3 +148,4 @@ To deliberately erase the local PostgreSQL and Keycloak volumes, add `--volumes`
 - The local realm is not a production realm template: production requires HTTPS, verified email and reviewed recovery, federation, session, administrative access and backup controls.
 - Supplier search, booking, hosted payment, webhook and outbound notification capabilities remain disabled in Production; only sanitized Development fixtures are available.
 - Reusable passport, identity-document and date-of-birth storage remains disabled; those details are not accepted by Slice 2 APIs or persisted in its schema.
+- Object storage and malware scanning remain disabled in Production by default; support attachments stay quarantined until both are explicitly activated and evidenced.

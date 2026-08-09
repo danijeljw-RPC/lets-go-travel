@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ReadyToGoTravel.Booking;
 using ReadyToGoTravel.BuildingBlocks.Hosting;
+using ReadyToGoTravel.Consumer;
 using ReadyToGoTravel.Search.Capabilities;
 using ReadyToGoTravel.Support;
 using ReadyToGoTravel.Support.Scanning;
@@ -22,6 +23,7 @@ if (!Enum.TryParse<SearchEnvironment>(environmentValue, true, out var environmen
     throw new InvalidOperationException("Booking:Environment must be Sandbox or Production.");
 }
 
+builder.Services.AddConsumerModule((_, options) => options.UseNpgsql(connectionString));
 builder.Services.AddBookingModule(
     (_, options) => options.UseNpgsql(connectionString),
     environment,

@@ -64,3 +64,27 @@ Public state values are case-sensitive and returned exactly as follows:
 - `CheckoutStatus`: `AwaitingAcceptance`, `ReadyForPayment`, `PaymentPending`, `BookingPending`, `Completed`, `Failed`, `RequiresSupport`, `Expired`;
 - `PaymentStatus`: `NotStarted`, `ActionRequired`, `Processing`, `Authorised`, `Captured`, `Failed`, `OutcomeUnknown`, `RefundRequired`; and
 - `ComponentBookingStatus`: `OfferSelected`, `PaymentPending`, `BookingPending`, `Confirmed`, `Failed`, `RefundRequired`, `RequiresSupport`, `Cancelled`, `Completed`.
+
+## Implemented Support Surface
+
+`POST /api/v1/support/tickets` accepts an optional consumer JWT. An authenticated caller's contact email always comes from the validated `sub`/`email` claims and cannot be overridden by the request body; an anonymous caller supplies a name and email and receives no bearer token in the response. Every accepted ticket queues a durable acknowledgement notification; a guest ticket's acknowledgement carries a separate high-entropy magic-link token that is never returned by any API response.
+
+Authenticated consumer routes (`RequireAuthorization("consumer")`, ownership from `sub`, another customer's ticket returns `404 ticket_not_found`):
+
+- `GET /api/v1/support/tickets` lists the caller's own tickets;
+- `GET /api/v1/support/tickets/{ticketId}` returns the owned ticket, its immutable message thread and attachment metadata;
+- `POST /api/v1/support/tickets/{ticketId}/messages` appends an owned reply and applies the ticket state transition; and
+- `POST /api/v1/support/tickets/{ticketId}/attachments` and `GET .../attachments/{attachmentId}/download` upload and retrieve an owned attachment.
+
+Guest routes (`/api/v1/support/guest/ticket...`) carry no `ticketId` route or query parameter. The caller presents the magic-link token as `Authorization: Bearer <token>`; the server resolves the token to its ticket by hashing and looking up the stored hash, so the token is the only input that can ever select a ticket. A missing, malformed, expired or revoked token returns `401 guest_link_invalid` without distinguishing the reason. Guest tokens are multi-use until they expire (30 days from issuance) or are explicitly revoked or rotated; rotation and revocation are staff-only and immediately invalidate the prior token.
+
+Staff routes (`/api/v1/support/staff/tickets...`) require the `support-agent` policy, backed by the Keycloak `realm_access` role claim. Staff can list and view any ticket, reply, close a ticket, and rotate or revoke its guest link. No staff route returns a raw guest token.
+
+Attachments are private S3-compatible objects addressed by a server-generated key that never derives from the client-supplied filename. Uploads are limited to 10 MiB per file, 5 files per message and 50 MiB per ticket, and only PDF, JPEG, PNG and UTF-8 plain text pass both declared-type and byte-signature validation. An attachment is downloadable only after an explicit `Clean` malware-scan result; downloads return a presigned URL valid for at most five minutes rather than a public object URL. Production registers no object-storage or malware-scanning backend by default, so attachments remain quarantined until that capability is activated.
+
+Public state values are case-sensitive and returned exactly as follows:
+
+- `SupportTicketStatus`: `New`, `WaitingOnSupport`, `WaitingOnCustomer`, `Closed`;
+- `SupportTicketCategory`: `General`, `TravelWithin24Hours`, `PaymentBookingMismatch`, `SupplierCancellationOrRelocation`, `TravellerSafety`, `AccountOrOther`;
+- `SupportAuthorType` (thread message author): `Customer`, `Guest`, `Support`, `System`; and
+- `AttachmentScanStatus`: `Pending`, `Clean`, `Infected`, `Failed`.

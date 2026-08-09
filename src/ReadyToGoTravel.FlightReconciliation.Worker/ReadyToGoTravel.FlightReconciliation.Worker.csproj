@@ -15,5 +15,6 @@
   <ItemGroup>
     <ProjectReference Include="..\ReadyToGoTravel.BuildingBlocks\ReadyToGoTravel.BuildingBlocks.csproj" />
     <ProjectReference Include="..\ReadyToGoTravel.Booking\ReadyToGoTravel.Booking.csproj" />
+    <ProjectReference Include="..\ReadyToGoTravel.Consumer\ReadyToGoTravel.Consumer.csproj" />
   </ItemGroup>
 </Project>

@@ -69,6 +69,7 @@ services:
 
   clamav:
     image: clamav/clamav:1.5.4
+    platform: linux/amd64
     ports:
       - "127.0.0.1:3310:3310"
     volumes:

@@ -31,7 +31,7 @@ The accepted direction is a web-first consumer experience organised around trips
 
 ## Decision State
 
-Documentation may describe a recommendation without making it binding. Accepted ADRs and closed product issues record approved direction. Ten ADRs are accepted; seven issues are closed, four LiteAPI-dependent directions are in review for production evidence and OI-0010 is the only open issue because it remains a non-blocking post-MVP wishlist item. Slice 5 webhook receipt, reconciliation, immutable history and notification intent is implemented; its [delivery outcome](delivery/2026-08-08-slice-5-booking-reconciliation-outcome.md) records verification and the unchanged production gates.
+Documentation may describe a recommendation without making it binding. Accepted ADRs and closed product issues record approved direction. Ten ADRs are accepted; seven issues are closed, four LiteAPI-dependent directions are in review for production evidence and OI-0010 is the only open issue because it remains a non-blocking post-MVP wishlist item. Slice 5 webhook receipt, reconciliation, immutable history and notification intent is implemented; its [delivery outcome](delivery/2026-08-08-slice-5-booking-reconciliation-outcome.md) records verification and the unchanged production gates. Slice 6 first-party support tickets, guest magic-link access and private attachments are implemented; its [delivery outcome](delivery/2026-08-09-slice-6-support-tickets-magic-links-outcome.md) records verification, the new object-storage/malware-scanning production gate and the unchanged prior gates.
 
 ## Source of Truth
 
