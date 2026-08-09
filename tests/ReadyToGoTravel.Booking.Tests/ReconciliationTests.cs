@@ -108,6 +108,142 @@ public sealed class ReconciliationTests
     }
 
     [Fact]
+    public async Task FlightTwentyFiveHoursAwayChecksAgainAtTheFinalDayBoundary()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var component = await StoreConfirmedComponentAsync(fixture.Context, CheckoutProduct.Flight, "flight_123");
+        var clock = new MutableTimeProvider(Now);
+        var provider = new QueueBookingProvider(Result("flight_123", FlightState(Now.AddHours(25))));
+        var scheduler = new ReconciliationScheduler(fixture.Context, clock);
+        await scheduler.EnqueueImmediateAsync(component.Id, "Scheduled", "correlation-boundary", default);
+        var processor = new BookingReconciliationProcessor(fixture.Context, provider, scheduler, clock);
+
+        Assert.True(await processor.ProcessNextAsync(CheckoutProduct.Flight, "flight-worker", default));
+
+        Assert.Equal(Now.AddHours(1), (await fixture.Context.ReconciliationWork.SingleAsync()).DueAt);
+    }
+
+    [Fact]
+    public async Task FlightExactlyTwentyFourHoursAwayEntersHourlyReconciliation()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var component = await StoreConfirmedComponentAsync(fixture.Context, CheckoutProduct.Flight, "flight_123");
+        var clock = new MutableTimeProvider(Now);
+        var provider = new QueueBookingProvider(Result("flight_123", FlightState(Now.AddHours(24))));
+        var scheduler = new ReconciliationScheduler(fixture.Context, clock);
+        await scheduler.EnqueueImmediateAsync(component.Id, "Scheduled", "correlation-boundary-exact", default);
+        var processor = new BookingReconciliationProcessor(fixture.Context, provider, scheduler, clock);
+
+        Assert.True(await processor.ProcessNextAsync(CheckoutProduct.Flight, "flight-worker", default));
+
+        Assert.Equal(Now.AddHours(1), (await fixture.Context.ReconciliationWork.SingleAsync()).DueAt);
+    }
+
+    [Fact]
+    public async Task FlightJustOverTwentyFourHoursAwayIsCheckedAtTheBoundaryNotTheNextDay()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var component = await StoreConfirmedComponentAsync(fixture.Context, CheckoutProduct.Flight, "flight_123");
+        var clock = new MutableTimeProvider(Now);
+        var provider = new QueueBookingProvider(
+            Result("flight_123", FlightState(Now.AddHours(24).AddMinutes(1))));
+        var scheduler = new ReconciliationScheduler(fixture.Context, clock);
+        await scheduler.EnqueueImmediateAsync(component.Id, "Scheduled", "correlation-boundary-plus-one", default);
+        var processor = new BookingReconciliationProcessor(fixture.Context, provider, scheduler, clock);
+
+        Assert.True(await processor.ProcessNextAsync(CheckoutProduct.Flight, "flight-worker", default));
+
+        Assert.Equal(Now.AddMinutes(1), (await fixture.Context.ReconciliationWork.SingleAsync()).DueAt);
+    }
+
+    [Fact]
+    public async Task FlightSeveralDaysAwayKeepsTheDailyCadence()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var component = await StoreConfirmedComponentAsync(fixture.Context, CheckoutProduct.Flight, "flight_123");
+        var clock = new MutableTimeProvider(Now);
+        var provider = new QueueBookingProvider(Result("flight_123", FlightState(Now.AddDays(10))));
+        var scheduler = new ReconciliationScheduler(fixture.Context, clock);
+        await scheduler.EnqueueImmediateAsync(component.Id, "Scheduled", "correlation-far-out", default);
+        var processor = new BookingReconciliationProcessor(fixture.Context, provider, scheduler, clock);
+
+        Assert.True(await processor.ProcessNextAsync(CheckoutProduct.Flight, "flight-worker", default));
+
+        Assert.Equal(Now.AddDays(1), (await fixture.Context.ReconciliationWork.SingleAsync()).DueAt);
+    }
+
+    [Fact]
+    public async Task OlderSupplierObservationCannotReinstateANewerCancellation()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var component = await StoreConfirmedComponentAsync(fixture.Context, CheckoutProduct.Flight, "flight_123");
+        var clock = new MutableTimeProvider(Now);
+        var cancelled = FlightState(Now.AddHours(12)) with
+        {
+            Status = RetrievedBookingStatus.Cancelled,
+            SupplierObservedAt = Now,
+        };
+        var staleConfirmation = FlightState(Now.AddHours(12)) with
+        {
+            SupplierObservedAt = Now.AddMinutes(-5),
+        };
+        var provider = new QueueBookingProvider(
+            Result("flight_123", cancelled),
+            Result("flight_123", staleConfirmation));
+        var scheduler = new ReconciliationScheduler(fixture.Context, clock);
+        await scheduler.EnqueueImmediateAsync(component.Id, "Scheduled", "correlation-newer", default);
+        var processor = new BookingReconciliationProcessor(fixture.Context, provider, scheduler, clock);
+        Assert.True(await processor.ProcessNextAsync(CheckoutProduct.Flight, "flight-worker", default));
+        clock.Advance(TimeSpan.FromHours(1));
+        await scheduler.EnqueueImmediateAsync(component.Id, "Webhook", "correlation-stale", default);
+
+        Assert.True(await processor.ProcessNextAsync(CheckoutProduct.Flight, "flight-worker", default));
+
+        var checkout = await fixture.Context.Checkouts.Include(value => value.Components).SingleAsync();
+        Assert.Equal(CheckoutStatus.RequiresSupport, checkout.Status);
+        Assert.Equal(ComponentBookingStatus.Cancelled, checkout.Components.Single().Status);
+        Assert.Equal(1, await fixture.Context.BookingVersions.CountAsync());
+        Assert.Equal(ReconciliationAttemptOutcome.IgnoredStale,
+            (await fixture.Context.ReconciliationAttempts.OrderBy(value => value.AttemptNumber).LastAsync()).Outcome);
+        Assert.Equal(ReconciliationWorkStatus.Completed,
+            (await fixture.Context.ReconciliationWork.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task ActiveStateCannotReverseATerminalStateWithoutComparableSupplierTimes()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var component = await StoreConfirmedComponentAsync(fixture.Context, CheckoutProduct.Flight, "flight_123");
+        var clock = new MutableTimeProvider(Now);
+        var cancelledWithoutSupplierTime = FlightState(Now.AddHours(12)) with
+        {
+            Status = RetrievedBookingStatus.Cancelled,
+            SupplierObservedAt = null,
+        };
+        var confirmationWithSupplierTime = FlightState(Now.AddHours(12)) with
+        {
+            SupplierObservedAt = Now.AddMinutes(5),
+        };
+        var provider = new QueueBookingProvider(
+            Result("flight_123", cancelledWithoutSupplierTime),
+            Result("flight_123", confirmationWithSupplierTime));
+        var scheduler = new ReconciliationScheduler(fixture.Context, clock);
+        await scheduler.EnqueueImmediateAsync(component.Id, "Scheduled", "correlation-terminal", default);
+        var processor = new BookingReconciliationProcessor(fixture.Context, provider, scheduler, clock);
+        Assert.True(await processor.ProcessNextAsync(CheckoutProduct.Flight, "flight-worker", default));
+        clock.Advance(TimeSpan.FromHours(1));
+        await scheduler.EnqueueImmediateAsync(component.Id, "Webhook", "correlation-active", default);
+
+        Assert.True(await processor.ProcessNextAsync(CheckoutProduct.Flight, "flight-worker", default));
+
+        Assert.Equal(ComponentBookingStatus.Cancelled,
+            (await fixture.Context.ComponentBookings.SingleAsync()).Status);
+        Assert.Equal(1, await fixture.Context.BookingVersions.CountAsync());
+        Assert.Equal(ReconciliationAttemptOutcome.IgnoredStale,
+            (await fixture.Context.ReconciliationAttempts.OrderBy(value => value.AttemptNumber).LastAsync()).Outcome);
+    }
+
+    [Fact]
     public async Task RetrievalFailureIsInspectableAndDoesNotClaimTheBookingIsUnchanged()
     {
         await using var fixture = await BookingDatabaseFixture.CreateAsync();
@@ -128,6 +264,82 @@ public sealed class ReconciliationTests
         Assert.Equal(ReconciliationWorkStatus.Pending, work.Status);
         Assert.True(work.DueAt > Now);
         Assert.DoesNotContain("payload", work.LastErrorCode ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RetrievalStopsRetryingAfterEightAttemptsAndOpensOneCase()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var component = await StoreConfirmedComponentAsync(fixture.Context, CheckoutProduct.Hotel, "hotel_123");
+        var clock = new MutableTimeProvider(Now);
+        var scheduler = new ReconciliationScheduler(fixture.Context, clock);
+        await scheduler.EnqueueImmediateAsync(component.Id, "Scheduled", "correlation-limit", default);
+        await fixture.Context.ReconciliationWork.ExecuteUpdateAsync(
+            setters => setters
+                .SetProperty(value => value.Attempts, 7)
+                .SetProperty(value => value.ConsecutiveFailures, 7));
+        fixture.Context.ChangeTracker.Clear();
+        var processor = new BookingReconciliationProcessor(
+            fixture.Context,
+            new ThrowingBookingProvider(new TimeoutException("supplier unavailable")),
+            scheduler,
+            clock);
+
+        Assert.True(await processor.ProcessNextAsync(CheckoutProduct.Hotel, "general-worker", default));
+
+        Assert.Equal(ReconciliationWorkStatus.Completed,
+            (await fixture.Context.ReconciliationWork.SingleAsync()).Status);
+        Assert.Equal(ReconciliationAttemptOutcome.Failed,
+            (await fixture.Context.ReconciliationAttempts.SingleAsync()).Outcome);
+        Assert.Equal("supplier_retrieval_retry_exhausted",
+            (await fixture.Context.OperationalCases.SingleAsync()).Reason);
+    }
+
+    [Fact]
+    public async Task SuccessfulLifetimeAttemptsDoNotConsumeTheFailureRetryBudget()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var component = await StoreConfirmedComponentAsync(fixture.Context, CheckoutProduct.Hotel, "hotel_123");
+        var clock = new MutableTimeProvider(Now);
+        var scheduler = new ReconciliationScheduler(fixture.Context, clock);
+        await scheduler.EnqueueImmediateAsync(component.Id, "Scheduled", "correlation-lifetime", default);
+        await fixture.Context.ReconciliationWork.ExecuteUpdateAsync(
+            setters => setters.SetProperty(value => value.Attempts, 7));
+        fixture.Context.ChangeTracker.Clear();
+        var processor = new BookingReconciliationProcessor(
+            fixture.Context,
+            new ThrowingBookingProvider(new TimeoutException("supplier unavailable")),
+            scheduler,
+            clock);
+
+        Assert.True(await processor.ProcessNextAsync(CheckoutProduct.Hotel, "general-worker", default));
+
+        var work = await fixture.Context.ReconciliationWork.SingleAsync();
+        Assert.Equal(ReconciliationWorkStatus.Pending, work.Status);
+        Assert.Equal(1, work.ConsecutiveFailures);
+        Assert.Equal(ReconciliationAttemptOutcome.Retrying,
+            (await fixture.Context.ReconciliationAttempts.SingleAsync()).Outcome);
+    }
+
+    [Fact]
+    public async Task RepeatedPermanentFailureReusesTheOperationalCase()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var component = await StoreConfirmedComponentAsync(fixture.Context, CheckoutProduct.Hotel, "hotel_123");
+        var clock = new MutableTimeProvider(Now);
+        var provider = new QueueBookingProvider(
+            Result("wrong_reference", HotelState()),
+            Result("wrong_reference", HotelState()));
+        var scheduler = new ReconciliationScheduler(fixture.Context, clock);
+        await scheduler.EnqueueImmediateAsync(component.Id, "Scheduled", "correlation-first", default);
+        var processor = new BookingReconciliationProcessor(fixture.Context, provider, scheduler, clock);
+        Assert.True(await processor.ProcessNextAsync(CheckoutProduct.Hotel, "general-worker", default));
+        await scheduler.EnqueueImmediateAsync(component.Id, "Webhook", "correlation-second", default);
+
+        Assert.True(await processor.ProcessNextAsync(CheckoutProduct.Hotel, "general-worker", default));
+
+        Assert.Equal(2, await fixture.Context.ReconciliationAttempts.CountAsync());
+        Assert.Equal(1, await fixture.Context.OperationalCases.CountAsync());
     }
 
     [Fact]

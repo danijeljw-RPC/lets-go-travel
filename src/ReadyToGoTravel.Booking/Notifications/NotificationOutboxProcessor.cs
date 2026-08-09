@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ReadyToGoTravel.Booking.Persistence;
+using ReadyToGoTravel.Booking.Reconciliation;
 
 namespace ReadyToGoTravel.Booking.Notifications;
 
@@ -7,6 +8,10 @@ public interface INotificationOutboxProcessor
 {
     Task<bool> ProcessNextAsync(
         string workerId,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> RequeueAsync(
+        Guid id,
         CancellationToken cancellationToken = default);
 }
 
@@ -16,6 +21,7 @@ internal sealed class NotificationOutboxProcessor(
     TimeProvider timeProvider) : INotificationOutboxProcessor
 {
     private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(2);
+    private const int MaxAttempts = 8;
 
     public async Task<bool> ProcessNextAsync(
         string workerId,
@@ -86,6 +92,11 @@ internal sealed class NotificationOutboxProcessor(
         {
             item.MarkSent(result.DeliveryReference, now);
         }
+        else if (result.Retryable && item.Attempts >= MaxAttempts)
+        {
+            await AddOperationalCaseAsync(item, "notification_retry_exhausted", now, cancellationToken);
+            item.Fail("notification_retry_exhausted", now);
+        }
         else if (result.Retryable)
         {
             var minutes = Math.Min(60, Math.Pow(2, Math.Min(item.Attempts, 5)));
@@ -93,11 +104,55 @@ internal sealed class NotificationOutboxProcessor(
         }
         else
         {
-            item.Fail(result.ErrorCode ?? "notification_delivery_failed", now);
+            var errorCode = result.ErrorCode ?? "notification_delivery_failed";
+            await AddOperationalCaseAsync(item, errorCode, now, cancellationToken);
+            item.Fail(errorCode, now);
         }
 
         await database.SaveChangesAsync(cancellationToken);
         return true;
+    }
+
+    public async Task<bool> RequeueAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var item = await database.NotificationOutbox.SingleOrDefaultAsync(value => value.Id == id, cancellationToken);
+        if (item is null || item.Status != NotificationOutboxStatus.Failed)
+        {
+            return false;
+        }
+
+        item.Requeue(timeProvider.GetUtcNow().ToUniversalTime());
+        await database.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    private async Task AddOperationalCaseAsync(
+        NotificationOutboxItem item,
+        string errorCode,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var dedupeKey = OperationalCase.CreateDedupeKey(
+            "notification",
+            item.ComponentBookingId.ToString("N"),
+            item.BookingVersionId.ToString("N"),
+            errorCode);
+        if (await database.OperationalCases.AnyAsync(
+                value => value.DedupeKey == dedupeKey,
+                cancellationToken))
+        {
+            return;
+        }
+
+        database.OperationalCases.Add(new OperationalCase(
+            Guid.CreateVersion7(now),
+            item.ComponentBookingId,
+            dedupeKey,
+            "Notification",
+            errorCode,
+            now));
     }
 }
 

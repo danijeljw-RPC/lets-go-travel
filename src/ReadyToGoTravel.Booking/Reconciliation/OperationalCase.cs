@@ -1,5 +1,8 @@
 namespace ReadyToGoTravel.Booking.Reconciliation;
 
+using System.Security.Cryptography;
+using System.Text;
+
 public sealed class OperationalCase
 {
     private OperationalCase()
@@ -28,4 +31,12 @@ public sealed class OperationalCase
     public string Category { get; private set; } = string.Empty;
     public string Reason { get; private set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; private set; }
+
+    internal static string CreateDedupeKey(string scope, params string[] values)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(scope);
+        var material = string.Join('\u001f', values);
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
+        return $"{scope}:{hash}";
+    }
 }

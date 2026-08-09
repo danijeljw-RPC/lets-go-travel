@@ -53,6 +53,7 @@ internal static class BookingChangeClassifier
         }
 
         if (entries.Any(entry =>
+                Path(entry).Equals("flightSegments", StringComparison.Ordinal) ||
                 Path(entry).Contains("origin", StringComparison.Ordinal) ||
                 Path(entry).Contains("destination", StringComparison.Ordinal) ||
                 Path(entry).Contains("flightNumber", StringComparison.Ordinal) ||

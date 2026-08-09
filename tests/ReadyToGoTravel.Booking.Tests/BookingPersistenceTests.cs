@@ -120,10 +120,6 @@ public sealed class BookingPersistenceTests
         Assert.Contains(version.GetIndexes(), index => index.IsUnique &&
             index.Properties.Select(property => property.Name)
                 .SequenceEqual([nameof(BookingVersion.ComponentBookingId), nameof(BookingVersion.VersionNumber)]));
-        Assert.Contains(version.GetIndexes(), index => index.IsUnique &&
-            index.Properties.Select(property => property.Name)
-                .SequenceEqual([nameof(BookingVersion.ComponentBookingId), nameof(BookingVersion.CanonicalHash)]));
-
         var webhook = context.Model.FindEntityType(typeof(WebhookInboxItem))!;
         Assert.Contains(webhook.GetIndexes(), index => index.IsUnique &&
             index.Properties.Select(property => property.Name)
@@ -137,6 +133,10 @@ public sealed class BookingPersistenceTests
         var migrationScript = context.Database.GetService<IMigrator>().GenerateScript();
         Assert.Contains("CREATE TRIGGER reject_booking_version_mutation", migrationScript, StringComparison.Ordinal);
         Assert.Contains("BEFORE UPDATE OR DELETE ON booking.booking_versions", migrationScript, StringComparison.Ordinal);
+        Assert.Contains("INSERT INTO booking.reconciliation_work", migrationScript, StringComparison.Ordinal);
+        Assert.Contains("FROM booking.component_bookings AS component", migrationScript, StringComparison.Ordinal);
+        Assert.Contains("component.status IN ('BookingPending', 'Confirmed', 'RequiresSupport')", migrationScript, StringComparison.Ordinal);
+        Assert.Contains("ON CONFLICT (component_booking_id) DO NOTHING", migrationScript, StringComparison.Ordinal);
     }
 
     private sealed class FixtureTimeProvider(DateTimeOffset now) : TimeProvider

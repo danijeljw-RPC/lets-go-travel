@@ -158,6 +158,71 @@ public sealed class NotificationTests
     }
 
     [Fact]
+    public void FlightSegmentRemovalIsMaterialAndNotifiesTheCustomer()
+    {
+        var component = CreateConfirmedFlight();
+        var initialState = FlightState(Now.AddDays(3));
+        var initial = CanonicalBookingVersioner.Create(
+            component,
+            initialState,
+            null,
+            Now,
+            "Initial",
+            "correlation-1");
+        Assert.True(component.ApplyReconciliationVersion(initial, Now));
+        var changed = CanonicalBookingVersioner.Create(
+            component,
+            initialState with { FlightSegments = [] },
+            initial,
+            Now.AddHours(1),
+            "Scheduled",
+            "correlation-2");
+
+        var classification = BookingChangeClassifier.Classify(initial, changed);
+
+        Assert.Equal(BookingChangeSeverity.Material, classification.Severity);
+        Assert.True(classification.ShouldEmail);
+        Assert.Contains("itinerary", classification.Flags);
+    }
+
+    [Fact]
+    public void FlightSegmentAdditionIsMaterialAndNotifiesTheCustomer()
+    {
+        var component = CreateConfirmedFlight();
+        var initialState = FlightState(Now.AddDays(3));
+        var initial = CanonicalBookingVersioner.Create(
+            component,
+            initialState,
+            null,
+            Now,
+            "Initial",
+            "correlation-1");
+        Assert.True(component.ApplyReconciliationVersion(initial, Now));
+        var originalSegment = initialState.FlightSegments.Single();
+        var connectingSegment = originalSegment with
+        {
+            Identity = "leg-2",
+            Origin = "MEL",
+            Destination = "BNE",
+            ScheduledDeparture = originalSegment.ScheduledArrival.AddHours(1),
+            ScheduledArrival = originalSegment.ScheduledArrival.AddHours(3),
+        };
+        var changed = CanonicalBookingVersioner.Create(
+            component,
+            initialState with { FlightSegments = [originalSegment, connectingSegment] },
+            initial,
+            Now.AddHours(1),
+            "Scheduled",
+            "correlation-2");
+
+        var classification = BookingChangeClassifier.Classify(initial, changed);
+
+        Assert.Equal(BookingChangeSeverity.Material, classification.Severity);
+        Assert.True(classification.ShouldEmail);
+        Assert.Contains("itinerary", classification.Flags);
+    }
+
+    [Fact]
     public void MinorEmailWaitsUntilSevenAfterCustomerLocalQuietHours()
     {
         var observedAt = new DateTimeOffset(2026, 8, 8, 13, 0, 0, TimeSpan.Zero);
@@ -221,6 +286,108 @@ public sealed class NotificationTests
         Assert.Equal("email_temporarily_unavailable", stored.ErrorCode);
         Assert.True(stored.NotBefore > Now);
         Assert.Equal(1, await fixture.Context.BookingVersions.CountAsync());
+    }
+
+    [Fact]
+    public async Task NotificationStopsRetryingAfterEightDeliveryAttempts()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var item = await StoreNotificationAsync(
+            fixture.Context,
+            new BookingChangeClassification(BookingChangeSeverity.Material, true, ["status"]),
+            Now);
+        await fixture.Context.NotificationOutbox
+            .Where(value => value.Id == item.Id)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.Attempts, 7));
+        fixture.Context.ChangeTracker.Clear();
+        var sender = new RecordingSender(NotificationSendResult.Retry("email_temporarily_unavailable"));
+        var processor = new NotificationOutboxProcessor(
+            fixture.Context,
+            sender,
+            new FixedTimeProvider(Now));
+
+        Assert.True(await processor.ProcessNextAsync("general-worker", default));
+
+        var stored = await fixture.Context.NotificationOutbox.SingleAsync();
+        Assert.Equal(NotificationOutboxStatus.Failed, stored.Status);
+        Assert.Equal("notification_retry_exhausted", stored.ErrorCode);
+        Assert.Equal(8, stored.Attempts);
+        var operationalCase = await fixture.Context.OperationalCases.SingleAsync();
+        Assert.Equal("Notification", operationalCase.Category);
+        Assert.Equal("notification_retry_exhausted", operationalCase.Reason);
+    }
+
+    [Fact]
+    public async Task PermanentNotificationFailureCreatesAnInspectableOperationalCase()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var item = await StoreNotificationAsync(
+            fixture.Context,
+            new BookingChangeClassification(BookingChangeSeverity.Material, true, ["status"]),
+            Now);
+        var sender = new RecordingSender(NotificationSendResult.Failed("recipient_address_invalid"));
+        var processor = new NotificationOutboxProcessor(
+            fixture.Context,
+            sender,
+            new FixedTimeProvider(Now));
+
+        Assert.True(await processor.ProcessNextAsync("general-worker", default));
+
+        var stored = await fixture.Context.NotificationOutbox.SingleAsync();
+        Assert.Equal(NotificationOutboxStatus.Failed, stored.Status);
+        Assert.Equal("recipient_address_invalid", stored.ErrorCode);
+        Assert.Equal(item.ComponentBookingId, (await fixture.Context.OperationalCases.SingleAsync()).ComponentBookingId);
+    }
+
+    [Fact]
+    public async Task OperatorRequeueAfterExhaustionAllowsDeliveryToSucceed()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var item = await StoreNotificationAsync(
+            fixture.Context,
+            new BookingChangeClassification(BookingChangeSeverity.Material, true, ["status"]),
+            Now);
+        await fixture.Context.NotificationOutbox
+            .Where(value => value.Id == item.Id)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.Attempts, 7));
+        fixture.Context.ChangeTracker.Clear();
+        var sender = new RecordingSender(NotificationSendResult.Retry("email_temporarily_unavailable"));
+        var processor = new NotificationOutboxProcessor(
+            fixture.Context,
+            sender,
+            new FixedTimeProvider(Now));
+        Assert.True(await processor.ProcessNextAsync("general-worker", default));
+        Assert.Equal(NotificationOutboxStatus.Failed, (await fixture.Context.NotificationOutbox.SingleAsync()).Status);
+
+        Assert.True(await processor.RequeueAsync(item.Id, default));
+        var requeued = await fixture.Context.NotificationOutbox.SingleAsync();
+        Assert.Equal(NotificationOutboxStatus.Pending, requeued.Status);
+        Assert.Equal(0, requeued.Attempts);
+        sender.Result = NotificationSendResult.Sent("delivery-after-requeue");
+
+        Assert.True(await processor.ProcessNextAsync("general-worker", default));
+
+        var stored = await fixture.Context.NotificationOutbox.SingleAsync();
+        Assert.Equal(NotificationOutboxStatus.Sent, stored.Status);
+        Assert.Equal(1, await fixture.Context.OperationalCases.CountAsync());
+    }
+
+    [Fact]
+    public async Task RequeueIgnoresNotificationsThatAreNotFailed()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var item = await StoreNotificationAsync(
+            fixture.Context,
+            new BookingChangeClassification(BookingChangeSeverity.Material, true, ["status"]),
+            Now);
+        var processor = new NotificationOutboxProcessor(
+            fixture.Context,
+            new RecordingSender(NotificationSendResult.Sent("delivery-1")),
+            new FixedTimeProvider(Now));
+
+        Assert.False(await processor.RequeueAsync(item.Id, default));
+
+        Assert.Equal(NotificationOutboxStatus.Pending, (await fixture.Context.NotificationOutbox.SingleAsync()).Status);
     }
 
     [Fact]
@@ -357,6 +524,8 @@ public sealed class NotificationTests
     {
         public int SendCount { get; private set; }
 
+        public NotificationSendResult Result { get; set; } = result;
+
         public Task<NotificationSendResult> SendAsync(
             CustomerNotification notification,
             CancellationToken cancellationToken = default)
@@ -364,7 +533,7 @@ public sealed class NotificationTests
             cancellationToken.ThrowIfCancellationRequested();
             Assert.False(string.IsNullOrWhiteSpace(notification.IdempotencyKey));
             SendCount++;
-            return Task.FromResult(result);
+            return Task.FromResult(Result);
         }
     }
 

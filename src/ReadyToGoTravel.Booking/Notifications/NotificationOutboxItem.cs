@@ -131,6 +131,17 @@ public sealed class NotificationOutboxItem
         UpdatedAt = now;
     }
 
+    internal void Requeue(DateTimeOffset now)
+    {
+        Status = NotificationOutboxStatus.Pending;
+        Attempts = 0;
+        ErrorCode = null;
+        NotBeforeUtc = now.UtcDateTime;
+        LeaseOwner = null;
+        LeaseExpiresAtUtc = null;
+        UpdatedAt = now;
+    }
+
     private static DateTimeOffset CalculateNotBefore(
         BookingChangeSeverity severity,
         string timeZoneId,

@@ -8,7 +8,6 @@ namespace ReadyToGoTravel.Booking.Persistence.Migrations;
 /// <inheritdoc />
 public partial class Slice5BookingReconciliation : Migration
 {
-    private static readonly string[] VersionHashColumns = ["component_booking_id", "canonical_hash"];
     private static readonly string[] VersionNumberColumns = ["component_booking_id", "version_number"];
     private static readonly string[] NotificationScheduleColumns = ["status", "not_before"];
     private static readonly string[] ReconciliationAttemptColumns = ["work_id", "attempt_number"];
@@ -130,6 +129,7 @@ public partial class Slice5BookingReconciliation : Migration
                 lease_owner = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: true),
                 lease_expires_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                 attempts = table.Column<int>(type: "integer", nullable: false),
+                consecutive_failures = table.Column<int>(type: "integer", nullable: false),
                 source = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
                 correlation_id = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                 last_error_code = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: true),
@@ -243,13 +243,6 @@ public partial class Slice5BookingReconciliation : Migration
             });
 
         migrationBuilder.CreateIndex(
-            name: "IX_booking_versions_component_booking_id_canonical_hash",
-            schema: "booking",
-            table: "booking_versions",
-            columns: VersionHashColumns,
-            unique: true);
-
-        migrationBuilder.CreateIndex(
             name: "IX_booking_versions_component_booking_id_version_number",
             schema: "booking",
             table: "booking_versions",
@@ -314,6 +307,32 @@ public partial class Slice5BookingReconciliation : Migration
             schema: "booking",
             table: "webhook_inbox",
             columns: WebhookScheduleColumns);
+
+        migrationBuilder.Sql("""
+                INSERT INTO booking.reconciliation_work
+                    (id, component_booking_id, product, status, due_at, lease_owner,
+                     lease_expires_at, attempts, consecutive_failures, source, correlation_id, last_error_code,
+                     created_at, updated_at)
+                SELECT
+                    md5('slice5-reconciliation:' || component.id::text)::uuid,
+                    component.id,
+                    component.product,
+                    'Pending',
+                    CURRENT_TIMESTAMP,
+                    NULL,
+                    NULL,
+                    0,
+                    0,
+                    'Migration',
+                    'migration:slice5-backfill',
+                    NULL,
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP
+                FROM booking.component_bookings AS component
+                WHERE component.provider_booking_reference IS NOT NULL
+                  AND component.status IN ('BookingPending', 'Confirmed', 'RequiresSupport')
+                ON CONFLICT (component_booking_id) DO NOTHING;
+                """);
 
         migrationBuilder.Sql("""
                 CREATE OR REPLACE FUNCTION booking.reject_booking_version_mutation()

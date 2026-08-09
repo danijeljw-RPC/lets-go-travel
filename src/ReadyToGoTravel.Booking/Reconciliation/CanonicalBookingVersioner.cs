@@ -183,6 +183,7 @@ internal static class CanonicalBookingVersioner
             {
                 var path when path.Contains("scheduledDeparture", StringComparison.Ordinal) ||
                                   path.Contains("scheduledArrival", StringComparison.Ordinal) => "schedule",
+                "flightSegments" => "itinerary",
                 var path when path.Contains("origin", StringComparison.Ordinal) || path.Contains("destination", StringComparison.Ordinal) => "airport",
                 var path when path.Contains("flightNumber", StringComparison.Ordinal) => "flight-number",
                 var path when path.Contains("room", StringComparison.Ordinal) => "room",

@@ -62,7 +62,7 @@ Both workers claim due work with an atomic conditional update and a bounded leas
 
 Each reconciliation retrieves the supplier booking exactly once for that attempt, validates that the returned reference and product match the component, maps it to the canonical platform model, and applies it transactionally. Retrieval failure records a sanitised attempt, increments retry state and never asserts that the booking is unchanged. Permanent mapping/reference failures create an operational case rather than blindly retrying.
 
-After success, active hotels use a conservative daily next check. Active future flights are due daily outside the final 24 hours, hourly in the final 24 hours, and stop at departure, cancellation, failure or another terminal lifecycle state. An immediate webhook request can always advance an active row earlier. Live gate, terminal, delay, aircraft, diversion and movement state are absent.
+After success, active hotels use a conservative daily next check. Active future flights are due daily outside the final 24 hours, with the next check brought forward to the final-day boundary when it occurs sooner, hourly in the final 24 hours, and stop at departure, cancellation, failure or another terminal lifecycle state. Supplier observation times prevent an older response from overwriting a newer canonical state. An immediate webhook request can always advance an active row earlier. Live gate, terminal, delay, aircraft, diversion and movement state are absent.
 
 ## Immutable canonical versions
 
@@ -70,7 +70,7 @@ Canonicalisation uses a schema-versioned platform record and deterministic JSON:
 
 The first successful retrieval appends version 1 without a customer-change notification. A different canonical hash appends the next version, records observation/effective times, source, correlation ID, canonicalisation version, snapshot, hash, structured flags, severity metadata and stable `DiffJson`, then updates the current component projection in the same transaction. An unchanged hash records a successful attempt but appends no version.
 
-Versions have no mutation methods. The EF context rejects modified or deleted version entries. The PostgreSQL migration also installs a trigger that rejects `UPDATE` and `DELETE` against the version table, preserving immutability outside EF. A unique `(component_booking_id, version_number)` key and unique `(component_booking_id, canonical_hash)` key make duplicate/concurrent convergence harmless.
+Versions have no mutation methods. The EF context rejects modified or deleted version entries. The PostgreSQL migration also installs a trigger that rejects `UPDATE` and `DELETE` against the version table, preserving immutability outside EF. A unique `(component_booking_id, version_number)` key plus component projection concurrency makes duplicate/concurrent convergence harmless while allowing a legitimate later state to return to an earlier canonical hash.
 
 An authenticated owner-only history endpoint returns supplier-neutral version metadata and diffs for a checkout. It never exposes raw webhook bodies, provider bindings, provider booking references, notification destinations or internal errors.
 
@@ -85,7 +85,7 @@ The diff classifier follows the approved operational policy:
 
 A meaningful version and its notification intent are committed together. The outbox key is unique per customer, component, version, channel and template version. Informational items remain in the in-app history and generate email only when the classifier marks email useful. Minor email waits through 22:00–07:00 in the configured customer timezone. Material and travel-blocking email bypasses quiet hours. Slice 5 stores the effective locale, timezone, severity, template/version, old/new version IDs and provider-neutral payload.
 
-`ICustomerNotificationSender` is the outbound adapter. The worker records bounded attempts, success, retry or permanent failure without rolling back the booking version. No production sender is registered by default, so production activation still fails closed. Tests use an explicit recording sender. Selecting and provisioning a live email service is not invented by this slice.
+`ICustomerNotificationSender` is the outbound adapter. The worker records success, retry or permanent failure and stops after eight attempts without rolling back the booking version. No production sender is registered by default, so production activation still fails closed and reaches an inspectable failed outbox item instead of retrying forever. Tests use an explicit recording sender. Selecting and provisioning a live email service is not invented by this slice.
 
 ## Security, concurrency and failure rules
 
@@ -93,7 +93,7 @@ A meaningful version and its notification intent are committed together. The out
 - Static webhook secrets are never logged, returned or stored in the inbox.
 - Raw bodies are internal protected evidence and never returned by customer APIs.
 - All external calls receive cancellation tokens.
-- A claim lease prevents normal duplicate execution; unique hashes, version numbers, inbox identities, schedule rows, operational-case keys and notification keys remain the final idempotency boundary.
+- A claim lease prevents normal duplicate execution; version numbers, projection concurrency, inbox identities, schedule rows, bounded operational-case keys and notification keys remain the final idempotency boundary.
 - Reconciliation never invokes `BookAsync`, payment preparation, settlement creation, capture, refund or cancellation commands.
 - Combined journeys retain independent component schedules, current outcomes, versions and notification effects.
 

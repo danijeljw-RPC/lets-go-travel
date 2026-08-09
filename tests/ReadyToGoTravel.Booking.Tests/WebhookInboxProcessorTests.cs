@@ -75,6 +75,9 @@ public sealed class WebhookInboxProcessorTests
         Assert.Equal(WebhookInboxStatus.Quarantined, inbox.Status);
         Assert.Equal("webhook_nested_payload_invalid", inbox.ErrorCode);
         Assert.Empty(await fixture.Context.ReconciliationWork.ToArrayAsync());
+        var operationalCase = await fixture.Context.OperationalCases.SingleAsync();
+        Assert.Equal("WebhookPayload", operationalCase.Category);
+        Assert.Equal("webhook_nested_payload_invalid", operationalCase.Reason);
     }
 
     [Fact]
@@ -93,6 +96,97 @@ public sealed class WebhookInboxProcessorTests
         Assert.Equal(WebhookInboxStatus.Retrying, inbox.Status);
         Assert.Equal("reconciliation_enqueue_failed", inbox.ErrorCode);
         Assert.True(inbox.NextAttemptAtUtc > Now.UtcDateTime);
+    }
+
+    [Fact]
+    public async Task SchedulingStopsRetryingAfterEightAttempts()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        await StoreConfirmedHotelAsync(fixture.Context, "hotel_123");
+        var clock = new FixedTimeProvider(Now);
+        var writer = new WebhookInboxService(fixture.Context, clock);
+        await writer.AcceptAsync(Input("evt-retry-limit", "booking.book", "{\"booking_id\":\"hotel_123\"}"));
+        await fixture.Context.WebhookInbox.ExecuteUpdateAsync(
+            setters => setters.SetProperty(value => value.Attempts, 7));
+        fixture.Context.ChangeTracker.Clear();
+        var processor = new WebhookInboxProcessor(fixture.Context, new ThrowingScheduler(), clock);
+
+        Assert.True(await processor.ProcessNextAsync("general-worker", default));
+
+        var inbox = await fixture.Context.WebhookInbox.SingleAsync();
+        Assert.Equal(WebhookInboxStatus.Quarantined, inbox.Status);
+        Assert.Equal("reconciliation_enqueue_retry_exhausted", inbox.ErrorCode);
+        Assert.Equal(8, inbox.Attempts);
+        var operationalCase = await fixture.Context.OperationalCases.SingleAsync();
+        Assert.Equal("WebhookScheduling", operationalCase.Category);
+        Assert.Equal("reconciliation_enqueue_retry_exhausted", operationalCase.Reason);
+    }
+
+    [Fact]
+    public async Task RepeatedSchedulingExhaustionReusesTheOperationalCase()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        await StoreConfirmedHotelAsync(fixture.Context, "hotel_123");
+        var clock = new FixedTimeProvider(Now);
+        var writer = new WebhookInboxService(fixture.Context, clock);
+        await writer.AcceptAsync(Input("evt-retry-limit", "booking.book", "{\"booking_id\":\"hotel_123\"}"));
+        await fixture.Context.WebhookInbox.ExecuteUpdateAsync(
+            setters => setters.SetProperty(value => value.Attempts, 7));
+        fixture.Context.ChangeTracker.Clear();
+        var processor = new WebhookInboxProcessor(fixture.Context, new ThrowingScheduler(), clock);
+        Assert.True(await processor.ProcessNextAsync("general-worker", default));
+        var quarantined = await fixture.Context.WebhookInbox.SingleAsync();
+
+        Assert.True(await processor.RequeueAsync(quarantined.Id, default));
+        var requeued = await fixture.Context.WebhookInbox.SingleAsync();
+        Assert.Equal(WebhookInboxStatus.Pending, requeued.Status);
+        Assert.Equal(0, requeued.Attempts);
+        await fixture.Context.WebhookInbox.ExecuteUpdateAsync(
+            setters => setters.SetProperty(value => value.Attempts, 7));
+        fixture.Context.ChangeTracker.Clear();
+
+        Assert.True(await processor.ProcessNextAsync("general-worker", default));
+
+        Assert.Equal(WebhookInboxStatus.Quarantined, (await fixture.Context.WebhookInbox.SingleAsync()).Status);
+        Assert.Equal(1, await fixture.Context.OperationalCases.CountAsync());
+    }
+
+    [Fact]
+    public async Task RequeueIgnoresItemsThatAreNotQuarantined()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        await StoreConfirmedHotelAsync(fixture.Context, "hotel_123");
+        var clock = new FixedTimeProvider(Now);
+        var writer = new WebhookInboxService(fixture.Context, clock);
+        await writer.AcceptAsync(Input("evt-known", "booking.cancel", "{\"booking_id\":\"hotel_123\"}"));
+        var scheduler = new ReconciliationScheduler(fixture.Context, clock);
+        var processor = new WebhookInboxProcessor(fixture.Context, scheduler, clock);
+        Assert.True(await processor.ProcessNextAsync("general-worker", default));
+        var completed = await fixture.Context.WebhookInbox.SingleAsync();
+        Assert.Equal(WebhookInboxStatus.Completed, completed.Status);
+
+        Assert.False(await processor.RequeueAsync(completed.Id, default));
+
+        Assert.Equal(WebhookInboxStatus.Completed, (await fixture.Context.WebhookInbox.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task MaximumLengthEventIdentityCreatesABoundedOperationalCaseKey()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var eventId = new string('e', 255);
+        var clock = new FixedTimeProvider(Now);
+        var writer = new WebhookInboxService(fixture.Context, clock);
+        await writer.AcceptAsync(Input(eventId, "supplier.new_event", "{}"));
+        var processor = new WebhookInboxProcessor(
+            fixture.Context,
+            new ReconciliationScheduler(fixture.Context, clock),
+            clock);
+
+        Assert.True(await processor.ProcessNextAsync("general-worker", default));
+
+        var operationalCase = await fixture.Context.OperationalCases.SingleAsync();
+        Assert.True(operationalCase.DedupeKey.Length <= 180);
     }
 
     private static WebhookEnvelopeInput Input(string eventId, string eventName, string response) => new(

@@ -21,6 +21,8 @@ internal sealed class BookingReconciliationProcessor(
     ReconciliationScheduler scheduler,
     TimeProvider timeProvider) : IReconciliationWorkProcessor
 {
+    private const int MaxAttempts = 8;
+
     public async Task<bool> ProcessNextAsync(
         CheckoutProduct? product,
         string workerId,
@@ -84,6 +86,23 @@ internal sealed class BookingReconciliationProcessor(
             .OrderByDescending(value => value.VersionNumber)
             .FirstOrDefaultAsync(cancellationToken);
         var now = timeProvider.GetUtcNow().ToUniversalTime();
+        if (IsStale(result.RetrievedState, previous, component))
+        {
+            database.ReconciliationAttempts.Add(new ReconciliationAttempt(
+                Guid.CreateVersion7(now),
+                work.Id,
+                component.Id,
+                work.Attempts,
+                startedAt,
+                now,
+                ReconciliationAttemptOutcome.IgnoredStale,
+                "supplier_state_stale",
+                work.CorrelationId));
+            ScheduleNext(work, component.Product, component.Status, component.NextDepartureAt, now);
+            await database.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
         var version = CanonicalBookingVersioner.Create(
             component,
             result.RetrievedState,
@@ -144,15 +163,12 @@ internal sealed class BookingReconciliationProcessor(
             ReconciliationAttemptOutcome.Succeeded,
             null,
             work.CorrelationId));
-        var nextDue = NextDueAt(result.RetrievedState, now);
-        if (nextDue.HasValue)
-        {
-            work.Reschedule(nextDue.Value, now);
-        }
-        else
-        {
-            work.Complete(now);
-        }
+        ScheduleNext(
+            work,
+            component.Product,
+            component.Status,
+            component.NextDepartureAt,
+            now);
 
         await database.SaveChangesAsync(cancellationToken);
         return true;
@@ -165,6 +181,30 @@ internal sealed class BookingReconciliationProcessor(
         CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow().ToUniversalTime();
+        if (work.ConsecutiveFailures + 1 >= MaxAttempts)
+        {
+            var exhaustedErrorCode = errorCode switch
+            {
+                "supplier_retrieval_failed" => "supplier_retrieval_retry_exhausted",
+                "supplier_state_unavailable" => "supplier_state_retry_exhausted",
+                _ => "reconciliation_retry_exhausted",
+            };
+            work.Complete(now);
+            database.ReconciliationAttempts.Add(new ReconciliationAttempt(
+                Guid.CreateVersion7(now),
+                work.Id,
+                work.ComponentBookingId,
+                work.Attempts,
+                startedAt,
+                now,
+                ReconciliationAttemptOutcome.Failed,
+                exhaustedErrorCode,
+                work.CorrelationId));
+            await EnsureOperationalCaseAsync(work.ComponentBookingId, exhaustedErrorCode, now, cancellationToken);
+            await database.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
         var delayMinutes = Math.Min(60, Math.Pow(2, Math.Min(work.Attempts, 5)));
         work.Retry(errorCode, now.AddMinutes(delayMinutes), now);
         database.ReconciliationAttempts.Add(new ReconciliationAttempt(
@@ -198,40 +238,103 @@ internal sealed class BookingReconciliationProcessor(
             ReconciliationAttemptOutcome.Failed,
             errorCode,
             work.CorrelationId));
-        database.OperationalCases.Add(new OperationalCase(
-            Guid.CreateVersion7(now),
-            work.ComponentBookingId,
-            $"reconciliation:{work.ComponentBookingId:N}:{errorCode}",
-            "Reconciliation",
-            errorCode,
-            now));
+        await EnsureOperationalCaseAsync(work.ComponentBookingId, errorCode, now, cancellationToken);
         await database.SaveChangesAsync(cancellationToken);
     }
 
-    internal static DateTimeOffset? NextDueAt(RetrievedBookingState state, DateTimeOffset now)
+    private async Task EnsureOperationalCaseAsync(
+        Guid componentBookingId,
+        string errorCode,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
-        if (state.Status is RetrievedBookingStatus.Cancelled or RetrievedBookingStatus.Failed or RetrievedBookingStatus.Completed)
+        var dedupeKey = OperationalCase.CreateDedupeKey(
+            "reconciliation",
+            componentBookingId.ToString("N"),
+            errorCode);
+        if (await database.OperationalCases.AnyAsync(
+                value => value.DedupeKey == dedupeKey,
+                cancellationToken))
+        {
+            return;
+        }
+
+        database.OperationalCases.Add(new OperationalCase(
+            Guid.CreateVersion7(now),
+            componentBookingId,
+            dedupeKey,
+            "Reconciliation",
+            errorCode,
+            now));
+    }
+
+    private static bool IsStale(
+        RetrievedBookingState state,
+        BookingVersion? previous,
+        Bookings.ComponentBooking component)
+    {
+        var reversesTerminalState = component.Status is Bookings.ComponentBookingStatus.Cancelled
+                or Bookings.ComponentBookingStatus.Failed
+                or Bookings.ComponentBookingStatus.Completed
+            && state.Status is RetrievedBookingStatus.Pending or RetrievedBookingStatus.Confirmed;
+        if (reversesTerminalState)
+        {
+            return !state.SupplierObservedAt.HasValue
+                || previous?.EffectiveAt is null
+                || state.SupplierObservedAt.Value.ToUniversalTime() <= previous.EffectiveAt.Value.ToUniversalTime();
+        }
+
+        if (state.SupplierObservedAt.HasValue && previous?.EffectiveAt is { } previousEffectiveAt)
+        {
+            return state.SupplierObservedAt.Value.ToUniversalTime() < previousEffectiveAt.ToUniversalTime();
+        }
+
+        return false;
+    }
+
+    private static void ScheduleNext(
+        ReconciliationWork work,
+        CheckoutProduct product,
+        Bookings.ComponentBookingStatus status,
+        DateTimeOffset? nextDepartureAt,
+        DateTimeOffset now)
+    {
+        var nextDue = NextDueAt(product, status, nextDepartureAt, now);
+        if (nextDue.HasValue)
+        {
+            work.Reschedule(nextDue.Value, now);
+        }
+        else
+        {
+            work.Complete(now);
+        }
+    }
+
+    private static DateTimeOffset? NextDueAt(
+        CheckoutProduct product,
+        Bookings.ComponentBookingStatus status,
+        DateTimeOffset? nextDepartureAt,
+        DateTimeOffset now)
+    {
+        if (status is Bookings.ComponentBookingStatus.Cancelled
+            or Bookings.ComponentBookingStatus.Failed
+            or Bookings.ComponentBookingStatus.Completed)
         {
             return null;
         }
 
-        if (state.Product == CheckoutProduct.Hotel)
+        if (product == CheckoutProduct.Hotel)
         {
             return now.AddDays(1);
         }
 
-        var departure = state.FlightSegments
-            .Select(value => value.ScheduledDeparture.ToUniversalTime())
-            .Where(value => value > now)
-            .DefaultIfEmpty()
-            .Min();
-        if (departure == default)
+        if (nextDepartureAt is null || nextDepartureAt <= now)
         {
             return null;
         }
 
-        return departure - now <= TimeSpan.FromHours(24)
+        return nextDepartureAt - now <= TimeSpan.FromHours(24)
             ? now.AddHours(1)
-            : now.AddDays(1);
+            : new[] { now.AddDays(1), nextDepartureAt.Value.AddHours(-24) }.Min();
     }
 }

@@ -697,9 +697,6 @@ namespace ReadyToGoTravel.Booking.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ComponentBookingId", "CanonicalHash")
-                        .IsUnique();
-
                     b.HasIndex("ComponentBookingId", "VersionNumber")
                         .IsUnique();
 
@@ -806,6 +803,10 @@ namespace ReadyToGoTravel.Booking.Persistence.Migrations
                     b.Property<int>("Attempts")
                         .HasColumnType("integer")
                         .HasColumnName("attempts");
+
+                    b.Property<int>("ConsecutiveFailures")
+                        .HasColumnType("integer")
+                        .HasColumnName("consecutive_failures");
 
                     b.Property<Guid>("ComponentBookingId")
                         .HasColumnType("uuid")

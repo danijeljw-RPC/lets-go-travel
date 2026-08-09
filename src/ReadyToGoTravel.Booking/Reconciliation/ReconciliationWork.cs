@@ -59,6 +59,8 @@ public sealed class ReconciliationWork
 
     public int Attempts { get; private set; }
 
+    public int ConsecutiveFailures { get; private set; }
+
     public string Source { get; private set; } = string.Empty;
 
     public string CorrelationId { get; private set; } = string.Empty;
@@ -92,6 +94,7 @@ public sealed class ReconciliationWork
         LeaseOwner = null;
         LeaseExpiresAtUtc = null;
         LastErrorCode = null;
+        ConsecutiveFailures = 0;
         UpdatedAt = now;
     }
 
@@ -102,6 +105,7 @@ public sealed class ReconciliationWork
         LeaseOwner = null;
         LeaseExpiresAtUtc = null;
         LastErrorCode = null;
+        ConsecutiveFailures = 0;
         UpdatedAt = now;
     }
 
@@ -112,6 +116,7 @@ public sealed class ReconciliationWork
         LeaseOwner = null;
         LeaseExpiresAtUtc = null;
         LastErrorCode = errorCode;
+        ConsecutiveFailures++;
         UpdatedAt = now;
     }
 }
@@ -119,6 +124,7 @@ public sealed class ReconciliationWork
 public enum ReconciliationAttemptOutcome
 {
     Succeeded,
+    IgnoredStale,
     Retrying,
     Failed,
 }

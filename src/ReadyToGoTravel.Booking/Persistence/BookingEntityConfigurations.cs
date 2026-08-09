@@ -187,7 +187,6 @@ internal sealed class BookingVersionConfiguration : IEntityTypeConfiguration<Boo
         builder.Property(value => value.ComponentBookingId).HasColumnName("component_booking_id");
         builder.HasOne<ComponentBooking>().WithMany().HasForeignKey(value => value.ComponentBookingId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(value => new { value.ComponentBookingId, value.VersionNumber }).IsUnique();
-        builder.HasIndex(value => new { value.ComponentBookingId, value.CanonicalHash }).IsUnique();
         builder.Property(value => value.VersionNumber).HasColumnName("version_number").IsRequired();
         builder.Property(value => value.ObservedAt).HasColumnName("observed_at").IsRequired();
         builder.Property(value => value.EffectiveAt).HasColumnName("effective_at");
@@ -223,6 +222,7 @@ internal sealed class ReconciliationWorkConfiguration : IEntityTypeConfiguration
         builder.Ignore(value => value.LeaseExpiresAt);
         builder.Property(value => value.LeaseExpiresAtUtc).HasColumnName("lease_expires_at");
         builder.Property(value => value.Attempts).HasColumnName("attempts").IsRequired();
+        builder.Property(value => value.ConsecutiveFailures).HasColumnName("consecutive_failures").IsRequired();
         builder.Property(value => value.Source).HasColumnName("source").HasMaxLength(40).IsRequired();
         builder.Property(value => value.CorrelationId).HasColumnName("correlation_id").HasMaxLength(128).IsRequired();
         builder.Property(value => value.LastErrorCode).HasColumnName("last_error_code").HasMaxLength(120);

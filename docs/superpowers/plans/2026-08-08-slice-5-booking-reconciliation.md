@@ -278,11 +278,11 @@ docker build -f src/ReadyToGoTravel.Worker/Dockerfile .
 docker build -f src/ReadyToGoTravel.FlightReconciliation.Worker/Dockerfile .
 ```
 
-- [ ] **Step 3: Review the complete diff against Slice 5 risks**
+- [x] **Step 3: Review the complete diff against Slice 5 risks**
 
 Inspect concurrency, duplicate side effects, webhook trust, stale/out-of-order retrieval, immutable history, customer isolation, provider leakage, cancellation, logging, dead code and docs. Reproduce every valid concern with a failing test before fixing it.
 
-- [ ] **Step 4: Create logical commits and publish the PR**
+- [x] **Step 4: Create logical commits and publish the PR**
 
 Commit design/plan, core persistence/reconciliation, ingress/workers, notifications/history and docs/verification as meaningful units where the final diff supports them. Push `codex/slice-5-booking-reconciliation`, open a non-draft PR to `dev`, and include exact checks and unchanged production gates.
 

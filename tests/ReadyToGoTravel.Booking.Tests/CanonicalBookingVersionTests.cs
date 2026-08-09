@@ -120,6 +120,49 @@ public sealed class CanonicalBookingVersionTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Context.SaveChangesAsync());
     }
 
+    [Fact]
+    public async Task CanonicalStateMayReturnToAnEarlierHashInANewSequentialVersion()
+    {
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var checkout = CreateHotelCheckout();
+        var component = checkout.Components.Single();
+        var original = CanonicalBookingVersioner.Create(
+            component,
+            HotelState("Free cancellation until 2026-08-10"),
+            null,
+            ObservedAt,
+            "Initial",
+            "correlation-1");
+        Assert.True(component.ApplyReconciliationVersion(original, ObservedAt));
+        var changed = CanonicalBookingVersioner.Create(
+            component,
+            HotelState("Non-refundable"),
+            original,
+            ObservedAt.AddHours(1),
+            "Scheduled",
+            "correlation-2");
+        Assert.True(component.ApplyReconciliationVersion(changed, ObservedAt.AddHours(1)));
+        var restored = CanonicalBookingVersioner.Create(
+            component,
+            HotelState("Free cancellation until 2026-08-10"),
+            changed,
+            ObservedAt.AddHours(2),
+            "Scheduled",
+            "correlation-3");
+        Assert.True(component.ApplyReconciliationVersion(restored, ObservedAt.AddHours(2)));
+        fixture.Context.Checkouts.Add(checkout);
+        fixture.Context.BookingVersions.AddRange(original, changed, restored);
+
+        await fixture.Context.SaveChangesAsync();
+
+        Assert.Equal(original.CanonicalHash, restored.CanonicalHash);
+        var versionNumbers = await fixture.Context.BookingVersions
+            .OrderBy(value => value.VersionNumber)
+            .Select(value => value.VersionNumber)
+            .ToArrayAsync();
+        Assert.Equal([1, 2, 3], versionNumbers);
+    }
+
     private static ComponentBooking CreateConfirmedComponent(CheckoutProduct product, string reference)
     {
         var checkout = product == CheckoutProduct.Hotel
@@ -187,7 +230,8 @@ public sealed class CanonicalBookingVersionTests
         return result.Value!;
     }
 
-    private static RetrievedBookingState HotelState() => new(
+    private static RetrievedBookingState HotelState(
+        string cancellationPolicy = "Free cancellation until 2026-08-10") => new(
         CheckoutProduct.Hotel,
         RetrievedBookingStatus.Confirmed,
         "HTL-123",
@@ -197,7 +241,7 @@ public sealed class CanonicalBookingVersionTests
             new DateOnly(2026, 8, 14),
             "King studio",
             ["Breakfast"],
-            "Free cancellation until 2026-08-10"),
+            cancellationPolicy),
         [],
         420m,
         "AUD",

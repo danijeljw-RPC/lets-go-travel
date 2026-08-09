@@ -10,6 +10,10 @@ public interface IWebhookInboxProcessor
     Task<bool> ProcessNextAsync(
         string workerId,
         CancellationToken cancellationToken = default);
+
+    Task<bool> RequeueAsync(
+        Guid id,
+        CancellationToken cancellationToken = default);
 }
 
 internal sealed class WebhookInboxProcessor(
@@ -18,6 +22,7 @@ internal sealed class WebhookInboxProcessor(
     TimeProvider timeProvider) : IWebhookInboxProcessor
 {
     private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(2);
+    private const int MaxAttempts = 8;
     private static readonly HashSet<string> ReconciliationEvents = new(StringComparer.Ordinal)
     {
         "booking.book",
@@ -54,12 +59,13 @@ internal sealed class WebhookInboxProcessor(
         var now = timeProvider.GetUtcNow().ToUniversalTime();
         if (!ReconciliationEvents.Contains(item.EventName))
         {
-            AddOperationalCase(
+            await AddOperationalCaseAsync(
                 item,
                 null,
                 "UnsupportedWebhook",
                 "unsupported_webhook_event",
-                now);
+                now,
+                cancellationToken);
             item.Complete(now);
             await database.SaveChangesAsync(cancellationToken);
             return true;
@@ -67,6 +73,8 @@ internal sealed class WebhookInboxProcessor(
 
         if (!TryGetNestedPayloads(item.RawBody, out var request, out var response))
         {
+            await AddOperationalCaseAsync(
+                item, null, "WebhookPayload", "webhook_nested_payload_invalid", now, cancellationToken);
             item.Quarantine("webhook_nested_payload_invalid", now);
             await database.SaveChangesAsync(cancellationToken);
             return true;
@@ -75,7 +83,8 @@ internal sealed class WebhookInboxProcessor(
         var reference = FindBookingReference(response) ?? FindBookingReference(request);
         if (string.IsNullOrWhiteSpace(reference))
         {
-            AddOperationalCase(item, null, "WebhookCorrelation", "webhook_booking_reference_missing", now);
+            await AddOperationalCaseAsync(
+                item, null, "WebhookCorrelation", "webhook_booking_reference_missing", now, cancellationToken);
             item.Complete(now);
             await database.SaveChangesAsync(cancellationToken);
             return true;
@@ -87,7 +96,8 @@ internal sealed class WebhookInboxProcessor(
                 cancellationToken);
         if (component is null)
         {
-            AddOperationalCase(item, null, "WebhookCorrelation", "webhook_booking_not_found", now);
+            await AddOperationalCaseAsync(
+                item, null, "WebhookCorrelation", "webhook_booking_not_found", now, cancellationToken);
             item.Complete(now);
             await database.SaveChangesAsync(cancellationToken);
             return true;
@@ -107,6 +117,15 @@ internal sealed class WebhookInboxProcessor(
         }
         catch (Exception)
         {
+            if (item.Attempts >= MaxAttempts)
+            {
+                await AddOperationalCaseAsync(
+                    item, null, "WebhookScheduling", "reconciliation_enqueue_retry_exhausted", now, cancellationToken);
+                item.Quarantine("reconciliation_enqueue_retry_exhausted", now);
+                await database.SaveChangesAsync(cancellationToken);
+                return true;
+            }
+
             var delayMinutes = Math.Min(60, Math.Pow(2, Math.Min(item.Attempts, 5)));
             item.Retry("reconciliation_enqueue_failed", now.AddMinutes(delayMinutes));
             await database.SaveChangesAsync(cancellationToken);
@@ -114,6 +133,21 @@ internal sealed class WebhookInboxProcessor(
         }
 
         item.Complete(now);
+        await database.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> RequeueAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var item = await database.WebhookInbox.SingleOrDefaultAsync(value => value.Id == id, cancellationToken);
+        if (item is null || item.Status != WebhookInboxStatus.Quarantined)
+        {
+            return false;
+        }
+
+        item.Requeue(timeProvider.GetUtcNow().ToUniversalTime());
         await database.SaveChangesAsync(cancellationToken);
         return true;
     }
@@ -160,17 +194,30 @@ internal sealed class WebhookInboxProcessor(
         return await database.WebhookInbox.SingleAsync(value => value.Id == id, cancellationToken);
     }
 
-    private void AddOperationalCase(
+    private async Task AddOperationalCaseAsync(
         WebhookInboxItem item,
         Guid? componentBookingId,
         string category,
         string reason,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
+        var dedupeKey = OperationalCase.CreateDedupeKey(
+            "webhook",
+            item.Environment,
+            item.EventId,
+            reason);
+        if (await database.OperationalCases.AnyAsync(
+                value => value.DedupeKey == dedupeKey,
+                cancellationToken))
+        {
+            return;
+        }
+
         database.OperationalCases.Add(new OperationalCase(
             Guid.CreateVersion7(now),
             componentBookingId,
-            $"webhook:{item.Environment}:{item.EventId}:{reason}",
+            dedupeKey,
             category,
             reason,
             now));

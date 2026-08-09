@@ -86,4 +86,15 @@ public sealed class WebhookInboxItem
         LeaseOwner = null;
         LeaseExpiresAtUtc = null;
     }
+
+    internal void Requeue(DateTimeOffset now)
+    {
+        Status = WebhookInboxStatus.Pending;
+        Attempts = 0;
+        ErrorCode = null;
+        NextAttemptAtUtc = now.UtcDateTime;
+        LeaseOwner = null;
+        LeaseExpiresAtUtc = null;
+        CompletedAt = null;
+    }
 }
