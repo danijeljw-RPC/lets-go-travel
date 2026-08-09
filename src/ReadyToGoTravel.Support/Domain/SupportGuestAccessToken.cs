@@ -2,6 +2,8 @@ namespace ReadyToGoTravel.Support.Domain;
 
 public sealed class SupportGuestAccessToken
 {
+    public static readonly TimeSpan TokenLifetime = TimeSpan.FromDays(30);
+
     private SupportGuestAccessToken()
     {
     }

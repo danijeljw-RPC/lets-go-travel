@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ReadyToGoTravel.Support.Domain;
+using ReadyToGoTravel.Support.Notifications;
 
 namespace ReadyToGoTravel.Support.Persistence;
 
@@ -16,6 +17,8 @@ internal sealed class SupportDbContext(DbContextOptions<SupportDbContext> option
     public DbSet<SupportAttachment> Attachments => Set<SupportAttachment>();
 
     public DbSet<AttachmentScanWork> AttachmentScanWork => Set<AttachmentScanWork>();
+
+    public DbSet<SupportNotificationOutboxItem> SupportNotificationOutbox => Set<SupportNotificationOutboxItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

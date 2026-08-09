@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ReadyToGoTravel.Support.Application;
 using ReadyToGoTravel.Support.Guest;
+using ReadyToGoTravel.Support.Notifications;
 using ReadyToGoTravel.Support.Persistence;
 using ReadyToGoTravel.Support.Scanning;
 using ReadyToGoTravel.Support.Storage;
@@ -23,6 +24,8 @@ public static class SupportModule
         services.AddScoped<IGuestAccessTokenService, GuestAccessTokenService>();
         services.AddScoped<SupportAttachmentService>();
         services.AddScoped<IAttachmentScanProcessor, AttachmentScanProcessor>();
+        services.TryAddSingleton<ISupportNotificationSender, DisabledSupportNotificationSender>();
+        services.AddScoped<ISupportNotificationOutboxProcessor, SupportNotificationOutboxProcessor>();
 
         services.AddOptions<SupportStorageOptions>()
             .Validate(options => !string.IsNullOrWhiteSpace(options.ServiceUrl), "Support:Storage:ServiceUrl is required.")

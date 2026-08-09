@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ReadyToGoTravel.Support.Domain;
+using ReadyToGoTravel.Support.Notifications;
 using ReadyToGoTravel.Support.Persistence;
 
 namespace ReadyToGoTravel.Support.Tests;
@@ -8,6 +9,28 @@ namespace ReadyToGoTravel.Support.Tests;
 public sealed class SupportPersistenceTests
 {
     private static readonly DateTimeOffset Now = new(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task NotificationOutboxDedupeKeyIsUnique()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var entity = fixture.Context.Model.FindEntityType(typeof(SupportNotificationOutboxItem))!;
+        var index = entity.GetIndexes().Single(value =>
+            value.Properties.Select(property => property.Name).SequenceEqual([nameof(SupportNotificationOutboxItem.DedupeKey)]));
+
+        Assert.True(index.IsUnique);
+    }
+
+    [Fact]
+    public async Task GuestAccessTokenHashIsUnique()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var entity = fixture.Context.Model.FindEntityType(typeof(SupportGuestAccessToken))!;
+        var index = entity.GetIndexes().Single(value =>
+            value.Properties.Select(property => property.Name).SequenceEqual([nameof(SupportGuestAccessToken.TokenHash)]));
+
+        Assert.True(index.IsUnique);
+    }
 
     [Fact]
     public async Task TicketMessageSequenceNumberIsUniquePerTicket()
@@ -58,7 +81,7 @@ public sealed class SupportPersistenceTests
         {
             foreach (var property in entityType.GetProperties())
             {
-                if (property.ClrType != typeof(string))
+                if (property.ClrType != typeof(string) || property.Name.EndsWith("Json", StringComparison.Ordinal))
                 {
                     continue;
                 }

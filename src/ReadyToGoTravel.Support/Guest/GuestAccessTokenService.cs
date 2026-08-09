@@ -18,8 +18,6 @@ public interface IGuestAccessTokenService
 internal sealed class GuestAccessTokenService(SupportDbContext database, TimeProvider timeProvider)
     : IGuestAccessTokenService
 {
-    private static readonly TimeSpan TokenLifetime = TimeSpan.FromDays(30);
-
     public async Task<string> IssueAsync(Guid ticketId, CancellationToken cancellationToken = default) =>
         await IssueInternalAsync(ticketId, null, cancellationToken);
 
@@ -92,7 +90,7 @@ internal sealed class GuestAccessTokenService(SupportDbContext database, TimePro
             ticketId,
             tokenHash,
             now,
-            now.Add(TokenLifetime),
+            now.Add(SupportGuestAccessToken.TokenLifetime),
             rotatedFromTokenId);
         database.GuestAccessTokens.Add(token);
         if (rotatedFromTokenId is null)

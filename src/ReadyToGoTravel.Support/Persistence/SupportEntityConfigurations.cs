@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ReadyToGoTravel.Support.Domain;
+using ReadyToGoTravel.Support.Notifications;
 
 namespace ReadyToGoTravel.Support.Persistence;
 
@@ -124,5 +125,34 @@ internal sealed class AttachmentScanWorkConfiguration : IEntityTypeConfiguration
         builder.Property(value => value.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(value => value.CompletedAt).HasColumnName("completed_at");
         builder.HasIndex(value => new { value.Status, value.NextAttemptAtUtc });
+    }
+}
+
+internal sealed class SupportNotificationOutboxItemConfiguration : IEntityTypeConfiguration<SupportNotificationOutboxItem>
+{
+    public void Configure(EntityTypeBuilder<SupportNotificationOutboxItem> builder)
+    {
+        builder.ToTable("support_notification_outbox");
+        builder.HasKey(value => value.Id);
+        builder.Property(value => value.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(value => value.TicketId).HasColumnName("ticket_id");
+        builder.HasIndex(value => value.TicketId);
+        builder.Property(value => value.MessageId).HasColumnName("message_id");
+        builder.Property(value => value.DedupeKey).HasColumnName("dedupe_key").HasMaxLength(64).IsRequired();
+        builder.HasIndex(value => value.DedupeKey).IsUnique();
+        builder.Property(value => value.Channel).HasColumnName("channel").HasMaxLength(20).IsRequired();
+        builder.Property(value => value.RecipientEmail).HasColumnName("recipient_email").HasMaxLength(320).IsRequired();
+        builder.Property(value => value.Template).HasColumnName("template").HasMaxLength(80).IsRequired();
+        builder.Property(value => value.PayloadJson).HasColumnName("payload_json").IsRequired();
+        builder.Property(value => value.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(16).IsRequired().IsConcurrencyToken();
+        builder.Property(value => value.Attempts).HasColumnName("attempts").IsRequired();
+        builder.Property(value => value.NotBeforeUtc).HasColumnName("not_before").IsRequired();
+        builder.Property(value => value.LeaseOwner).HasColumnName("lease_owner").HasMaxLength(120);
+        builder.Property(value => value.LeaseExpiresAtUtc).HasColumnName("lease_expires_at");
+        builder.Property(value => value.DeliveryReference).HasColumnName("delivery_reference").HasMaxLength(255);
+        builder.Property(value => value.ErrorCode).HasColumnName("error_code").HasMaxLength(120);
+        builder.Property(value => value.CreatedAt).HasColumnName("created_at").IsRequired();
+        builder.Property(value => value.UpdatedAt).HasColumnName("updated_at").IsRequired();
+        builder.HasIndex(value => new { value.Status, value.NotBeforeUtc });
     }
 }
