@@ -38,7 +38,7 @@ internal sealed class SupportNotificationOutboxProcessor(
             // creation/rotation security model.
             var effectivePayload = SupportNotificationTemplates.RequiresFreshGuestToken(item.Template)
                 ? SupportTicketNotificationPayload.FromJson(item.PayloadJson)
-                    .ToJsonWithGuestToken(await guestTokens.RotateAsync(item.TicketId, cancellationToken))
+                    .ToJsonWithGuestToken(await guestTokens.RotateAsync(item.TicketId, cancellationToken: cancellationToken))
                 : item.PayloadJson;
             result = await sender.SendAsync(
                 new SupportNotification(item.DedupeKey, item.RecipientEmail, item.Template, effectivePayload),

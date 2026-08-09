@@ -6,9 +6,9 @@ namespace ReadyToGoTravel.Support.Guest;
 
 public interface IGuestAccessTokenService
 {
-    Task<string> RotateAsync(Guid ticketId, CancellationToken cancellationToken = default);
+    Task<string> RotateAsync(Guid ticketId, string? actorSubject = null, CancellationToken cancellationToken = default);
 
-    Task RevokeAsync(Guid ticketId, CancellationToken cancellationToken = default);
+    Task RevokeAsync(Guid ticketId, string? actorSubject = null, CancellationToken cancellationToken = default);
 
     Task<Guid?> ResolveAsync(string rawToken, CancellationToken cancellationToken = default);
 }
@@ -19,13 +19,13 @@ internal sealed class GuestAccessTokenService(SupportDbContext database, TimePro
     private const int MaxRotationAttempts = 5;
 
     // The unique partial index on (ticket_id) WHERE revoked_at IS NULL is the real correctness boundary for concurrent rotations; a losing SaveChangesAsync throws DbUpdateException and is retried against the now-current state.
-    public async Task<string> RotateAsync(Guid ticketId, CancellationToken cancellationToken = default)
+    public async Task<string> RotateAsync(Guid ticketId, string? actorSubject = null, CancellationToken cancellationToken = default)
     {
         for (var attempt = 1; attempt <= MaxRotationAttempts; attempt++)
         {
             try
             {
-                return await RotateOnceAsync(ticketId, cancellationToken);
+                return await RotateOnceAsync(ticketId, actorSubject, cancellationToken);
             }
             catch (DbUpdateException) when (attempt < MaxRotationAttempts)
             {
@@ -37,28 +37,28 @@ internal sealed class GuestAccessTokenService(SupportDbContext database, TimePro
             $"Unable to rotate the guest link for ticket {ticketId} after {MaxRotationAttempts} attempts due to concurrent rotations.");
     }
 
-    private async Task<string> RotateOnceAsync(Guid ticketId, CancellationToken cancellationToken)
+    private async Task<string> RotateOnceAsync(Guid ticketId, string? actorSubject, CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow();
-        var active = await FindActiveTokenAsync(ticketId, now, cancellationToken);
-        active?.Revoke(now);
-        var rawToken = await IssueInternalAsync(ticketId, active?.Id, cancellationToken);
-        await AddAuditEventAsync(ticketId, SupportAuditEventType.GuestLinkRotated, "Guest link rotated.", cancellationToken);
+        var unrevoked = await FindUnrevokedTokenAsync(ticketId, cancellationToken);
+        unrevoked?.Revoke(now);
+        var rawToken = await IssueInternalAsync(ticketId, unrevoked?.Id, cancellationToken);
+        await AddAuditEventAsync(ticketId, SupportAuditEventType.GuestLinkRotated, "Guest link rotated.", cancellationToken, actorSubject);
         await database.SaveChangesAsync(cancellationToken);
         return rawToken;
     }
 
-    public async Task RevokeAsync(Guid ticketId, CancellationToken cancellationToken = default)
+    public async Task RevokeAsync(Guid ticketId, string? actorSubject = null, CancellationToken cancellationToken = default)
     {
         var now = timeProvider.GetUtcNow();
-        var active = await FindActiveTokenAsync(ticketId, now, cancellationToken);
-        if (active is null)
+        var unrevoked = await FindUnrevokedTokenAsync(ticketId, cancellationToken);
+        if (unrevoked is null)
         {
             return;
         }
 
-        active.Revoke(now);
-        await AddAuditEventAsync(ticketId, SupportAuditEventType.GuestLinkRevoked, "Guest link revoked.", cancellationToken);
+        unrevoked.Revoke(now);
+        await AddAuditEventAsync(ticketId, SupportAuditEventType.GuestLinkRevoked, "Guest link revoked.", cancellationToken, actorSubject);
         await database.SaveChangesAsync(cancellationToken);
     }
 
@@ -86,16 +86,14 @@ internal sealed class GuestAccessTokenService(SupportDbContext database, TimePro
         return token.TicketId;
     }
 
-    private async Task<SupportGuestAccessToken?> FindActiveTokenAsync(
-        Guid ticketId,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        var candidates = await database.GuestAccessTokens
-            .Where(value => value.TicketId == ticketId && value.RevokedAt == null)
-            .ToListAsync(cancellationToken);
-        return candidates.SingleOrDefault(value => value.ExpiresAt > now);
-    }
+    // Deliberately not filtered by expiry: the unique partial index that makes rotation safe
+    // under concurrency (ix_support_guest_access_tokens_ticket_id_active) is keyed on
+    // "revoked_at IS NULL" alone, so an expired-but-never-revoked row must be found and revoked
+    // here too, or the next insert collides with it. Time-based validity for authentication is a
+    // separate concern, checked only by SupportGuestAccessToken.IsActive in ResolveAsync.
+    private Task<SupportGuestAccessToken?> FindUnrevokedTokenAsync(Guid ticketId, CancellationToken cancellationToken) =>
+        database.GuestAccessTokens
+            .SingleOrDefaultAsync(value => value.TicketId == ticketId && value.RevokedAt == null, cancellationToken);
 
     private async Task<string> IssueInternalAsync(Guid ticketId, Guid? rotatedFromTokenId, CancellationToken cancellationToken)
     {
@@ -122,7 +120,8 @@ internal sealed class GuestAccessTokenService(SupportDbContext database, TimePro
         Guid? ticketId,
         SupportAuditEventType eventType,
         string detail,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? actorSubject = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         database.AuditEvents.Add(new SupportAuditEvent(
@@ -130,7 +129,8 @@ internal sealed class GuestAccessTokenService(SupportDbContext database, TimePro
             ticketId,
             eventType,
             detail,
-            timeProvider.GetUtcNow()));
+            timeProvider.GetUtcNow(),
+            actorSubject));
         await Task.CompletedTask;
     }
 }

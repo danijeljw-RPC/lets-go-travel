@@ -105,6 +105,119 @@ public sealed class GuestAccessTokenTests
     }
 
     [Fact]
+    public async Task RotatingAnExpiredButNeverRevokedTokenSucceedsAndTheReplacementWorks()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticketId = await CreateTicketAsync(fixture);
+        var clock = new MutableTimeProvider(Now);
+        var service = new GuestAccessTokenService(fixture.Context, clock);
+        var originalToken = await service.RotateAsync(ticketId);
+        clock.Advance(TimeSpan.FromDays(30).Add(TimeSpan.FromSeconds(1)));
+        Assert.Null(await service.ResolveAsync(originalToken));
+
+        var rotatedToken = await service.RotateAsync(ticketId);
+
+        Assert.Equal(ticketId, await service.ResolveAsync(rotatedToken));
+        var unrevokedCount = fixture.Context.GuestAccessTokens.Count(value => value.TicketId == ticketId && value.RevokedAt == null);
+        Assert.Equal(1, unrevokedCount);
+    }
+
+    [Fact]
+    public async Task RotatingTwiceAfterExpiryNeverThrowsAndEachReplacementSupersedesTheLast()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticketId = await CreateTicketAsync(fixture);
+        var clock = new MutableTimeProvider(Now);
+        var service = new GuestAccessTokenService(fixture.Context, clock);
+        await service.RotateAsync(ticketId);
+        clock.Advance(TimeSpan.FromDays(30).Add(TimeSpan.FromSeconds(1)));
+
+        var first = await service.RotateAsync(ticketId);
+        var second = await service.RotateAsync(ticketId);
+
+        Assert.Null(await service.ResolveAsync(first));
+        Assert.Equal(ticketId, await service.ResolveAsync(second));
+    }
+
+    [Fact]
+    public async Task RotatingAfterAnExplicitRevokeSucceedsAndTheReplacementWorks()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticketId = await CreateTicketAsync(fixture);
+        var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
+        await service.RotateAsync(ticketId);
+        await service.RevokeAsync(ticketId);
+
+        var rotatedToken = await service.RotateAsync(ticketId);
+
+        Assert.Equal(ticketId, await service.ResolveAsync(rotatedToken));
+    }
+
+    [Fact]
+    public async Task RevokingAnExpiredButNeverRevokedTokenMarksItRevoked()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticketId = await CreateTicketAsync(fixture);
+        var clock = new MutableTimeProvider(Now);
+        var service = new GuestAccessTokenService(fixture.Context, clock);
+        await service.RotateAsync(ticketId);
+        clock.Advance(TimeSpan.FromDays(30).Add(TimeSpan.FromSeconds(1)));
+
+        await service.RevokeAsync(ticketId);
+
+        Assert.Empty(fixture.Context.GuestAccessTokens.Where(value => value.TicketId == ticketId && value.RevokedAt == null));
+    }
+
+    [Fact]
+    public async Task StaffInitiatedRotationRecordsTheActingStaffSubjectOnTheAuditEvent()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticketId = await CreateTicketAsync(fixture);
+        var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
+
+        await service.RotateAsync(ticketId, actorSubject: "staff-42");
+
+        var rotated = fixture.Context.AuditEvents.Single(value => value.EventType == SupportAuditEventType.GuestLinkRotated);
+        Assert.Equal("staff-42", rotated.ActorSubject);
+    }
+
+    [Fact]
+    public async Task StaffInitiatedRevocationRecordsTheActingStaffSubjectOnTheAuditEvent()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticketId = await CreateTicketAsync(fixture);
+        var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
+        await service.RotateAsync(ticketId);
+
+        await service.RevokeAsync(ticketId, actorSubject: "staff-7");
+
+        var revoked = fixture.Context.AuditEvents.Single(value => value.EventType == SupportAuditEventType.GuestLinkRevoked);
+        Assert.Equal("staff-7", revoked.ActorSubject);
+    }
+
+    [Fact]
+    public async Task SystemInitiatedRotationLeavesTheActorSubjectNullAndRemainsDistinguishableFromStaffAction()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticketId = await CreateTicketAsync(fixture);
+        var clock = new MutableTimeProvider(Now);
+        var service = new GuestAccessTokenService(fixture.Context, clock);
+
+        await service.RotateAsync(ticketId);
+        clock.Advance(TimeSpan.FromMinutes(1));
+        await service.RotateAsync(ticketId, actorSubject: "staff-9");
+
+        var events = fixture.Context.AuditEvents
+            .Where(value => value.EventType == SupportAuditEventType.GuestLinkRotated)
+            .ToList()
+            .OrderBy(value => value.CreatedAt)
+            .ToList();
+        Assert.Equal(2, events.Count);
+        Assert.Null(events[0].ActorSubject);
+        Assert.Equal("staff-9", events[1].ActorSubject);
+    }
+
+    [Fact]
     public async Task ResolveAsyncWithAMalformedTokenReturnsNullWithoutThrowing()
     {
         await using var fixture = await SupportDatabaseFixture.CreateAsync();

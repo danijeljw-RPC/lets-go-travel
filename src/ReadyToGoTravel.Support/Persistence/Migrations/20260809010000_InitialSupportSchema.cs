@@ -51,7 +51,8 @@ public partial class InitialSupportSchema : Migration
                 ticket_id = table.Column<Guid>(type: "uuid", nullable: true),
                 event_type = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
                 detail = table.Column<string>(type: "character varying(400)", maxLength: 400, nullable: false),
-                created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                actor_subject = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true)
             },
             constraints: table =>
             {

@@ -2,7 +2,11 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using ReadyToGoTravel.Support.Domain;
 using ReadyToGoTravel.Support.Http;
+using ReadyToGoTravel.Support.Persistence;
 
 namespace ReadyToGoTravel.Support.Tests;
 
@@ -141,6 +145,42 @@ public sealed class SupportStaffApiTests
         var oldTokenResponse = await app.Client.SendAsync(oldTokenRequest);
 
         Assert.Equal(HttpStatusCode.Unauthorized, oldTokenResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task RotatingTheGuestLinkThroughTheStaffEndpointRecordsTheActingStaffSubject()
+    {
+        await using var app = await TestApplication.CreateAsync();
+        var (ticket, _) = await CreateGuestTicketAsync(app);
+
+        app.SetStaffSubject("staff-attribution-1");
+        (await app.Client.PostAsync($"/api/v1/support/staff/tickets/{ticket.Id}/guest-link/rotate", null))
+            .EnsureSuccessStatusCode();
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+        var rotated = await database.AuditEvents
+            .Where(value => value.TicketId == ticket.Id && value.EventType == SupportAuditEventType.GuestLinkRotated)
+            .ToListAsync();
+        Assert.Contains(rotated, value => value.ActorSubject == "staff-attribution-1");
+    }
+
+    [Fact]
+    public async Task RevokingTheGuestLinkThroughTheStaffEndpointRecordsTheActingStaffSubject()
+    {
+        await using var app = await TestApplication.CreateAsync();
+        var (ticket, _) = await CreateGuestTicketAsync(app);
+
+        app.SetStaffSubject("staff-attribution-2");
+        (await app.Client.PostAsync($"/api/v1/support/staff/tickets/{ticket.Id}/guest-link/revoke", null))
+            .EnsureSuccessStatusCode();
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+        var revoked = await database.AuditEvents
+            .Where(value => value.TicketId == ticket.Id && value.EventType == SupportAuditEventType.GuestLinkRevoked)
+            .ToListAsync();
+        Assert.Contains(revoked, value => value.ActorSubject == "staff-attribution-2");
     }
 
     [Fact]

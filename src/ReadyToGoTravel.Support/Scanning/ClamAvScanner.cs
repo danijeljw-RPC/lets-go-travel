@@ -20,29 +20,37 @@ internal sealed class ClamAvScanner(IOptions<ClamAvOptions> optionsAccessor) : I
             await client.ConnectAsync(options.Host, options.Port, linkedConnect.Token);
 
             await using var stream = client.GetStream();
-            stream.ReadTimeout = options.ReadTimeoutMilliseconds;
+
+            // NetworkStream.ReadTimeout/WriteTimeout only bound the synchronous Read/Write
+            // methods, not ReadAsync/WriteAsync, which is all this class uses — so a single
+            // linked CancellationTokenSource is the only thing that actually bounds every piece
+            // of I/O below (reading the attachment, writing the request, reading the response).
+            // Without it, a ClamAV daemon that accepts the connection but stops reading can hang
+            // a write indefinitely and, with it, the worker processing this scan.
+            using var scanCancellation = new CancellationTokenSource(options.ReadTimeoutMilliseconds);
+            using var linkedScan = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, scanCancellation.Token);
+            var scanToken = linkedScan.Token;
+
             var command = Encoding.ASCII.GetBytes("zINSTREAM\0");
-            await stream.WriteAsync(command, cancellationToken);
+            await stream.WriteAsync(command, scanToken);
 
             var lengthBuffer = new byte[4];
             var buffer = new byte[ChunkSize];
             int read;
-            while ((read = await content.ReadAsync(buffer, cancellationToken)) > 0)
+            while ((read = await content.ReadAsync(buffer, scanToken)) > 0)
             {
                 BinaryPrimitives.WriteUInt32BigEndian(lengthBuffer, (uint)read);
-                await stream.WriteAsync(lengthBuffer, cancellationToken);
-                await stream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                await stream.WriteAsync(lengthBuffer, scanToken);
+                await stream.WriteAsync(buffer.AsMemory(0, read), scanToken);
             }
 
             BinaryPrimitives.WriteUInt32BigEndian(lengthBuffer, 0);
-            await stream.WriteAsync(lengthBuffer, cancellationToken);
+            await stream.WriteAsync(lengthBuffer, scanToken);
 
-            using var responseCancellation = new CancellationTokenSource(options.ReadTimeoutMilliseconds);
-            using var linkedResponse = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, responseCancellation.Token);
             using var responseStream = new MemoryStream();
             var responseBuffer = new byte[256];
             int responseRead;
-            while ((responseRead = await stream.ReadAsync(responseBuffer, linkedResponse.Token)) > 0)
+            while ((responseRead = await stream.ReadAsync(responseBuffer, scanToken)) > 0)
             {
                 responseStream.Write(responseBuffer, 0, responseRead);
                 if (responseBuffer.AsSpan(0, responseRead).IndexOf((byte)0) >= 0)

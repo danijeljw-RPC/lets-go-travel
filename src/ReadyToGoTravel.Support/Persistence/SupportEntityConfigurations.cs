@@ -59,6 +59,7 @@ internal sealed class SupportAuditEventConfiguration : IEntityTypeConfiguration<
         builder.Property(value => value.EventType).HasColumnName("event_type").HasConversion<string>().HasMaxLength(40).IsRequired();
         builder.Property(value => value.Detail).HasColumnName("detail").HasMaxLength(400).IsRequired();
         builder.Property(value => value.CreatedAt).HasColumnName("created_at").IsRequired();
+        builder.Property(value => value.ActorSubject).HasColumnName("actor_subject").HasMaxLength(128);
     }
 }
 

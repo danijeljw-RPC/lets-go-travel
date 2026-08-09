@@ -178,6 +178,28 @@ public sealed class AttachmentUploadDownloadTests
     }
 
     [Fact]
+    public async Task AFailureAfterAStorageWriteDeletesTheOrphanedObjectAndPropagatesTheOriginalException()
+    {
+        var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var context = new SupportDbContext(new DbContextOptionsBuilder<SupportDbContext>().UseSqlite(connection).Options);
+        await context.Database.EnsureCreatedAsync();
+        var ticket = SupportTicket.Create("sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help", Now);
+        context.Tickets.Add(ticket);
+        await context.SaveChangesAsync();
+
+        var storage = new DisposesConnectionAfterPutObjectStorage(connection);
+        var service = new SupportAttachmentService(context, storage, new FixedTimeProvider(Now));
+
+        await Assert.ThrowsAnyAsync<Exception>(() => service.UploadAsync(
+            ticket.Id, ticket.Messages[0].Id, "sub-1", null, "receipt.pdf", "application/pdf",
+            new MemoryStream("%PDF-1.7"u8.ToArray())));
+
+        Assert.Single(storage.DeletedKeys);
+        Assert.Empty(storage.Contents);
+    }
+
+    [Fact]
     public async Task ConcurrentUploadsToTheSameMessageNeverExceedTheFileLimit()
     {
         var connectionString = $"Data Source=file:attachment-race-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
@@ -237,5 +259,36 @@ public sealed class AttachmentUploadDownloadTests
         Buffer.BlockCopy(first, 0, result, 0, first.Length);
         Buffer.BlockCopy(second, 0, result, first.Length, second.Length);
         return result;
+    }
+}
+
+// Simulates a database becoming unavailable immediately after a successful storage write, so
+// tests can assert that the orphaned object is cleaned up and the original exception propagates.
+internal sealed class DisposesConnectionAfterPutObjectStorage(SqliteConnection connection) : ReadyToGoTravel.Support.Storage.IObjectStorage
+{
+    public Dictionary<string, byte[]> Contents { get; } = [];
+
+    public List<string> DeletedKeys { get; } = [];
+
+    public Task PutAsync(string key, Stream content, string contentType, CancellationToken cancellationToken = default)
+    {
+        using var buffer = new MemoryStream();
+        content.CopyTo(buffer);
+        Contents[key] = buffer.ToArray();
+        connection.Dispose();
+        return Task.CompletedTask;
+    }
+
+    public Task<Stream> OpenReadAsync(string key, CancellationToken cancellationToken = default) =>
+        Task.FromResult<Stream>(new MemoryStream(Contents[key], writable: false));
+
+    public Task<Uri> CreateDownloadUrlAsync(string key, TimeSpan validFor, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new Uri($"https://storage.test/{key}"));
+
+    public Task DeleteAsync(string key, CancellationToken cancellationToken = default)
+    {
+        Contents.Remove(key);
+        DeletedKeys.Add(key);
+        return Task.CompletedTask;
     }
 }

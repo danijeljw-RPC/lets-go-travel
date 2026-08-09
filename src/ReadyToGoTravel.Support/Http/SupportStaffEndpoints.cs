@@ -129,6 +129,7 @@ public static class SupportStaffEndpoints
 
     private static async Task<IResult> RotateGuestLinkAsync(
         Guid ticketId,
+        ClaimsPrincipal principal,
         SupportTicketService service,
         IGuestAccessTokenService tokens,
         ISupportNotificationSender sender,
@@ -141,7 +142,7 @@ public static class SupportStaffEndpoints
             return SupportHttpResults.Problem(context, StatusCodes.Status404NotFound, "ticket_not_found");
         }
 
-        var rawToken = await tokens.RotateAsync(ticketId, cancellationToken);
+        var rawToken = await tokens.RotateAsync(ticketId, principal.FindFirstValue("sub"), cancellationToken);
         var payload = new SupportTicketNotificationPayload(existing.ContactName, existing.Id, existing.Category.ToString())
             .ToJsonWithGuestToken(rawToken);
         SupportNotificationSendResult result;
@@ -169,6 +170,7 @@ public static class SupportStaffEndpoints
 
     private static async Task<IResult> RevokeGuestLinkAsync(
         Guid ticketId,
+        ClaimsPrincipal principal,
         SupportTicketService service,
         IGuestAccessTokenService tokens,
         HttpContext context,
@@ -180,7 +182,7 @@ public static class SupportStaffEndpoints
             return SupportHttpResults.Problem(context, StatusCodes.Status404NotFound, "ticket_not_found");
         }
 
-        await tokens.RevokeAsync(ticketId, cancellationToken);
+        await tokens.RevokeAsync(ticketId, principal.FindFirstValue("sub"), cancellationToken);
         return Results.NoContent();
     }
 }

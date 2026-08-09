@@ -79,52 +79,66 @@ internal sealed class SupportAttachmentService(
             return new SupportAttachmentUploadResult.Rejected("attachment_storage_unavailable");
         }
 
-        // Ensuring the usage rows exist happens outside the transaction below: a caught
-        // DbUpdateException here (another request created the row first) is a normal, isolated
-        // failed statement. Inside an explicit transaction, Postgres would instead abort the
-        // whole transaction on that error, and the claim right after it would fail too.
-        await EnsureMessageUsageRowAsync(messageId, cancellationToken);
-        await EnsureTicketUsageRowAsync(ticketId, cancellationToken);
-
-        // The pre-checks above are a fast-path only; these atomic conditional UPDATEs are the
-        // real correctness boundary, closing the TOCTOU window between the pre-check and the
-        // insert under concurrent uploads to the same message or ticket.
-        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-
-        if (!await ClaimMessageAttachmentSlotAsync(messageId, cancellationToken))
+        // Everything from here on is wrapped in one try/catch: any failure after the object was
+        // written to storage — including the usage-row lookups below, a failed claim,
+        // SaveChangesAsync, or CommitAsync — must delete the now-orphaned object before
+        // propagating. An ambient explicit transaction is rolled back by its own disposal since
+        // it is never committed on this path; only the storage object needs explicit cleanup.
+        try
         {
-            await transaction.RollbackAsync(cancellationToken);
-            await TryDeleteOrphanedObjectAsync(storageKey, cancellationToken);
-            return new SupportAttachmentUploadResult.Rejected("attachment_message_limit_exceeded");
-        }
+            // Ensuring the usage rows exist happens outside the transaction below: a caught
+            // DbUpdateException here (another request created the row first) is a normal,
+            // isolated failed statement. Inside an explicit transaction, Postgres would instead
+            // abort the whole transaction on that error, and the claim right after it would fail too.
+            await EnsureMessageUsageRowAsync(messageId, cancellationToken);
+            await EnsureTicketUsageRowAsync(ticketId, cancellationToken);
 
-        if (!await ClaimTicketByteBudgetAsync(ticketId, buffer.Length, cancellationToken))
+            // The pre-checks above are a fast-path only; these atomic conditional UPDATEs are the
+            // real correctness boundary, closing the TOCTOU window between the pre-check and the
+            // insert under concurrent uploads to the same message or ticket.
+            await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+
+            if (!await ClaimMessageAttachmentSlotAsync(messageId, cancellationToken))
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                await TryDeleteOrphanedObjectAsync(storageKey, cancellationToken);
+                return new SupportAttachmentUploadResult.Rejected("attachment_message_limit_exceeded");
+            }
+
+            if (!await ClaimTicketByteBudgetAsync(ticketId, buffer.Length, cancellationToken))
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                await TryDeleteOrphanedObjectAsync(storageKey, cancellationToken);
+                return new SupportAttachmentUploadResult.Rejected("attachment_ticket_limit_exceeded");
+            }
+
+            var attachment = new SupportAttachment(
+                attachmentId,
+                ticketId,
+                messageId,
+                SanitizeFileName(originalFileName),
+                declaredContentType,
+                buffer.Length,
+                storageKey,
+                checksum,
+                uploaderCustomerSubject,
+                uploaderGuestTokenId,
+                now);
+            database.Attachments.Add(attachment);
+            database.AttachmentScanWork.Add(new AttachmentScanWork(Guid.CreateVersion7(now), attachmentId, now));
+            database.AuditEvents.Add(new SupportAuditEvent(
+                Guid.CreateVersion7(now), ticketId, SupportAuditEventType.AttachmentUploaded, "Attachment uploaded.", now));
+            await database.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return new SupportAttachmentUploadResult.Accepted(attachment);
+        }
+        catch
         {
-            await transaction.RollbackAsync(cancellationToken);
+            // Best-effort: a cleanup failure must never replace or hide the original exception.
             await TryDeleteOrphanedObjectAsync(storageKey, cancellationToken);
-            return new SupportAttachmentUploadResult.Rejected("attachment_ticket_limit_exceeded");
+            throw;
         }
-
-        var attachment = new SupportAttachment(
-            attachmentId,
-            ticketId,
-            messageId,
-            SanitizeFileName(originalFileName),
-            declaredContentType,
-            buffer.Length,
-            storageKey,
-            checksum,
-            uploaderCustomerSubject,
-            uploaderGuestTokenId,
-            now);
-        database.Attachments.Add(attachment);
-        database.AttachmentScanWork.Add(new AttachmentScanWork(Guid.CreateVersion7(now), attachmentId, now));
-        database.AuditEvents.Add(new SupportAuditEvent(
-            Guid.CreateVersion7(now), ticketId, SupportAuditEventType.AttachmentUploaded, "Attachment uploaded.", now));
-        await database.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-
-        return new SupportAttachmentUploadResult.Accepted(attachment);
     }
 
     private async Task TryDeleteOrphanedObjectAsync(string storageKey, CancellationToken cancellationToken)
@@ -133,7 +147,7 @@ internal sealed class SupportAttachmentService(
         {
             await storage.DeleteAsync(storageKey, cancellationToken);
         }
-        catch (ObjectStorageUnavailableException)
+        catch
         {
         }
     }

@@ -26,13 +26,15 @@ public sealed class SupportAuditEvent
         Guid? ticketId,
         SupportAuditEventType eventType,
         string detail,
-        DateTimeOffset createdAt)
+        DateTimeOffset createdAt,
+        string? actorSubject = null)
     {
         Id = id;
         TicketId = ticketId;
         EventType = eventType;
         Detail = detail;
         CreatedAt = createdAt;
+        ActorSubject = actorSubject;
     }
 
     public Guid Id { get; private set; }
@@ -44,4 +46,9 @@ public sealed class SupportAuditEvent
     public string Detail { get; private set; } = string.Empty;
 
     public DateTimeOffset CreatedAt { get; private set; }
+
+    // The authenticated staff subject responsible for a staff-initiated action (e.g. guest-link
+    // rotate/revoke); null for guest/customer/system-triggered events, matching how
+    // SupportTicketMessage.AuthorSubject is null for the same category of actor.
+    public string? ActorSubject { get; private set; }
 }

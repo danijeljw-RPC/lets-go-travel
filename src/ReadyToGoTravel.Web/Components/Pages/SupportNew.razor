@@ -3,12 +3,21 @@
 @using System.ComponentModel.DataAnnotations
 @inject SupportApiClient SupportApi
 @inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>New support ticket · readytogo.travel</PageTitle>
 
 <main class="content-shell">
     <p class="eyebrow">Help</p>
     <h1>New support ticket</h1>
+
+@if (guestConfirmation)
+{
+    <p class="intro compact-intro">Thanks — we've received your ticket.</p>
+    <p class="empty-state">We've emailed a secure link to the address you provided. Use that link to follow up on this ticket; no account is needed.</p>
+}
+else
+{
     <p class="intro compact-intro">Tell us what's going on. Urgent categories are reviewed first.</p>
 
     <AuthorizeView Context="authState">
@@ -81,6 +90,7 @@
     {
         <p class="empty-state">We could not submit that ticket. Please check the form and try again.</p>
     }
+}
 </main>
 
 @code {
@@ -90,9 +100,13 @@
     private SupportTicketForm FormModel => Form ??= new();
 
     private bool submitFailed;
+    private bool guestConfirmation;
 
     private async Task CreateAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+
         var ticket = await SupportApi.CreateTicketAsync(new CreateSupportTicketRequest(
             FormModel.ContactName,
             FormModel.ContactEmail,
@@ -106,8 +120,21 @@
             return;
         }
 
-        Navigation.NavigateTo($"/support/{ticket.Id}");
+        var redirect = ResolvePostCreateRedirect(isAuthenticated, ticket.Id);
+        if (redirect is null)
+        {
+            guestConfirmation = true;
+            return;
+        }
+
+        Navigation.NavigateTo(redirect);
     }
+
+    // An anonymous submitter has no session and no token in hand (the raw guest token is only
+    // ever delivered by email, never by an API response), so /support/{id} — which requires
+    // [Authorize] and ownership by CustomerSubject — can never be a valid destination for them.
+    internal static string? ResolvePostCreateRedirect(bool isAuthenticated, Guid ticketId) =>
+        isAuthenticated ? $"/support/{ticketId}" : null;
 
     private sealed class SupportTicketForm
     {
