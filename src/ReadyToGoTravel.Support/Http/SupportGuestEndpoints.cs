@@ -56,6 +56,11 @@ public static class SupportGuestEndpoints
             return SupportHttpResults.Problem(context, StatusCodes.Status400BadRequest, "support_message_required");
         }
 
+        if (request.Body.Length > SupportTicketMessage.MaxBodyLength)
+        {
+            return SupportHttpResults.Problem(context, StatusCodes.Status400BadRequest, "support_message_too_long");
+        }
+
         var ticketId = await ResolveAsync(context, tokens, cancellationToken);
         if (ticketId is null)
         {

@@ -2,6 +2,8 @@ namespace ReadyToGoTravel.Support.Domain;
 
 public sealed class SupportTicketMessage
 {
+    public const int MaxBodyLength = 4000;
+
     private SupportTicketMessage()
     {
     }

@@ -44,6 +44,11 @@ public static class SupportEndpoints
             return SupportHttpResults.Problem(context, StatusCodes.Status400BadRequest, "support_message_required");
         }
 
+        if (request.Message.Length > SupportTicketMessage.MaxBodyLength)
+        {
+            return SupportHttpResults.Problem(context, StatusCodes.Status400BadRequest, "support_message_too_long");
+        }
+
         var isAuthenticated = principal.Identity?.IsAuthenticated == true;
         var subject = isAuthenticated ? principal.FindFirstValue("sub") : null;
         var contactEmail = isAuthenticated ? principal.FindFirstValue("email") : request.ContactEmail;
@@ -107,6 +112,11 @@ public static class SupportEndpoints
         if (string.IsNullOrWhiteSpace(request.Body))
         {
             return SupportHttpResults.Problem(context, StatusCodes.Status400BadRequest, "support_message_required");
+        }
+
+        if (request.Body.Length > SupportTicketMessage.MaxBodyLength)
+        {
+            return SupportHttpResults.Problem(context, StatusCodes.Status400BadRequest, "support_message_too_long");
         }
 
         var subject = principal.FindFirstValue("sub")!;

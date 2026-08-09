@@ -47,3 +47,5 @@ public sealed record TicketSummaryResponse(
     DateTimeOffset UpdatedAt);
 
 public sealed record DownloadUrlResponse(string Url, DateTimeOffset ExpiresAt);
+
+public sealed record RotateGuestLinkResponse(bool Delivered);

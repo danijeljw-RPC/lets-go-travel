@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ReadyToGoTravel.Support.Guest;
 using ReadyToGoTravel.Support.Persistence;
 
 namespace ReadyToGoTravel.Support.Notifications;
@@ -13,6 +14,7 @@ public interface ISupportNotificationOutboxProcessor
 internal sealed class SupportNotificationOutboxProcessor(
     SupportDbContext database,
     ISupportNotificationSender sender,
+    IGuestAccessTokenService guestTokens,
     TimeProvider timeProvider) : ISupportNotificationOutboxProcessor
 {
     private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(2);
@@ -30,8 +32,16 @@ internal sealed class SupportNotificationOutboxProcessor(
         SupportNotificationSendResult result;
         try
         {
+            // A fresh guest token is minted here, in memory, immediately before the send
+            // attempt, and is never written back to the durable PayloadJson column - only its
+            // hash is ever persisted (via GuestAccessTokenService), matching the ticket
+            // creation/rotation security model.
+            var effectivePayload = SupportNotificationTemplates.RequiresFreshGuestToken(item.Template)
+                ? SupportTicketNotificationPayload.FromJson(item.PayloadJson)
+                    .ToJsonWithGuestToken(await guestTokens.RotateAsync(item.TicketId, cancellationToken))
+                : item.PayloadJson;
             result = await sender.SendAsync(
-                new SupportNotification(item.DedupeKey, item.RecipientEmail, item.Template, item.PayloadJson),
+                new SupportNotification(item.DedupeKey, item.RecipientEmail, item.Template, effectivePayload),
                 cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

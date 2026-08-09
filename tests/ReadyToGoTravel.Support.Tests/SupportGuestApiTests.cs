@@ -22,6 +22,17 @@ public sealed class SupportGuestApiTests
     }
 
     [Fact]
+    public async Task AGuestReplyLongerThanTheStoredLimitIsRejected()
+    {
+        await using var app = await TestApplication.CreateAsync();
+        var (_, token) = await CreateGuestTicketAsync(app);
+
+        var response = await GuestPostAsync(app, token, "/api/v1/support/guest/ticket/messages", new { body = new string('a', 4001) });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task AMissingAuthorizationHeaderReturnsUnauthorized()
     {
         await using var app = await TestApplication.CreateAsync();

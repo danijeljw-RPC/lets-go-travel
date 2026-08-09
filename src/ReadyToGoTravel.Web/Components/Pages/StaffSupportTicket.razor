@@ -35,10 +35,21 @@
                 <h3>Attachments</h3>
                 @foreach (var attachment in ticket.Attachments)
                 {
-                    <p>@attachment.OriginalFileName (@attachment.ScanStatus)</p>
+                    <p>
+                        @attachment.OriginalFileName (@attachment.ScanStatus)
+                        @if (attachment.ScanStatus == "Clean")
+                        {
+                            <button class="primary-action" type="button" @onclick="() => DownloadAsync(attachment.Id)">Download</button>
+                        }
+                    </p>
                 }
             }
         </section>
+
+        @if (!string.IsNullOrEmpty(downloadUrl))
+        {
+            <p><a href="@downloadUrl" target="_blank" rel="noopener">Open downloaded file</a></p>
+        }
 
         @if (ticket.Status != "Closed")
         {
@@ -70,6 +81,7 @@
     private SupportTicketDetail? ticket;
     private string replyBody = string.Empty;
     private string? actionMessage;
+    private string? downloadUrl;
 
     protected override async Task OnInitializedAsync()
     {
@@ -101,9 +113,13 @@
 
     private async Task RotateAsync()
     {
-        actionMessage = await StaffApi.RotateGuestLinkAsync(TicketId)
-            ? "The guest link was rotated. The customer's previous link no longer works; a new one was emailed."
-            : "The guest link could not be rotated.";
+        var outcome = await StaffApi.RotateGuestLinkAsync(TicketId);
+        actionMessage = outcome switch
+        {
+            { Rotated: false } => "The guest link could not be rotated.",
+            { Delivered: true } => "The guest link was rotated. The customer's previous link no longer works; a new one was emailed.",
+            _ => "The guest link was rotated, but the new link could not be delivered. No notification capability is configured.",
+        };
     }
 
     private async Task RevokeAsync()
@@ -111,5 +127,11 @@
         actionMessage = await StaffApi.RevokeGuestLinkAsync(TicketId)
             ? "The guest link was revoked."
             : "The guest link could not be revoked.";
+    }
+
+    private async Task DownloadAsync(Guid attachmentId)
+    {
+        var result = await StaffApi.GetDownloadUrlAsync(TicketId, attachmentId);
+        downloadUrl = result?.Url;
     }
 }

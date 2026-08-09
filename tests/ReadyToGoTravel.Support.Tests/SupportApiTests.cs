@@ -26,6 +26,35 @@ public sealed class SupportApiTests
     }
 
     [Fact]
+    public async Task CreatingATicketWithAMessageLongerThanTheStoredLimitIsRejected()
+    {
+        await using var app = await TestApplication.CreateAsync();
+        app.SetSubject("sub-1");
+
+        var response = await app.Client.PostAsJsonAsync("/api/v1/support/tickets", new
+        {
+            contactName = "Ari",
+            category = "General",
+            message = new string('a', 4001),
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReplyingWithAMessageLongerThanTheStoredLimitIsRejected()
+    {
+        await using var app = await TestApplication.CreateAsync();
+        app.SetSubject("sub-1");
+        var created = await CreateTicketAsync(app);
+
+        var response = await app.Client.PostAsJsonAsync(
+            $"/api/v1/support/tickets/{created.Id}/messages", new { body = new string('a', 4001) });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task AnAnonymousVisitorCanCreateAGuestTicket()
     {
         await using var app = await TestApplication.CreateAsync();

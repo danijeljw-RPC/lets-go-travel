@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ReadyToGoTravel.Support.Application;
 using ReadyToGoTravel.Support.Domain;
+using ReadyToGoTravel.Support.Guest;
 using ReadyToGoTravel.Support.Notifications;
 
 namespace ReadyToGoTravel.Support.Tests;
@@ -10,7 +11,7 @@ public sealed class SupportNotificationTests
     private static readonly DateTimeOffset Now = new(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task CreatingAGuestTicketEnqueuesOneAcknowledgementCarryingTheTokenExactlyOnce()
+    public async Task ADurableGuestAcknowledgementNeverPersistsTheRawToken()
     {
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
         var service = new SupportTicketService(fixture.Context, new FixedTimeProvider(Now));
@@ -20,10 +21,32 @@ public sealed class SupportNotificationTests
 
         var outboxItems = await fixture.Context.SupportNotificationOutbox.ToListAsync();
         var item = Assert.Single(outboxItems);
-        Assert.Equal("SupportTicketAcknowledgement", item.Template);
-        Assert.Contains("GuestToken", item.PayloadJson, StringComparison.Ordinal);
-        var occurrences = item.PayloadJson.Split("GuestToken", StringSplitOptions.None).Length - 1;
+        Assert.Equal("SupportTicketAcknowledgementGuest", item.Template);
+        Assert.DoesNotContain("GuestToken", item.PayloadJson, StringComparison.Ordinal);
+        Assert.Empty(fixture.Context.GuestAccessTokens);
+    }
+
+    [Fact]
+    public async Task ProcessingAGuestAcknowledgementMintsAFreshTokenAndSendsItExactlyOnceWithoutPersistingIt()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var service = new SupportTicketService(fixture.Context, new FixedTimeProvider(Now));
+        var ticket = await service.CreateTicketAsync(new CreateSupportTicketCommand(
+            null, "Guest", "guest@example.test", SupportTicketCategory.General, null, "Help please"));
+        var sender = new RecordingSupportNotificationSender();
+        var tokens = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
+        var processor = new SupportNotificationOutboxProcessor(fixture.Context, sender, tokens, new FixedTimeProvider(Now));
+
+        await processor.ProcessNextAsync("worker-1");
+
+        var sent = Assert.Single(sender.Sent);
+        Assert.Contains("GuestToken", sent.PayloadJson, StringComparison.Ordinal);
+        var occurrences = sent.PayloadJson.Split("GuestToken", StringSplitOptions.None).Length - 1;
         Assert.Equal(1, occurrences);
+
+        var storedItem = await fixture.Context.SupportNotificationOutbox.SingleAsync(value => value.TicketId == ticket.Id);
+        Assert.DoesNotContain("GuestToken", storedItem.PayloadJson, StringComparison.Ordinal);
+        Assert.Single(fixture.Context.GuestAccessTokens);
     }
 
     [Fact]
@@ -36,8 +59,8 @@ public sealed class SupportNotificationTests
             "sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help please"));
 
         var item = await fixture.Context.SupportNotificationOutbox.SingleAsync(value => value.TicketId == ticket.Id);
-        Assert.Equal("SupportTicketAcknowledgement", item.Template);
-        Assert.DoesNotContain("\"GuestToken\":\"", item.PayloadJson, StringComparison.Ordinal);
+        Assert.Equal("SupportTicketAcknowledgementCustomer", item.Template);
+        Assert.DoesNotContain("GuestToken", item.PayloadJson, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -78,7 +101,7 @@ public sealed class SupportNotificationTests
         await service.CreateTicketAsync(new CreateSupportTicketCommand(
             "sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help please"));
         var sender = new RecordingSupportNotificationSender();
-        var processor = new SupportNotificationOutboxProcessor(fixture.Context, sender, new FixedTimeProvider(Now));
+        var processor = CreateProcessor(fixture, sender, new FixedTimeProvider(Now));
 
         var didWork = await processor.ProcessNextAsync("worker-1");
 
@@ -97,7 +120,7 @@ public sealed class SupportNotificationTests
         {
             Behavior = _ => throw new InvalidOperationException("boom"),
         };
-        var processor = new SupportNotificationOutboxProcessor(fixture.Context, sender, new FixedTimeProvider(Now));
+        var processor = CreateProcessor(fixture, sender, new FixedTimeProvider(Now));
 
         await processor.ProcessNextAsync("worker-1");
 
@@ -121,7 +144,7 @@ public sealed class SupportNotificationTests
 
         for (var attempt = 1; attempt <= 8; attempt++)
         {
-            var processor = new SupportNotificationOutboxProcessor(fixture.Context, sender, clock);
+            var processor = CreateProcessor(fixture, sender, clock);
             await processor.ProcessNextAsync("worker-1");
             clock.Advance(TimeSpan.FromHours(2));
         }
@@ -138,7 +161,7 @@ public sealed class SupportNotificationTests
         await service.CreateTicketAsync(new CreateSupportTicketCommand(
             "sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help please"));
         var sender = new RecordingSupportNotificationSender();
-        var processor = new SupportNotificationOutboxProcessor(fixture.Context, sender, new FixedTimeProvider(Now));
+        var processor = CreateProcessor(fixture, sender, new FixedTimeProvider(Now));
         await processor.ProcessNextAsync("worker-1");
 
         var didWorkAgain = await processor.ProcessNextAsync("worker-1");
@@ -146,4 +169,10 @@ public sealed class SupportNotificationTests
         Assert.False(didWorkAgain);
         Assert.Single(sender.Sent);
     }
+
+    private static SupportNotificationOutboxProcessor CreateProcessor(
+        SupportDatabaseFixture fixture,
+        RecordingSupportNotificationSender sender,
+        TimeProvider clock) =>
+        new(fixture.Context, sender, new GuestAccessTokenService(fixture.Context, clock), clock);
 }

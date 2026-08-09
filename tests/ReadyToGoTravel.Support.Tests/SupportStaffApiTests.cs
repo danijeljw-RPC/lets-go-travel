@@ -71,6 +71,58 @@ public sealed class SupportStaffApiTests
     }
 
     [Fact]
+    public async Task ClosingAnAlreadyClosedTicketIsIdempotentAndDoesNotError()
+    {
+        await using var app = await TestApplication.CreateAsync();
+        app.SetSubject("sub-1");
+        var ticket = await CreateTicketAsync(app);
+
+        app.SetStaffSubject("staff-1");
+        var firstClose = await app.Client.PostAsync($"/api/v1/support/staff/tickets/{ticket.Id}/close", null);
+        var secondClose = await app.Client.PostAsync($"/api/v1/support/staff/tickets/{ticket.Id}/close", null);
+
+        Assert.Equal(HttpStatusCode.NoContent, firstClose.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, secondClose.StatusCode);
+    }
+
+    [Fact]
+    public async Task AStaffReplyLongerThanTheStoredLimitIsRejectedWithBadRequest()
+    {
+        await using var app = await TestApplication.CreateAsync();
+        app.SetSubject("sub-1");
+        var ticket = await CreateTicketAsync(app);
+
+        app.SetStaffSubject("staff-1");
+        var response = await app.Client.PostAsJsonAsync(
+            $"/api/v1/support/staff/tickets/{ticket.Id}/messages", new { body = new string('a', 4001) });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task StaffCanDownloadACleanAttachmentEvenThoughTheyDoNotOwnTheTicket()
+    {
+        await using var app = await TestApplication.CreateAsync();
+        app.SetSubject("sub-1");
+        var ticket = await CreateTicketAsync(app);
+
+        using var form = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("%PDF-1.7 staff download test"u8.ToArray());
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        form.Add(fileContent, "file", "evidence.pdf");
+        form.Add(new StringContent(ticket.Messages[0].Id.ToString()), "messageId");
+        var uploadResponse = await app.Client.PostAsync($"/api/v1/support/tickets/{ticket.Id}/attachments", form);
+        var attachment = await uploadResponse.ReadAsAsync<AttachmentResponse>();
+        await app.DrainAttachmentScansAsync();
+
+        app.SetStaffSubject("staff-1");
+        var downloadResponse = await app.Client.GetAsync(
+            $"/api/v1/support/staff/tickets/{ticket.Id}/attachments/{attachment!.Id}/download");
+
+        downloadResponse.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
     public async Task RotatingTheGuestLinkReturnsNoRawTokenAndInvalidatesThePreviousOne()
     {
         await using var app = await TestApplication.CreateAsync();
@@ -78,9 +130,10 @@ public sealed class SupportStaffApiTests
 
         app.SetStaffSubject("staff-1");
         var rotateResponse = await app.Client.PostAsync($"/api/v1/support/staff/tickets/{ticket.Id}/guest-link/rotate", null);
-        Assert.Equal(HttpStatusCode.NoContent, rotateResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, rotateResponse.StatusCode);
         var rotateBody = await rotateResponse.Content.ReadAsStringAsync();
-        Assert.Empty(rotateBody);
+        Assert.DoesNotContain(originalToken, rotateBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("guestToken", rotateBody, StringComparison.OrdinalIgnoreCase);
 
         app.ClearSubject();
         using var oldTokenRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/support/guest/ticket");
@@ -88,6 +141,29 @@ public sealed class SupportStaffApiTests
         var oldTokenResponse = await app.Client.SendAsync(oldTokenRequest);
 
         Assert.Equal(HttpStatusCode.Unauthorized, oldTokenResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task RotatingTheGuestLinkDeliversTheNewTokenSoTheGuestCanUseIt()
+    {
+        await using var app = await TestApplication.CreateAsync();
+        var (ticket, _) = await CreateGuestTicketAsync(app);
+
+        app.SetStaffSubject("staff-1");
+        var rotateResponse = await app.Client.PostAsync($"/api/v1/support/staff/tickets/{ticket.Id}/guest-link/rotate", null);
+        var delivered = await rotateResponse.ReadAsAsync<JsonElement>();
+        Assert.True(delivered.GetProperty("delivered").GetBoolean());
+
+        var payload = app.Sender.Sent.Last(item => item.Template == "SupportGuestLinkRotated");
+        using var document = JsonDocument.Parse(payload.PayloadJson);
+        var newToken = document.RootElement.GetProperty("GuestToken").GetString()!;
+
+        app.ClearSubject();
+        using var newTokenRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/support/guest/ticket");
+        newTokenRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", newToken);
+        var newTokenResponse = await app.Client.SendAsync(newTokenRequest);
+
+        newTokenResponse.EnsureSuccessStatusCode();
     }
 
     [Fact]
