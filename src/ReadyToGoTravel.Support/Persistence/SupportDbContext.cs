@@ -11,6 +11,8 @@ internal sealed class SupportDbContext(DbContextOptions<SupportDbContext> option
 
     public DbSet<SupportAuditEvent> AuditEvents => Set<SupportAuditEvent>();
 
+    public DbSet<SupportGuestAccessToken> GuestAccessTokens => Set<SupportGuestAccessToken>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("support");

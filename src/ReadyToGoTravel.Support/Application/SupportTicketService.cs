@@ -78,13 +78,15 @@ internal sealed class SupportTicketService(SupportDbContext database, TimeProvid
                 value => value.Id == ticketId && value.CustomerSubject == customerSubject,
                 cancellationToken);
 
-    public Task<List<SupportTicket>> GetForCustomerAsync(
+    public async Task<List<SupportTicket>> GetForCustomerAsync(
         string customerSubject,
-        CancellationToken cancellationToken = default) =>
-        database.Tickets
+        CancellationToken cancellationToken = default)
+    {
+        var tickets = await database.Tickets
             .Where(value => value.CustomerSubject == customerSubject)
-            .OrderByDescending(value => value.UpdatedAt)
             .ToListAsync(cancellationToken);
+        return [.. tickets.OrderByDescending(value => value.UpdatedAt)];
+    }
 
     public Task<SupportTicket?> GetForStaffAsync(
         Guid ticketId,
@@ -94,8 +96,9 @@ internal sealed class SupportTicketService(SupportDbContext database, TimeProvid
             .AsSplitQuery()
             .SingleOrDefaultAsync(value => value.Id == ticketId, cancellationToken);
 
-    public Task<List<SupportTicket>> ListForStaffAsync(CancellationToken cancellationToken = default) =>
-        database.Tickets
-            .OrderByDescending(value => value.UpdatedAt)
-            .ToListAsync(cancellationToken);
+    public async Task<List<SupportTicket>> ListForStaffAsync(CancellationToken cancellationToken = default)
+    {
+        var tickets = await database.Tickets.ToListAsync(cancellationToken);
+        return [.. tickets.OrderByDescending(value => value.UpdatedAt)];
+    }
 }

@@ -60,3 +60,23 @@ internal sealed class SupportAuditEventConfiguration : IEntityTypeConfiguration<
         builder.Property(value => value.CreatedAt).HasColumnName("created_at").IsRequired();
     }
 }
+
+internal sealed class SupportGuestAccessTokenConfiguration : IEntityTypeConfiguration<SupportGuestAccessToken>
+{
+    public void Configure(EntityTypeBuilder<SupportGuestAccessToken> builder)
+    {
+        builder.ToTable("support_guest_access_tokens");
+        builder.HasKey(value => value.Id);
+        builder.Property(value => value.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(value => value.TicketId).HasColumnName("ticket_id");
+        builder.HasIndex(value => value.TicketId);
+        builder.Property(value => value.TokenHash).HasColumnName("token_hash").HasMaxLength(64).IsRequired();
+        builder.HasIndex(value => value.TokenHash).IsUnique();
+        builder.Property(value => value.IssuedAt).HasColumnName("issued_at").IsRequired();
+        builder.Property(value => value.ExpiresAt).HasColumnName("expires_at").IsRequired();
+        builder.Property(value => value.RevokedAt).HasColumnName("revoked_at");
+        builder.Property(value => value.LastUsedAt).HasColumnName("last_used_at");
+        builder.Property(value => value.RotatedFromTokenId).HasColumnName("rotated_from_token_id");
+        builder.HasOne<SupportGuestAccessToken>().WithMany().HasForeignKey(value => value.RotatedFromTokenId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
