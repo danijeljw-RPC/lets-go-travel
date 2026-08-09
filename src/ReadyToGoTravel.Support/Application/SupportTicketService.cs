@@ -41,6 +41,8 @@ internal sealed class SupportTicketService(SupportDbContext database, TimeProvid
             command.InitialMessageBody,
             now);
         database.Tickets.Add(ticket);
+        database.TicketAttachmentUsage.Add(new SupportTicketAttachmentUsage(ticket.Id));
+        database.MessageAttachmentUsage.Add(new SupportMessageAttachmentUsage(ticket.Messages[0].Id));
 
         var template = command.CustomerSubject is null
             ? SupportNotificationTemplates.AcknowledgementGuest
@@ -70,6 +72,7 @@ internal sealed class SupportTicketService(SupportDbContext database, TimeProvid
 
         var now = timeProvider.GetUtcNow();
         var message = ticket.Reply(authorType, authorSubject, body, now);
+        database.MessageAttachmentUsage.Add(new SupportMessageAttachmentUsage(message.Id));
         EnqueueNotification(ticket, message.Id, SupportNotificationTemplates.MessageAdded, now);
         await database.SaveChangesAsync(cancellationToken);
         return message;

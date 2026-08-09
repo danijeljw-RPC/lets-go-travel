@@ -6,8 +6,6 @@ namespace ReadyToGoTravel.Support.Guest;
 
 public interface IGuestAccessTokenService
 {
-    Task<string> IssueAsync(Guid ticketId, CancellationToken cancellationToken = default);
-
     Task<string> RotateAsync(Guid ticketId, CancellationToken cancellationToken = default);
 
     Task RevokeAsync(Guid ticketId, CancellationToken cancellationToken = default);
@@ -18,10 +16,28 @@ public interface IGuestAccessTokenService
 internal sealed class GuestAccessTokenService(SupportDbContext database, TimeProvider timeProvider)
     : IGuestAccessTokenService
 {
-    public async Task<string> IssueAsync(Guid ticketId, CancellationToken cancellationToken = default) =>
-        await IssueInternalAsync(ticketId, null, cancellationToken);
+    private const int MaxRotationAttempts = 5;
 
+    // The unique partial index on (ticket_id) WHERE revoked_at IS NULL is the real correctness boundary for concurrent rotations; a losing SaveChangesAsync throws DbUpdateException and is retried against the now-current state.
     public async Task<string> RotateAsync(Guid ticketId, CancellationToken cancellationToken = default)
+    {
+        for (var attempt = 1; attempt <= MaxRotationAttempts; attempt++)
+        {
+            try
+            {
+                return await RotateOnceAsync(ticketId, cancellationToken);
+            }
+            catch (DbUpdateException) when (attempt < MaxRotationAttempts)
+            {
+                database.ChangeTracker.Clear();
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Unable to rotate the guest link for ticket {ticketId} after {MaxRotationAttempts} attempts due to concurrent rotations.");
+    }
+
+    private async Task<string> RotateOnceAsync(Guid ticketId, CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow();
         var active = await FindActiveTokenAsync(ticketId, now, cancellationToken);

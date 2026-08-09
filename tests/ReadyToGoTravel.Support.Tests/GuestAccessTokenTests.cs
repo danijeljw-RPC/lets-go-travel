@@ -1,7 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using ReadyToGoTravel.Support.Domain;
 using ReadyToGoTravel.Support.Guest;
+using ReadyToGoTravel.Support.Persistence;
 
 namespace ReadyToGoTravel.Support.Tests;
 
@@ -10,13 +13,13 @@ public sealed class GuestAccessTokenTests
     private static readonly DateTimeOffset Now = new(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task IssueAsyncStoresOnlyTheHashOfTheRawToken()
+    public async Task IssuingATokenStoresOnlyItsHash()
     {
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
         var ticketId = await CreateTicketAsync(fixture);
         var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
 
-        var rawToken = await service.IssueAsync(ticketId);
+        var rawToken = await service.RotateAsync(ticketId);
 
         var expectedHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken)));
         var stored = fixture.Context.GuestAccessTokens.Single();
@@ -30,7 +33,7 @@ public sealed class GuestAccessTokenTests
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
         var ticketId = await CreateTicketAsync(fixture);
         var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
-        var rawToken = await service.IssueAsync(ticketId);
+        var rawToken = await service.RotateAsync(ticketId);
 
         var resolved = await service.ResolveAsync(rawToken);
 
@@ -55,7 +58,7 @@ public sealed class GuestAccessTokenTests
         var ticketId = await CreateTicketAsync(fixture);
         var clock = new MutableTimeProvider(Now);
         var service = new GuestAccessTokenService(fixture.Context, clock);
-        var rawToken = await service.IssueAsync(ticketId);
+        var rawToken = await service.RotateAsync(ticketId);
 
         clock.Advance(TimeSpan.FromDays(30).Add(TimeSpan.FromSeconds(1)));
 
@@ -68,7 +71,7 @@ public sealed class GuestAccessTokenTests
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
         var ticketId = await CreateTicketAsync(fixture);
         var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
-        var rawToken = await service.IssueAsync(ticketId);
+        var rawToken = await service.RotateAsync(ticketId);
 
         Assert.Equal(ticketId, await service.ResolveAsync(rawToken));
         Assert.Equal(ticketId, await service.ResolveAsync(rawToken));
@@ -80,7 +83,7 @@ public sealed class GuestAccessTokenTests
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
         var ticketId = await CreateTicketAsync(fixture);
         var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
-        var rawToken = await service.IssueAsync(ticketId);
+        var rawToken = await service.RotateAsync(ticketId);
 
         await service.RevokeAsync(ticketId);
 
@@ -93,7 +96,7 @@ public sealed class GuestAccessTokenTests
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
         var ticketId = await CreateTicketAsync(fixture);
         var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
-        var originalToken = await service.IssueAsync(ticketId);
+        var originalToken = await service.RotateAsync(ticketId);
 
         var rotatedToken = await service.RotateAsync(ticketId);
 
@@ -119,8 +122,8 @@ public sealed class GuestAccessTokenTests
         var ticketB = await CreateTicketAsync(fixture, "sub-b");
         var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
 
-        var tokenForA = await service.IssueAsync(ticketA);
-        var tokenForB = await service.IssueAsync(ticketB);
+        var tokenForA = await service.RotateAsync(ticketA);
+        var tokenForB = await service.RotateAsync(ticketB);
 
         Assert.Equal(ticketA, await service.ResolveAsync(tokenForA));
         Assert.Equal(ticketB, await service.ResolveAsync(tokenForB));
@@ -133,7 +136,7 @@ public sealed class GuestAccessTokenTests
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
         var ticketId = await CreateTicketAsync(fixture);
         var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
-        var rawToken = await service.IssueAsync(ticketId);
+        var rawToken = await service.RotateAsync(ticketId);
         var eventsAfterIssue = fixture.Context.AuditEvents.Count();
 
         await service.ResolveAsync(rawToken);
@@ -144,6 +147,48 @@ public sealed class GuestAccessTokenTests
         Assert.Equal(eventsAfterIssue + 2, fixture.Context.AuditEvents.Count());
         Assert.Equal(SupportAuditEventType.GuestLinkAuthenticationFailed, fixture.Context.AuditEvents.ToList().OrderBy(e => e.CreatedAt).Last().EventType);
     }
+
+    [Fact]
+    public async Task ConcurrentRotationsForTheSameTicketNeverLeaveMoreThanOneActiveToken()
+    {
+        var connectionString = $"Data Source=file:guest-token-race-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
+        await using var keepAlive = new SqliteConnection(connectionString);
+        await keepAlive.OpenAsync();
+
+        await using (var setupContext = CreateContext(connectionString))
+        {
+            await setupContext.Database.EnsureCreatedAsync();
+        }
+
+        Guid ticketId;
+        await using (var setupContext = CreateContext(connectionString))
+        {
+            var ticket = SupportTicket.Create("sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help", Now);
+            setupContext.Tickets.Add(ticket);
+            await setupContext.SaveChangesAsync();
+            ticketId = ticket.Id;
+        }
+
+        async Task<string> RotateWithFreshContextAsync()
+        {
+            await using var context = CreateContext(connectionString);
+            var service = new GuestAccessTokenService(context, new FixedTimeProvider(Now));
+            return await service.RotateAsync(ticketId);
+        }
+
+        var results = await Task.WhenAll(Task.Run(RotateWithFreshContextAsync), Task.Run(RotateWithFreshContextAsync));
+
+        await using var verifyContext = CreateContext(connectionString);
+        var tokens = await verifyContext.GuestAccessTokens
+            .Where(value => value.TicketId == ticketId)
+            .ToListAsync();
+        Assert.Equal(2, tokens.Count);
+        Assert.Single(tokens, value => value.RevokedAt == null);
+        Assert.Equal(2, results.Distinct().Count());
+    }
+
+    private static SupportDbContext CreateContext(string connectionString) =>
+        new(new DbContextOptionsBuilder<SupportDbContext>().UseSqlite(connectionString).Options);
 
     private static async Task<Guid> CreateTicketAsync(SupportDatabaseFixture fixture, string subject = "sub-1")
     {

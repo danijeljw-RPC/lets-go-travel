@@ -226,12 +226,30 @@ namespace ReadyToGoTravel.Support.Persistence.Migrations
 
                     b.HasIndex("RotatedFromTokenId");
 
-                    b.HasIndex("TicketId");
+                    b.HasIndex("TicketId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_support_guest_access_tokens_ticket_id_active")
+                        .HasFilter("revoked_at IS NULL");
 
                     b.HasIndex("TokenHash")
                         .IsUnique();
 
                     b.ToTable("support_guest_access_tokens", "support");
+                });
+
+            modelBuilder.Entity("ReadyToGoTravel.Support.Domain.SupportMessageAttachmentUsage", b =>
+                {
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<int>("FileCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("file_count");
+
+                    b.HasKey("MessageId");
+
+                    b.ToTable("support_message_attachment_usage", "support");
                 });
 
             modelBuilder.Entity("ReadyToGoTravel.Support.Domain.SupportTicket", b =>
@@ -294,6 +312,21 @@ namespace ReadyToGoTravel.Support.Persistence.Migrations
                     b.HasIndex("Status", "CreatedAt");
 
                     b.ToTable("support_tickets", "support");
+                });
+
+            modelBuilder.Entity("ReadyToGoTravel.Support.Domain.SupportTicketAttachmentUsage", b =>
+                {
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ticket_id");
+
+                    b.Property<long>("BytesUsed")
+                        .HasColumnType("bigint")
+                        .HasColumnName("bytes_used");
+
+                    b.HasKey("TicketId");
+
+                    b.ToTable("support_ticket_attachment_usage", "support");
                 });
 
             modelBuilder.Entity("ReadyToGoTravel.Support.Domain.SupportTicketMessage", b =>
@@ -451,6 +484,24 @@ namespace ReadyToGoTravel.Support.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("RotatedFromTokenId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ReadyToGoTravel.Support.Domain.SupportMessageAttachmentUsage", b =>
+                {
+                    b.HasOne("ReadyToGoTravel.Support.Domain.SupportTicketMessage", null)
+                        .WithOne()
+                        .HasForeignKey("ReadyToGoTravel.Support.Domain.SupportMessageAttachmentUsage", "MessageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ReadyToGoTravel.Support.Domain.SupportTicketAttachmentUsage", b =>
+                {
+                    b.HasOne("ReadyToGoTravel.Support.Domain.SupportTicket", null)
+                        .WithOne()
+                        .HasForeignKey("ReadyToGoTravel.Support.Domain.SupportTicketAttachmentUsage", "TicketId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ReadyToGoTravel.Support.Domain.SupportTicketMessage", b =>

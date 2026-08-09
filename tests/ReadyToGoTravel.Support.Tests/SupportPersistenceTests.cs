@@ -33,6 +33,24 @@ public sealed class SupportPersistenceTests
     }
 
     [Fact]
+    public async Task OnlyOneActiveGuestAccessTokenIsAllowedPerTicket()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticket = SupportTicket.Create("sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help", Now);
+        fixture.Context.Tickets.Add(ticket);
+        await fixture.Context.SaveChangesAsync();
+
+        fixture.Context.GuestAccessTokens.Add(new SupportGuestAccessToken(
+            Guid.CreateVersion7(Now), ticket.Id, "hash-a", Now, Now.AddDays(30), null));
+        await fixture.Context.SaveChangesAsync();
+
+        fixture.Context.GuestAccessTokens.Add(new SupportGuestAccessToken(
+            Guid.CreateVersion7(Now), ticket.Id, "hash-b", Now, Now.AddDays(30), null));
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => fixture.Context.SaveChangesAsync());
+    }
+
+    [Fact]
     public async Task TicketMessageSequenceNumberIsUniquePerTicket()
     {
         await using var fixture = await SupportDatabaseFixture.CreateAsync();

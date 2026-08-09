@@ -70,7 +70,10 @@ internal sealed class SupportGuestAccessTokenConfiguration : IEntityTypeConfigur
         builder.HasKey(value => value.Id);
         builder.Property(value => value.Id).HasColumnName("id").ValueGeneratedNever();
         builder.Property(value => value.TicketId).HasColumnName("ticket_id");
-        builder.HasIndex(value => value.TicketId);
+        builder.HasIndex(value => value.TicketId)
+            .HasDatabaseName("ix_support_guest_access_tokens_ticket_id_active")
+            .IsUnique()
+            .HasFilter("revoked_at IS NULL");
         builder.Property(value => value.TokenHash).HasColumnName("token_hash").HasMaxLength(64).IsRequired();
         builder.HasIndex(value => value.TokenHash).IsUnique();
         builder.Property(value => value.IssuedAt).HasColumnName("issued_at").IsRequired();
@@ -79,6 +82,30 @@ internal sealed class SupportGuestAccessTokenConfiguration : IEntityTypeConfigur
         builder.Property(value => value.LastUsedAt).HasColumnName("last_used_at");
         builder.Property(value => value.RotatedFromTokenId).HasColumnName("rotated_from_token_id");
         builder.HasOne<SupportGuestAccessToken>().WithMany().HasForeignKey(value => value.RotatedFromTokenId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class SupportTicketAttachmentUsageConfiguration : IEntityTypeConfiguration<SupportTicketAttachmentUsage>
+{
+    public void Configure(EntityTypeBuilder<SupportTicketAttachmentUsage> builder)
+    {
+        builder.ToTable("support_ticket_attachment_usage");
+        builder.HasKey(value => value.TicketId);
+        builder.Property(value => value.TicketId).HasColumnName("ticket_id").ValueGeneratedNever();
+        builder.Property(value => value.BytesUsed).HasColumnName("bytes_used").IsRequired();
+        builder.HasOne<SupportTicket>().WithOne().HasForeignKey<SupportTicketAttachmentUsage>(value => value.TicketId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class SupportMessageAttachmentUsageConfiguration : IEntityTypeConfiguration<SupportMessageAttachmentUsage>
+{
+    public void Configure(EntityTypeBuilder<SupportMessageAttachmentUsage> builder)
+    {
+        builder.ToTable("support_message_attachment_usage");
+        builder.HasKey(value => value.MessageId);
+        builder.Property(value => value.MessageId).HasColumnName("message_id").ValueGeneratedNever();
+        builder.Property(value => value.FileCount).HasColumnName("file_count").IsRequired();
+        builder.HasOne<SupportTicketMessage>().WithOne().HasForeignKey<SupportMessageAttachmentUsage>(value => value.MessageId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

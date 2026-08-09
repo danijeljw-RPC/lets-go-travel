@@ -162,6 +162,26 @@ public partial class InitialSupportSchema : Migration
             });
 
         migrationBuilder.CreateTable(
+            name: "support_ticket_attachment_usage",
+            schema: "support",
+            columns: table => new
+            {
+                ticket_id = table.Column<Guid>(type: "uuid", nullable: false),
+                bytes_used = table.Column<long>(type: "bigint", nullable: false)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_support_ticket_attachment_usage", x => x.ticket_id);
+                table.ForeignKey(
+                    name: "FK_support_ticket_attachment_usage_support_tickets_ticket_id",
+                    column: x => x.ticket_id,
+                    principalSchema: "support",
+                    principalTable: "support_tickets",
+                    principalColumn: "id",
+                    onDelete: ReferentialAction.Restrict);
+            });
+
+        migrationBuilder.CreateTable(
             name: "support_ticket_messages",
             schema: "support",
             columns: table => new
@@ -182,6 +202,26 @@ public partial class InitialSupportSchema : Migration
                     column: x => x.ticket_id,
                     principalSchema: "support",
                     principalTable: "support_tickets",
+                    principalColumn: "id",
+                    onDelete: ReferentialAction.Restrict);
+            });
+
+        migrationBuilder.CreateTable(
+            name: "support_message_attachment_usage",
+            schema: "support",
+            columns: table => new
+            {
+                message_id = table.Column<Guid>(type: "uuid", nullable: false),
+                file_count = table.Column<int>(type: "integer", nullable: false)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_support_message_attachment_usage", x => x.message_id);
+                table.ForeignKey(
+                    name: "FK_support_message_attachment_usage_support_ticket_messages_me~",
+                    column: x => x.message_id,
+                    principalSchema: "support",
+                    principalTable: "support_ticket_messages",
                     principalColumn: "id",
                     onDelete: ReferentialAction.Restrict);
             });
@@ -231,10 +271,12 @@ public partial class InitialSupportSchema : Migration
             column: "rotated_from_token_id");
 
         migrationBuilder.CreateIndex(
-            name: "IX_support_guest_access_tokens_ticket_id",
+            name: "ix_support_guest_access_tokens_ticket_id_active",
             schema: "support",
             table: "support_guest_access_tokens",
-            column: "ticket_id");
+            column: "ticket_id",
+            unique: true,
+            filter: "revoked_at IS NULL");
 
         migrationBuilder.CreateIndex(
             name: "IX_support_guest_access_tokens_token_hash",
@@ -319,15 +361,23 @@ public partial class InitialSupportSchema : Migration
             schema: "support");
 
         migrationBuilder.DropTable(
+            name: "support_message_attachment_usage",
+            schema: "support");
+
+        migrationBuilder.DropTable(
             name: "support_notification_outbox",
             schema: "support");
 
         migrationBuilder.DropTable(
-            name: "support_ticket_messages",
+            name: "support_ticket_attachment_usage",
             schema: "support");
 
         migrationBuilder.DropTable(
             name: "support_attachments",
+            schema: "support");
+
+        migrationBuilder.DropTable(
+            name: "support_ticket_messages",
             schema: "support");
 
         migrationBuilder.DropTable(

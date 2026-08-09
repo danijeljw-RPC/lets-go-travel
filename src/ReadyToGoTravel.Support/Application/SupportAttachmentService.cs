@@ -46,15 +46,19 @@ internal sealed class SupportAttachmentService(
             return new SupportAttachmentUploadResult.Rejected(reason);
         }
 
-        var messageFileCount = await database.Attachments.CountAsync(value => value.MessageId == messageId, cancellationToken);
+        var messageFileCount = await database.MessageAttachmentUsage
+            .Where(value => value.MessageId == messageId)
+            .Select(value => value.FileCount)
+            .SingleOrDefaultAsync(cancellationToken);
         if (messageFileCount >= MaxFilesPerMessage)
         {
             return new SupportAttachmentUploadResult.Rejected("attachment_message_limit_exceeded");
         }
 
-        var ticketBytesUsed = await database.Attachments
+        var ticketBytesUsed = await database.TicketAttachmentUsage
             .Where(value => value.TicketId == ticketId)
-            .SumAsync(value => value.SizeBytes, cancellationToken);
+            .Select(value => value.BytesUsed)
+            .SingleOrDefaultAsync(cancellationToken);
         if (ticketBytesUsed + buffer.Length > MaxTicketBytes)
         {
             return new SupportAttachmentUploadResult.Rejected("attachment_ticket_limit_exceeded");
@@ -75,6 +79,32 @@ internal sealed class SupportAttachmentService(
             return new SupportAttachmentUploadResult.Rejected("attachment_storage_unavailable");
         }
 
+        // Ensuring the usage rows exist happens outside the transaction below: a caught
+        // DbUpdateException here (another request created the row first) is a normal, isolated
+        // failed statement. Inside an explicit transaction, Postgres would instead abort the
+        // whole transaction on that error, and the claim right after it would fail too.
+        await EnsureMessageUsageRowAsync(messageId, cancellationToken);
+        await EnsureTicketUsageRowAsync(ticketId, cancellationToken);
+
+        // The pre-checks above are a fast-path only; these atomic conditional UPDATEs are the
+        // real correctness boundary, closing the TOCTOU window between the pre-check and the
+        // insert under concurrent uploads to the same message or ticket.
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+
+        if (!await ClaimMessageAttachmentSlotAsync(messageId, cancellationToken))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await TryDeleteOrphanedObjectAsync(storageKey, cancellationToken);
+            return new SupportAttachmentUploadResult.Rejected("attachment_message_limit_exceeded");
+        }
+
+        if (!await ClaimTicketByteBudgetAsync(ticketId, buffer.Length, cancellationToken))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await TryDeleteOrphanedObjectAsync(storageKey, cancellationToken);
+            return new SupportAttachmentUploadResult.Rejected("attachment_ticket_limit_exceeded");
+        }
+
         var attachment = new SupportAttachment(
             attachmentId,
             ticketId,
@@ -92,8 +122,75 @@ internal sealed class SupportAttachmentService(
         database.AuditEvents.Add(new SupportAuditEvent(
             Guid.CreateVersion7(now), ticketId, SupportAuditEventType.AttachmentUploaded, "Attachment uploaded.", now));
         await database.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return new SupportAttachmentUploadResult.Accepted(attachment);
+    }
+
+    private async Task TryDeleteOrphanedObjectAsync(string storageKey, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await storage.DeleteAsync(storageKey, cancellationToken);
+        }
+        catch (ObjectStorageUnavailableException)
+        {
+        }
+    }
+
+    private async Task<bool> ClaimMessageAttachmentSlotAsync(Guid messageId, CancellationToken cancellationToken)
+    {
+        var claimed = await database.MessageAttachmentUsage
+            .Where(value => value.MessageId == messageId && value.FileCount < MaxFilesPerMessage)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.FileCount, value => value.FileCount + 1), cancellationToken);
+        return claimed > 0;
+    }
+
+    private async Task<bool> ClaimTicketByteBudgetAsync(Guid ticketId, long bytes, CancellationToken cancellationToken)
+    {
+        var claimed = await database.TicketAttachmentUsage
+            .Where(value => value.TicketId == ticketId && value.BytesUsed + bytes <= MaxTicketBytes)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.BytesUsed, value => value.BytesUsed + bytes), cancellationToken);
+        return claimed > 0;
+    }
+
+    // Production tickets always have a usage row created alongside the ticket/message (see
+    // SupportTicketService); this lazily backfills one for any other caller (e.g. tests seeding
+    // the domain directly) so the atomic claim above always has a row to condition on.
+    private async Task EnsureMessageUsageRowAsync(Guid messageId, CancellationToken cancellationToken)
+    {
+        if (await database.MessageAttachmentUsage.AnyAsync(value => value.MessageId == messageId, cancellationToken))
+        {
+            return;
+        }
+
+        try
+        {
+            database.MessageAttachmentUsage.Add(new SupportMessageAttachmentUsage(messageId));
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            database.ChangeTracker.Clear();
+        }
+    }
+
+    private async Task EnsureTicketUsageRowAsync(Guid ticketId, CancellationToken cancellationToken)
+    {
+        if (await database.TicketAttachmentUsage.AnyAsync(value => value.TicketId == ticketId, cancellationToken))
+        {
+            return;
+        }
+
+        try
+        {
+            database.TicketAttachmentUsage.Add(new SupportTicketAttachmentUsage(ticketId));
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            database.ChangeTracker.Clear();
+        }
     }
 
     public async Task<Uri?> CreateDownloadUrlAsync(Guid ticketId, Guid attachmentId, CancellationToken cancellationToken = default)

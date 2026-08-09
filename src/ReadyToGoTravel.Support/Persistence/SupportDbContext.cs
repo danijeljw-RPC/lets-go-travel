@@ -20,6 +20,10 @@ internal sealed class SupportDbContext(DbContextOptions<SupportDbContext> option
 
     public DbSet<SupportNotificationOutboxItem> SupportNotificationOutbox => Set<SupportNotificationOutboxItem>();
 
+    public DbSet<SupportTicketAttachmentUsage> TicketAttachmentUsage => Set<SupportTicketAttachmentUsage>();
+
+    public DbSet<SupportMessageAttachmentUsage> MessageAttachmentUsage => Set<SupportMessageAttachmentUsage>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("support");

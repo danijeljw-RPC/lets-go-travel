@@ -28,7 +28,8 @@ builder.Services.AddBookingModule(
     (_, options) => options.UseNpgsql(connectionString),
     environment,
     builder.Configuration.GetValue<bool>("Booking:EnableFixtures"));
-builder.Services.AddSupportModule((_, options) => options.UseNpgsql(connectionString));
+var supportConnectionString = builder.Configuration.GetConnectionString("Support") ?? connectionString;
+builder.Services.AddSupportModule((_, options) => options.UseNpgsql(supportConnectionString));
 builder.Services.Configure<SupportStorageOptions>(
     builder.Configuration.GetSection(SupportStorageOptions.SectionName));
 builder.Services.Configure<ClamAvOptions>(

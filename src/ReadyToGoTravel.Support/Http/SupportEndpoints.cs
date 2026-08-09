@@ -34,7 +34,7 @@ public static class SupportEndpoints
         HttpContext context,
         CancellationToken cancellationToken)
     {
-        if (!Enum.TryParse<SupportTicketCategory>(request.Category, true, out var category))
+        if (!Enum.TryParse<SupportTicketCategory>(request.Category, true, out var category) || !Enum.IsDefined(category))
         {
             return SupportHttpResults.Problem(context, StatusCodes.Status400BadRequest, "support_category_invalid");
         }
@@ -59,9 +59,24 @@ public static class SupportEndpoints
             return SupportHttpResults.Problem(context, StatusCodes.Status400BadRequest, "support_contact_name_required");
         }
 
+        if (contactName.Length > SupportTicket.MaxContactNameLength)
+        {
+            return SupportHttpResults.Problem(context, StatusCodes.Status400BadRequest, "support_contact_name_too_long");
+        }
+
         if (string.IsNullOrWhiteSpace(contactEmail) || !contactEmail.Contains('@', StringComparison.Ordinal))
         {
             return SupportHttpResults.Problem(context, StatusCodes.Status400BadRequest, "support_contact_email_required");
+        }
+
+        if (contactEmail.Length > SupportTicket.MaxContactEmailLength)
+        {
+            return SupportHttpResults.Problem(context, StatusCodes.Status400BadRequest, "support_contact_email_too_long");
+        }
+
+        if (request.BookingReference is { Length: > SupportTicket.MaxBookingReferenceLength })
+        {
+            return SupportHttpResults.Problem(context, StatusCodes.Status400BadRequest, "support_booking_reference_too_long");
         }
 
         var ticket = await service.CreateTicketAsync(

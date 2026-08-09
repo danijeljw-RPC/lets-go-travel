@@ -2,6 +2,10 @@ namespace ReadyToGoTravel.Support.Domain;
 
 public sealed class SupportTicket
 {
+    public const int MaxContactNameLength = 200;
+    public const int MaxContactEmailLength = 320;
+    public const int MaxBookingReferenceLength = 120;
+
     private readonly List<SupportTicketMessage> messages = [];
 
     private SupportTicket()

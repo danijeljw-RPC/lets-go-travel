@@ -62,6 +62,8 @@ Applications do not silently migrate a production database during startup. Deplo
 
 ## Run the API and Web Host
 
+Both the API and Worker hosts resolve the Support module's connection string from `ConnectionStrings:Support`, falling back to the host's own default (`ConnectionStrings:Consumer` in the API, `ConnectionStrings:Booking` in the Worker) when `Support` is unset. Set `ConnectionStrings__Support` explicitly on both hosts if Support ever needs to point somewhere other than that host's default.
+
 Keep the variables loaded. Start the API in the first terminal:
 
 ```bash

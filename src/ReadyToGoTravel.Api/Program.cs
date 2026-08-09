@@ -48,7 +48,8 @@ if (!Enum.TryParse<SearchEnvironment>(searchEnvironmentValue, true, out var sear
 builder.Services.AddSearchModule(
     searchEnvironment,
     builder.Configuration.GetValue<bool>("Search:EnableFixtures"));
-builder.Services.AddSupportModule((_, options) => options.UseNpgsql(consumerConnectionString));
+var supportConnectionString = builder.Configuration.GetConnectionString("Support") ?? consumerConnectionString;
+builder.Services.AddSupportModule((_, options) => options.UseNpgsql(supportConnectionString));
 builder.Services.Configure<SupportStorageOptions>(
     builder.Configuration.GetSection(SupportStorageOptions.SectionName));
 builder.Services.Configure<ClamAvOptions>(

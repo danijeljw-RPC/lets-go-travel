@@ -1,5 +1,8 @@
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using ReadyToGoTravel.Support.Application;
 using ReadyToGoTravel.Support.Domain;
+using ReadyToGoTravel.Support.Persistence;
 
 namespace ReadyToGoTravel.Support.Tests;
 
@@ -173,6 +176,52 @@ public sealed class AttachmentUploadDownloadTests
 
         Assert.Null(await service.CreateDownloadUrlAsync(ticketId, uploaded.Attachment.Id));
     }
+
+    [Fact]
+    public async Task ConcurrentUploadsToTheSameMessageNeverExceedTheFileLimit()
+    {
+        var connectionString = $"Data Source=file:attachment-race-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
+        await using var keepAlive = new SqliteConnection(connectionString);
+        await keepAlive.OpenAsync();
+        await using (var setupContext = CreateContext(connectionString))
+        {
+            await setupContext.Database.EnsureCreatedAsync();
+        }
+
+        Guid ticketId;
+        Guid messageId;
+        await using (var setupContext = CreateContext(connectionString))
+        {
+            var ticket = SupportTicket.Create("sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help", Now);
+            setupContext.Tickets.Add(ticket);
+            await setupContext.SaveChangesAsync();
+            ticketId = ticket.Id;
+            messageId = ticket.Messages[0].Id;
+        }
+
+        var storage = new InMemoryObjectStorage();
+
+        async Task<SupportAttachmentUploadResult> UploadWithFreshContextAsync(int index)
+        {
+            await using var context = CreateContext(connectionString);
+            var service = new SupportAttachmentService(context, storage, new FixedTimeProvider(Now));
+            return await service.UploadAsync(
+                ticketId, messageId, "sub-1", null, $"file-{index}.txt", "text/plain", new MemoryStream("hello"u8.ToArray()));
+        }
+
+        var results = await Task.WhenAll(Enumerable.Range(0, SupportAttachmentService.MaxFilesPerMessage + 3)
+            .Select(index => Task.Run(() => UploadWithFreshContextAsync(index))));
+
+        var acceptedCount = results.Count(result => result is SupportAttachmentUploadResult.Accepted);
+        Assert.Equal(SupportAttachmentService.MaxFilesPerMessage, acceptedCount);
+
+        await using var verifyContext = CreateContext(connectionString);
+        var storedCount = await verifyContext.Attachments.CountAsync(value => value.MessageId == messageId);
+        Assert.Equal(SupportAttachmentService.MaxFilesPerMessage, storedCount);
+    }
+
+    private static SupportDbContext CreateContext(string connectionString) =>
+        new(new DbContextOptionsBuilder<SupportDbContext>().UseSqlite(connectionString).Options);
 
     private static async Task<(Guid TicketId, Guid MessageId)> CreateTicketAndMessageAsync(SupportDatabaseFixture fixture)
     {
