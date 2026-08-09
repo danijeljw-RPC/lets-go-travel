@@ -51,10 +51,11 @@ internal sealed class AttachmentScanProcessor(
             case AttachmentScanOutcome.Clean:
                 attachment.MarkClean();
                 work.Complete(now);
+                await AddAuditEventAsync(attachment.TicketId, SupportAuditEventType.AttachmentScanClean, "Attachment passed malware scan.", now, cancellationToken);
                 break;
             case AttachmentScanOutcome.Infected:
                 attachment.MarkInfected();
-                await storage.DeleteAsync(attachment.StorageKey, cancellationToken);
+                await TryDeleteInfectedObjectAsync(attachment.StorageKey, cancellationToken);
                 await AddAuditEventAsync(attachment.TicketId, SupportAuditEventType.AttachmentScanInfected, "Attachment failed malware scan.", now, cancellationToken);
                 work.Complete(now);
                 break;
@@ -124,6 +125,27 @@ internal sealed class AttachmentScanProcessor(
 
         database.ChangeTracker.Clear();
         return await database.AttachmentScanWork.SingleAsync(value => value.Id == id, cancellationToken);
+    }
+
+    // An infected verdict must be recorded and audited even if the object cannot be deleted right
+    // now (storage outage, permissions, etc.) - otherwise a persistent storage failure would leave
+    // the work item claimed-but-never-completed forever, silently re-scanning on every lease
+    // expiry with no terminal state and no audit trail. The attachment stays unreachable regardless
+    // (downloads require ScanStatus == Clean), so an undeleted infected object is not itself
+    // exploitable; losing the security determination and its audit trail would be far worse.
+    private async Task TryDeleteInfectedObjectAsync(string storageKey, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await storage.DeleteAsync(storageKey, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private async Task AddAuditEventAsync(

@@ -20,100 +20,6 @@ public partial class InitialSupportSchema : Migration
             name: "support");
 
         migrationBuilder.CreateTable(
-            name: "support_attachments",
-            schema: "support",
-            columns: table => new
-            {
-                id = table.Column<Guid>(type: "uuid", nullable: false),
-                ticket_id = table.Column<Guid>(type: "uuid", nullable: false),
-                message_id = table.Column<Guid>(type: "uuid", nullable: false),
-                original_file_name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                content_type = table.Column<string>(type: "character varying(80)", maxLength: 80, nullable: false),
-                size_bytes = table.Column<long>(type: "bigint", nullable: false),
-                storage_key = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
-                sha256_checksum = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                uploader_customer_subject = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
-                uploader_guest_token_id = table.Column<Guid>(type: "uuid", nullable: true),
-                scan_status = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
-                created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
-            },
-            constraints: table =>
-            {
-                table.PrimaryKey("PK_support_attachments", x => x.id);
-            });
-
-        migrationBuilder.CreateTable(
-            name: "support_audit_events",
-            schema: "support",
-            columns: table => new
-            {
-                id = table.Column<Guid>(type: "uuid", nullable: false),
-                ticket_id = table.Column<Guid>(type: "uuid", nullable: true),
-                event_type = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
-                detail = table.Column<string>(type: "character varying(400)", maxLength: 400, nullable: false),
-                created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                actor_subject = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true)
-            },
-            constraints: table =>
-            {
-                table.PrimaryKey("PK_support_audit_events", x => x.id);
-            });
-
-        migrationBuilder.CreateTable(
-            name: "support_guest_access_tokens",
-            schema: "support",
-            columns: table => new
-            {
-                id = table.Column<Guid>(type: "uuid", nullable: false),
-                ticket_id = table.Column<Guid>(type: "uuid", nullable: false),
-                token_hash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                issued_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                expires_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                revoked_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                last_used_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                rotated_from_token_id = table.Column<Guid>(type: "uuid", nullable: true)
-            },
-            constraints: table =>
-            {
-                table.PrimaryKey("PK_support_guest_access_tokens", x => x.id);
-                table.ForeignKey(
-                    name: "FK_support_guest_access_tokens_support_guest_access_tokens_rot~",
-                    column: x => x.rotated_from_token_id,
-                    principalSchema: "support",
-                    principalTable: "support_guest_access_tokens",
-                    principalColumn: "id",
-                    onDelete: ReferentialAction.Restrict);
-            });
-
-        migrationBuilder.CreateTable(
-            name: "support_notification_outbox",
-            schema: "support",
-            columns: table => new
-            {
-                id = table.Column<Guid>(type: "uuid", nullable: false),
-                ticket_id = table.Column<Guid>(type: "uuid", nullable: false),
-                message_id = table.Column<Guid>(type: "uuid", nullable: false),
-                dedupe_key = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                channel = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                recipient_email = table.Column<string>(type: "character varying(320)", maxLength: 320, nullable: false),
-                template = table.Column<string>(type: "character varying(80)", maxLength: 80, nullable: false),
-                payload_json = table.Column<string>(type: "text", nullable: false),
-                status = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
-                attempts = table.Column<int>(type: "integer", nullable: false),
-                not_before = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                lease_owner = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: true),
-                lease_expires_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                delivery_reference = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
-                error_code = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: true),
-                created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
-            },
-            constraints: table =>
-            {
-                table.PrimaryKey("PK_support_notification_outbox", x => x.id);
-            });
-
-        migrationBuilder.CreateTable(
             name: "support_tickets",
             schema: "support",
             columns: table => new
@@ -135,31 +41,27 @@ public partial class InitialSupportSchema : Migration
             });
 
         migrationBuilder.CreateTable(
-            name: "attachment_scan_work",
+            name: "support_audit_events",
             schema: "support",
             columns: table => new
             {
                 id = table.Column<Guid>(type: "uuid", nullable: false),
-                attachment_id = table.Column<Guid>(type: "uuid", nullable: false),
-                status = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
-                attempts = table.Column<int>(type: "integer", nullable: false),
-                next_attempt_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                lease_owner = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: true),
-                lease_expires_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                error_code = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: true),
+                ticket_id = table.Column<Guid>(type: "uuid", nullable: true),
+                event_type = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
+                detail = table.Column<string>(type: "character varying(400)", maxLength: 400, nullable: false),
                 created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                completed_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
+                actor_subject = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true)
             },
             constraints: table =>
             {
-                table.PrimaryKey("PK_attachment_scan_work", x => x.id);
+                table.PrimaryKey("PK_support_audit_events", x => x.id);
                 table.ForeignKey(
-                    name: "FK_attachment_scan_work_support_attachments_attachment_id",
-                    column: x => x.attachment_id,
+                    name: "FK_support_audit_events_support_tickets_ticket_id",
+                    column: x => x.ticket_id,
                     principalSchema: "support",
-                    principalTable: "support_attachments",
+                    principalTable: "support_tickets",
                     principalColumn: "id",
-                    onDelete: ReferentialAction.Cascade);
+                    onDelete: ReferentialAction.Restrict);
             });
 
         migrationBuilder.CreateTable(
@@ -227,6 +129,161 @@ public partial class InitialSupportSchema : Migration
                     onDelete: ReferentialAction.Restrict);
             });
 
+        migrationBuilder.CreateTable(
+            name: "support_notification_outbox",
+            schema: "support",
+            columns: table => new
+            {
+                id = table.Column<Guid>(type: "uuid", nullable: false),
+                ticket_id = table.Column<Guid>(type: "uuid", nullable: false),
+                message_id = table.Column<Guid>(type: "uuid", nullable: false),
+                dedupe_key = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                channel = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                recipient_email = table.Column<string>(type: "character varying(320)", maxLength: 320, nullable: false),
+                template = table.Column<string>(type: "character varying(80)", maxLength: 80, nullable: false),
+                payload_json = table.Column<string>(type: "text", nullable: false),
+                status = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                attempts = table.Column<int>(type: "integer", nullable: false),
+                not_before = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                lease_owner = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: true),
+                lease_expires_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                delivery_reference = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                error_code = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: true),
+                created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_support_notification_outbox", x => x.id);
+                table.ForeignKey(
+                    name: "FK_support_notification_outbox_support_ticket_messages_message~",
+                    column: x => x.message_id,
+                    principalSchema: "support",
+                    principalTable: "support_ticket_messages",
+                    principalColumn: "id",
+                    onDelete: ReferentialAction.Restrict);
+                table.ForeignKey(
+                    name: "FK_support_notification_outbox_support_tickets_ticket_id",
+                    column: x => x.ticket_id,
+                    principalSchema: "support",
+                    principalTable: "support_tickets",
+                    principalColumn: "id",
+                    onDelete: ReferentialAction.Restrict);
+            });
+
+        migrationBuilder.CreateTable(
+            name: "support_guest_access_tokens",
+            schema: "support",
+            columns: table => new
+            {
+                id = table.Column<Guid>(type: "uuid", nullable: false),
+                ticket_id = table.Column<Guid>(type: "uuid", nullable: false),
+                token_hash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                issued_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                expires_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                revoked_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                last_used_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                rotated_from_token_id = table.Column<Guid>(type: "uuid", nullable: true),
+                issued_for_outbox_item_id = table.Column<Guid>(type: "uuid", nullable: true)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_support_guest_access_tokens", x => x.id);
+                table.ForeignKey(
+                    name: "FK_support_guest_access_tokens_support_guest_access_tokens_rot~",
+                    column: x => x.rotated_from_token_id,
+                    principalSchema: "support",
+                    principalTable: "support_guest_access_tokens",
+                    principalColumn: "id",
+                    onDelete: ReferentialAction.Restrict);
+                table.ForeignKey(
+                    name: "FK_support_guest_access_tokens_support_notification_outbox_iss~",
+                    column: x => x.issued_for_outbox_item_id,
+                    principalSchema: "support",
+                    principalTable: "support_notification_outbox",
+                    principalColumn: "id",
+                    onDelete: ReferentialAction.Restrict);
+                table.ForeignKey(
+                    name: "FK_support_guest_access_tokens_support_tickets_ticket_id",
+                    column: x => x.ticket_id,
+                    principalSchema: "support",
+                    principalTable: "support_tickets",
+                    principalColumn: "id",
+                    onDelete: ReferentialAction.Restrict);
+            });
+
+        migrationBuilder.CreateTable(
+            name: "support_attachments",
+            schema: "support",
+            columns: table => new
+            {
+                id = table.Column<Guid>(type: "uuid", nullable: false),
+                ticket_id = table.Column<Guid>(type: "uuid", nullable: false),
+                message_id = table.Column<Guid>(type: "uuid", nullable: false),
+                original_file_name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                content_type = table.Column<string>(type: "character varying(80)", maxLength: 80, nullable: false),
+                size_bytes = table.Column<long>(type: "bigint", nullable: false),
+                storage_key = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
+                sha256_checksum = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                uploader_customer_subject = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                uploader_guest_token_id = table.Column<Guid>(type: "uuid", nullable: true),
+                scan_status = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_support_attachments", x => x.id);
+                table.ForeignKey(
+                    name: "FK_support_attachments_support_guest_access_tokens_uploader_gu~",
+                    column: x => x.uploader_guest_token_id,
+                    principalSchema: "support",
+                    principalTable: "support_guest_access_tokens",
+                    principalColumn: "id",
+                    onDelete: ReferentialAction.Restrict);
+                table.ForeignKey(
+                    name: "FK_support_attachments_support_ticket_messages_message_id",
+                    column: x => x.message_id,
+                    principalSchema: "support",
+                    principalTable: "support_ticket_messages",
+                    principalColumn: "id",
+                    onDelete: ReferentialAction.Restrict);
+                table.ForeignKey(
+                    name: "FK_support_attachments_support_tickets_ticket_id",
+                    column: x => x.ticket_id,
+                    principalSchema: "support",
+                    principalTable: "support_tickets",
+                    principalColumn: "id",
+                    onDelete: ReferentialAction.Restrict);
+            });
+
+        migrationBuilder.CreateTable(
+            name: "attachment_scan_work",
+            schema: "support",
+            columns: table => new
+            {
+                id = table.Column<Guid>(type: "uuid", nullable: false),
+                attachment_id = table.Column<Guid>(type: "uuid", nullable: false),
+                status = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                attempts = table.Column<int>(type: "integer", nullable: false),
+                next_attempt_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                lease_owner = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: true),
+                lease_expires_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                error_code = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: true),
+                created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                completed_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_attachment_scan_work", x => x.id);
+                table.ForeignKey(
+                    name: "FK_attachment_scan_work_support_attachments_attachment_id",
+                    column: x => x.attachment_id,
+                    principalSchema: "support",
+                    principalTable: "support_attachments",
+                    principalColumn: "id",
+                    onDelete: ReferentialAction.Cascade);
+            });
+
         migrationBuilder.CreateIndex(
             name: "IX_attachment_scan_work_attachment_id",
             schema: "support",
@@ -260,10 +317,22 @@ public partial class InitialSupportSchema : Migration
             column: "ticket_id");
 
         migrationBuilder.CreateIndex(
+            name: "IX_support_attachments_uploader_guest_token_id",
+            schema: "support",
+            table: "support_attachments",
+            column: "uploader_guest_token_id");
+
+        migrationBuilder.CreateIndex(
             name: "IX_support_audit_events_ticket_id",
             schema: "support",
             table: "support_audit_events",
             column: "ticket_id");
+
+        migrationBuilder.CreateIndex(
+            name: "IX_support_guest_access_tokens_issued_for_outbox_item_id",
+            schema: "support",
+            table: "support_guest_access_tokens",
+            column: "issued_for_outbox_item_id");
 
         migrationBuilder.CreateIndex(
             name: "IX_support_guest_access_tokens_rotated_from_token_id",
@@ -292,6 +361,12 @@ public partial class InitialSupportSchema : Migration
             table: "support_notification_outbox",
             column: "dedupe_key",
             unique: true);
+
+        migrationBuilder.CreateIndex(
+            name: "IX_support_notification_outbox_message_id",
+            schema: "support",
+            table: "support_notification_outbox",
+            column: "message_id");
 
         migrationBuilder.CreateIndex(
             name: "IX_support_notification_outbox_status_not_before",
@@ -358,15 +433,7 @@ public partial class InitialSupportSchema : Migration
             schema: "support");
 
         migrationBuilder.DropTable(
-            name: "support_guest_access_tokens",
-            schema: "support");
-
-        migrationBuilder.DropTable(
             name: "support_message_attachment_usage",
-            schema: "support");
-
-        migrationBuilder.DropTable(
-            name: "support_notification_outbox",
             schema: "support");
 
         migrationBuilder.DropTable(
@@ -375,6 +442,14 @@ public partial class InitialSupportSchema : Migration
 
         migrationBuilder.DropTable(
             name: "support_attachments",
+            schema: "support");
+
+        migrationBuilder.DropTable(
+            name: "support_guest_access_tokens",
+            schema: "support");
+
+        migrationBuilder.DropTable(
+            name: "support_notification_outbox",
             schema: "support");
 
         migrationBuilder.DropTable(

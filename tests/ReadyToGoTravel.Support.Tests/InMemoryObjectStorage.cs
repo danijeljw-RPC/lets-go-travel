@@ -8,6 +8,7 @@ internal sealed class InMemoryObjectStorage : IObjectStorage
     private readonly Dictionary<string, (byte[] Content, string ContentType)> objects = [];
     public List<(string Key, TimeSpan ValidFor)> DownloadUrlRequests { get; } = [];
     public List<string> DeletedKeys { get; } = [];
+    public Exception? DeleteFailure { get; set; }
 
     public bool Contains(string key)
     {
@@ -54,6 +55,11 @@ internal sealed class InMemoryObjectStorage : IObjectStorage
 
     public Task DeleteAsync(string key, CancellationToken cancellationToken = default)
     {
+        if (DeleteFailure is { } failure)
+        {
+            return Task.FromException(failure);
+        }
+
         lock (gate)
         {
             objects.Remove(key);

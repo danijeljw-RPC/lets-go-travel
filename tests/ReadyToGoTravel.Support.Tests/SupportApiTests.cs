@@ -143,6 +143,60 @@ public sealed class SupportApiTests
     }
 
     [Fact]
+    public async Task ACustomerReplyOnAClosedTicketReopensItAndClearsClosedAt()
+    {
+        await using var app = await TestApplication.CreateAsync();
+        app.SetSubject("sub-1");
+        var created = await CreateTicketAsync(app);
+
+        app.SetStaffSubject("staff-1");
+        (await app.Client.PostAsync($"/api/v1/support/staff/tickets/{created.Id}/close", null)).EnsureSuccessStatusCode();
+        var closed = await (await app.Client.GetAsync($"/api/v1/support/staff/tickets/{created.Id}")).ReadAsAsync<TicketResponse>();
+        Assert.Equal("Closed", closed!.Status);
+        Assert.NotNull(closed.ClosedAt);
+
+        app.SetSubject("sub-1");
+        var reply = await app.Client.PostAsJsonAsync(
+            $"/api/v1/support/tickets/{created.Id}/messages", new { body = "Still need help." });
+
+        reply.EnsureSuccessStatusCode();
+        var reopened = await reply.ReadAsAsync<TicketResponse>();
+        Assert.Equal("WaitingOnSupport", reopened!.Status);
+        Assert.Null(reopened.ClosedAt);
+
+        var closedMessage = reopened.Messages.Single(message => message.Body == "Ticket closed by support.");
+        Assert.NotNull(closedMessage);
+    }
+
+    [Fact]
+    public async Task ClosingAReopenedTicketAgainEstablishesANewClosedAtLaterThanTheFirst()
+    {
+        var clock = new MutableTimeProvider(new DateTimeOffset(2026, 8, 9, 12, 0, 0, TimeSpan.Zero));
+        await using var app = await TestApplication.CreateAsync(clock);
+        app.SetSubject("sub-1");
+        var created = await CreateTicketAsync(app);
+
+        app.SetStaffSubject("staff-1");
+        (await app.Client.PostAsync($"/api/v1/support/staff/tickets/{created.Id}/close", null)).EnsureSuccessStatusCode();
+        var firstClosed = await (await app.Client.GetAsync($"/api/v1/support/staff/tickets/{created.Id}")).ReadAsAsync<TicketResponse>();
+        clock.Advance(TimeSpan.FromMinutes(10));
+
+        app.SetSubject("sub-1");
+        (await app.Client.PostAsJsonAsync($"/api/v1/support/tickets/{created.Id}/messages", new { body = "Reopening." }))
+            .EnsureSuccessStatusCode();
+        clock.Advance(TimeSpan.FromMinutes(10));
+
+        app.SetStaffSubject("staff-1");
+        (await app.Client.PostAsync($"/api/v1/support/staff/tickets/{created.Id}/close", null)).EnsureSuccessStatusCode();
+        var secondClosed = await (await app.Client.GetAsync($"/api/v1/support/staff/tickets/{created.Id}")).ReadAsAsync<TicketResponse>();
+
+        Assert.Equal("Closed", secondClosed!.Status);
+        Assert.NotNull(secondClosed.ClosedAt);
+        Assert.NotEqual(firstClosed!.ClosedAt, secondClosed.ClosedAt);
+        Assert.True(secondClosed.ClosedAt > firstClosed.ClosedAt);
+    }
+
+    [Fact]
     public async Task TheTicketResponseNeverExposesInternalFields()
     {
         await using var app = await TestApplication.CreateAsync();

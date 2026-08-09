@@ -56,6 +56,7 @@ internal sealed class SupportAuditEventConfiguration : IEntityTypeConfiguration<
         builder.Property(value => value.Id).HasColumnName("id").ValueGeneratedNever();
         builder.Property(value => value.TicketId).HasColumnName("ticket_id");
         builder.HasIndex(value => value.TicketId);
+        builder.HasOne<SupportTicket>().WithMany().HasForeignKey(value => value.TicketId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(value => value.EventType).HasColumnName("event_type").HasConversion<string>().HasMaxLength(40).IsRequired();
         builder.Property(value => value.Detail).HasColumnName("detail").HasMaxLength(400).IsRequired();
         builder.Property(value => value.CreatedAt).HasColumnName("created_at").IsRequired();
@@ -75,6 +76,7 @@ internal sealed class SupportGuestAccessTokenConfiguration : IEntityTypeConfigur
             .HasDatabaseName("ix_support_guest_access_tokens_ticket_id_active")
             .IsUnique()
             .HasFilter("revoked_at IS NULL");
+        builder.HasOne<SupportTicket>().WithMany().HasForeignKey(value => value.TicketId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(value => value.TokenHash).HasColumnName("token_hash").HasMaxLength(64).IsRequired();
         builder.HasIndex(value => value.TokenHash).IsUnique();
         builder.Property(value => value.IssuedAt).HasColumnName("issued_at").IsRequired();
@@ -83,6 +85,8 @@ internal sealed class SupportGuestAccessTokenConfiguration : IEntityTypeConfigur
         builder.Property(value => value.LastUsedAt).HasColumnName("last_used_at");
         builder.Property(value => value.RotatedFromTokenId).HasColumnName("rotated_from_token_id");
         builder.HasOne<SupportGuestAccessToken>().WithMany().HasForeignKey(value => value.RotatedFromTokenId).OnDelete(DeleteBehavior.Restrict);
+        builder.Property(value => value.IssuedForOutboxItemId).HasColumnName("issued_for_outbox_item_id");
+        builder.HasOne<SupportNotificationOutboxItem>().WithMany().HasForeignKey(value => value.IssuedForOutboxItemId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -119,8 +123,10 @@ internal sealed class SupportAttachmentConfiguration : IEntityTypeConfiguration<
         builder.Property(value => value.Id).HasColumnName("id").ValueGeneratedNever();
         builder.Property(value => value.TicketId).HasColumnName("ticket_id");
         builder.HasIndex(value => value.TicketId);
+        builder.HasOne<SupportTicket>().WithMany().HasForeignKey(value => value.TicketId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(value => value.MessageId).HasColumnName("message_id");
         builder.HasIndex(value => value.MessageId);
+        builder.HasOne<SupportTicketMessage>().WithMany().HasForeignKey(value => value.MessageId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(value => value.OriginalFileName).HasColumnName("original_file_name").HasMaxLength(200).IsRequired();
         builder.Property(value => value.ContentType).HasColumnName("content_type").HasMaxLength(80).IsRequired();
         builder.Property(value => value.SizeBytes).HasColumnName("size_bytes").IsRequired();
@@ -129,6 +135,7 @@ internal sealed class SupportAttachmentConfiguration : IEntityTypeConfiguration<
         builder.Property(value => value.Sha256Checksum).HasColumnName("sha256_checksum").HasMaxLength(64).IsRequired();
         builder.Property(value => value.UploaderCustomerSubject).HasColumnName("uploader_customer_subject").HasMaxLength(128);
         builder.Property(value => value.UploaderGuestTokenId).HasColumnName("uploader_guest_token_id");
+        builder.HasOne<SupportGuestAccessToken>().WithMany().HasForeignKey(value => value.UploaderGuestTokenId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(value => value.ScanStatus).HasColumnName("scan_status").HasConversion<string>().HasMaxLength(16).IsRequired();
         builder.Property(value => value.CreatedAt).HasColumnName("created_at").IsRequired();
     }
@@ -165,7 +172,9 @@ internal sealed class SupportNotificationOutboxItemConfiguration : IEntityTypeCo
         builder.Property(value => value.Id).HasColumnName("id").ValueGeneratedNever();
         builder.Property(value => value.TicketId).HasColumnName("ticket_id");
         builder.HasIndex(value => value.TicketId);
+        builder.HasOne<SupportTicket>().WithMany().HasForeignKey(value => value.TicketId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(value => value.MessageId).HasColumnName("message_id");
+        builder.HasOne<SupportTicketMessage>().WithMany().HasForeignKey(value => value.MessageId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(value => value.DedupeKey).HasColumnName("dedupe_key").HasMaxLength(64).IsRequired();
         builder.HasIndex(value => value.DedupeKey).IsUnique();
         builder.Property(value => value.Channel).HasColumnName("channel").HasMaxLength(20).IsRequired();

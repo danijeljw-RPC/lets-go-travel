@@ -107,6 +107,10 @@ public sealed class SupportTicket
 
         if (reopening)
         {
+            // The historical closure message/timestamp above stays in the immutable thread; only
+            // the current-projection anchor is cleared here so retention logic keyed off ClosedAt
+            // always reflects the latest actual closure, not a superseded one.
+            ClosedAt = null;
             AppendMessage(SupportAuthorType.System, null, "Ticket reopened.", now);
         }
 

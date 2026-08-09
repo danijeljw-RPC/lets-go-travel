@@ -9,6 +9,7 @@ public enum SupportNotificationOutboxStatus
     Processing,
     Sent,
     Failed,
+    Cancelled,
 }
 
 public sealed class SupportNotificationOutboxItem
@@ -107,6 +108,20 @@ public sealed class SupportNotificationOutboxItem
         Attempts = 0;
         ErrorCode = null;
         NotBeforeUtc = now.UtcDateTime;
+        LeaseOwner = null;
+        LeaseExpiresAtUtc = null;
+        UpdatedAt = now;
+    }
+
+    // Terminal, non-retryable: the security state this notification was meant to deliver (a guest
+    // link) has been superseded by a staff action. Distinct from Fail so operational monitoring
+    // never confuses "delivery failed" with "delivery was correctly withheld". RequeueAsync only
+    // ever requeues Failed items, so a Cancelled item cannot be forced back to Pending; even if
+    // something else changed that, the same supersession check re-runs on the next attempt.
+    internal void Cancel(string reason, DateTimeOffset now)
+    {
+        Status = SupportNotificationOutboxStatus.Cancelled;
+        ErrorCode = reason;
         LeaseOwner = null;
         LeaseExpiresAtUtc = null;
         UpdatedAt = now;

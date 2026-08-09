@@ -28,6 +28,118 @@ public sealed class AttachmentScanProcessorTests
     }
 
     [Fact]
+    public async Task ACleanScanRecordsAnAttachmentScanCleanAuditEventAtomicallyWithTheStateTransition()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var storage = new InMemoryObjectStorage();
+        var (ticketId, attachmentId) = await UploadAsync(fixture, storage);
+        var processor = new AttachmentScanProcessor(
+            fixture.Context, storage, new RecordingAttachmentScanner(AttachmentScanOutcome.Clean), new FixedTimeProvider(Now));
+
+        var didWork = await processor.ProcessNextAsync("worker-1");
+
+        Assert.True(didWork);
+        var attachment = await fixture.Context.Attachments.SingleAsync(value => value.Id == attachmentId);
+        var work = await fixture.Context.AttachmentScanWork.SingleAsync(value => value.AttachmentId == attachmentId);
+        var cleanEvent = Assert.Single(
+            fixture.Context.AuditEvents,
+            value => value.TicketId == ticketId && value.EventType == SupportAuditEventType.AttachmentScanClean);
+
+        // The audit event, the attachment's Clean status, and the work item's Completed status all
+        // come from the same ProcessNextAsync call's single SaveChangesAsync - if the audit event
+        // exists, the state transition it describes must have committed too, and vice versa.
+        Assert.Equal(AttachmentScanStatus.Clean, attachment.ScanStatus);
+        Assert.Equal(AttachmentScanWorkStatus.Completed, work.Status);
+        Assert.Equal(work.CompletedAt, cleanEvent.CreatedAt);
+    }
+
+    [Fact]
+    public async Task AScanThatIsNotCleanNeverProducesAnAttachmentScanCleanAuditEvent()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var storage = new InMemoryObjectStorage();
+        var (ticketId, _) = await UploadAsync(fixture, storage);
+        var processor = new AttachmentScanProcessor(
+            fixture.Context, storage, new RecordingAttachmentScanner(AttachmentScanOutcome.Infected), new FixedTimeProvider(Now));
+
+        await processor.ProcessNextAsync("worker-1");
+
+        Assert.DoesNotContain(
+            fixture.Context.AuditEvents,
+            value => value.TicketId == ticketId && value.EventType == SupportAuditEventType.AttachmentScanClean);
+    }
+
+    [Fact]
+    public async Task ARetriedScannerFailureNeverProducesAnAttachmentScanCleanAuditEventBeforeTheEventualCleanResult()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var storage = new InMemoryObjectStorage();
+        var (ticketId, attachmentId) = await UploadAsync(fixture, storage);
+        var scanner = new RecordingAttachmentScanner(AttachmentScanOutcome.Unavailable);
+        var processor = new AttachmentScanProcessor(fixture.Context, storage, scanner, new FixedTimeProvider(Now));
+        await processor.ProcessNextAsync("worker-1");
+        Assert.DoesNotContain(
+            fixture.Context.AuditEvents,
+            value => value.TicketId == ticketId && value.EventType == SupportAuditEventType.AttachmentScanClean);
+
+        scanner.Outcome = AttachmentScanOutcome.Clean;
+        var retryProcessor = new AttachmentScanProcessor(fixture.Context, storage, scanner, new FixedTimeProvider(Now.AddMinutes(5)));
+        var retried = await retryProcessor.ProcessNextAsync("worker-1");
+
+        Assert.True(retried);
+        var attachment = await fixture.Context.Attachments.SingleAsync(value => value.Id == attachmentId);
+        Assert.Equal(AttachmentScanStatus.Clean, attachment.ScanStatus);
+        Assert.Single(
+            fixture.Context.AuditEvents,
+            value => value.TicketId == ticketId && value.EventType == SupportAuditEventType.AttachmentScanClean);
+    }
+
+    [Fact]
+    public async Task ACompletedCleanWorkItemIsNeverReprocessedAndNeverDuplicatesTheAuditEvent()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var storage = new InMemoryObjectStorage();
+        var (ticketId, _) = await UploadAsync(fixture, storage);
+        var processor = new AttachmentScanProcessor(
+            fixture.Context, storage, new RecordingAttachmentScanner(AttachmentScanOutcome.Clean), new FixedTimeProvider(Now));
+        await processor.ProcessNextAsync("worker-1");
+
+        var didWorkAgain = await processor.ProcessNextAsync("worker-1");
+
+        Assert.False(didWorkAgain);
+        Assert.Single(
+            fixture.Context.AuditEvents,
+            value => value.TicketId == ticketId && value.EventType == SupportAuditEventType.AttachmentScanClean);
+    }
+
+    [Fact]
+    public async Task AnInfectedScanIsMarkedInfectedAndAuditedEvenWhenObjectStorageDeletionFails()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var storage = new InMemoryObjectStorage();
+        var (ticketId, attachmentId) = await UploadAsync(fixture, storage);
+        storage.DeleteFailure = new InvalidOperationException("object storage unavailable");
+        var processor = new AttachmentScanProcessor(
+            fixture.Context, storage, new RecordingAttachmentScanner(AttachmentScanOutcome.Infected), new FixedTimeProvider(Now));
+
+        var didWork = await processor.ProcessNextAsync("worker-1");
+
+        Assert.True(didWork);
+        var attachment = await fixture.Context.Attachments.SingleAsync(value => value.Id == attachmentId);
+        Assert.Equal(AttachmentScanStatus.Infected, attachment.ScanStatus);
+        var work = await fixture.Context.AttachmentScanWork.SingleAsync(value => value.AttachmentId == attachmentId);
+        Assert.Equal(AttachmentScanWorkStatus.Completed, work.Status);
+        Assert.Contains(
+            fixture.Context.AuditEvents,
+            value => value.TicketId == ticketId && value.EventType == SupportAuditEventType.AttachmentScanInfected);
+
+        // The work item reached a terminal state despite the storage failure, so it is never
+        // reclaimed and re-scanned forever.
+        var reclaimed = await processor.ProcessNextAsync("worker-2");
+        Assert.False(reclaimed);
+    }
+
+    [Fact]
     public async Task AnInfectedScanMarksInfectedDeletesTheObjectAndAudits()
     {
         await using var fixture = await SupportDatabaseFixture.CreateAsync();

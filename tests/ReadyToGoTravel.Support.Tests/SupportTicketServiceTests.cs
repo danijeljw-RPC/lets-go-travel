@@ -1,5 +1,6 @@
 using ReadyToGoTravel.Support.Application;
 using ReadyToGoTravel.Support.Domain;
+using ReadyToGoTravel.Support.Guest;
 
 namespace ReadyToGoTravel.Support.Tests;
 
@@ -11,7 +12,8 @@ public sealed class SupportTicketServiceTests
     public async Task CreateTicketAsyncPersistsTheTicketAndItsFirstMessageAtomically()
     {
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
-        var service = new SupportTicketService(fixture.Context, new FixedTimeProvider(Now));
+        var service = new SupportTicketService(
+            fixture.Context, new FixedTimeProvider(Now), new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now)));
 
         var ticket = await service.CreateTicketAsync(new CreateSupportTicketCommand(
             "sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help please"));
@@ -25,7 +27,8 @@ public sealed class SupportTicketServiceTests
     public async Task GuestTicketHasNoCustomerSubject()
     {
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
-        var service = new SupportTicketService(fixture.Context, new FixedTimeProvider(Now));
+        var service = new SupportTicketService(
+            fixture.Context, new FixedTimeProvider(Now), new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now)));
 
         var ticket = await service.CreateTicketAsync(new CreateSupportTicketCommand(
             null, "Guest", "guest@example.test", SupportTicketCategory.General, null, "Help please"));
@@ -37,7 +40,8 @@ public sealed class SupportTicketServiceTests
     public async Task GetForCustomerAsyncReturnsNullForAnotherCustomersTicket()
     {
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
-        var service = new SupportTicketService(fixture.Context, new FixedTimeProvider(Now));
+        var service = new SupportTicketService(
+            fixture.Context, new FixedTimeProvider(Now), new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now)));
 
         var ticket = await service.CreateTicketAsync(new CreateSupportTicketCommand(
             "sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help please"));
@@ -51,7 +55,8 @@ public sealed class SupportTicketServiceTests
     public async Task AddMessageAsyncThrowsForAnUnknownTicket()
     {
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
-        var service = new SupportTicketService(fixture.Context, new FixedTimeProvider(Now));
+        var service = new SupportTicketService(
+            fixture.Context, new FixedTimeProvider(Now), new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now)));
 
         await Assert.ThrowsAsync<TicketNotFoundException>(() =>
             service.AddMessageAsync(Guid.CreateVersion7(), SupportAuthorType.Support, "staff-1", "Hello", CancellationToken.None));
@@ -61,7 +66,8 @@ public sealed class SupportTicketServiceTests
     public async Task CloseAsyncTransitionsTheTicketToClosed()
     {
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
-        var service = new SupportTicketService(fixture.Context, new FixedTimeProvider(Now));
+        var service = new SupportTicketService(
+            fixture.Context, new FixedTimeProvider(Now), new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now)));
         var ticket = await service.CreateTicketAsync(new CreateSupportTicketCommand(
             "sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help please"));
 

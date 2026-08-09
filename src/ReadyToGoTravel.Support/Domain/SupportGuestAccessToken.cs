@@ -14,7 +14,8 @@ public sealed class SupportGuestAccessToken
         string tokenHash,
         DateTimeOffset issuedAt,
         DateTimeOffset expiresAt,
-        Guid? rotatedFromTokenId)
+        Guid? rotatedFromTokenId,
+        Guid? issuedForOutboxItemId = null)
     {
         Id = id;
         TicketId = ticketId;
@@ -22,6 +23,7 @@ public sealed class SupportGuestAccessToken
         IssuedAt = issuedAt;
         ExpiresAt = expiresAt;
         RotatedFromTokenId = rotatedFromTokenId;
+        IssuedForOutboxItemId = issuedForOutboxItemId;
     }
 
     public Guid Id { get; private set; }
@@ -39,6 +41,12 @@ public sealed class SupportGuestAccessToken
     public DateTimeOffset? LastUsedAt { get; private set; }
 
     public Guid? RotatedFromTokenId { get; private set; }
+
+    // Set only when a token is minted on behalf of a specific durable outbox notification (the
+    // guest acknowledgement email). It lets the outbox processor tell "a token that is still mine
+    // to deliver" apart from "guest-link state a staff action has since superseded" without ever
+    // needing to persist the raw token value itself. Staff-initiated rotate/revoke never set this.
+    public Guid? IssuedForOutboxItemId { get; private set; }
 
     public bool IsActive(DateTimeOffset now) => RevokedAt is null && now < ExpiresAt;
 

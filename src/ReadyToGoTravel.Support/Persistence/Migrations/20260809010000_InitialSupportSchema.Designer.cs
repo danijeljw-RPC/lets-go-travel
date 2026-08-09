@@ -153,6 +153,8 @@ namespace ReadyToGoTravel.Support.Persistence.Migrations
 
                     b.HasIndex("TicketId");
 
+                    b.HasIndex("UploaderGuestTokenId");
+
                     b.ToTable("support_attachments", "support");
                 });
 
@@ -208,6 +210,10 @@ namespace ReadyToGoTravel.Support.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("issued_at");
 
+                    b.Property<Guid?>("IssuedForOutboxItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("issued_for_outbox_item_id");
+
                     b.Property<DateTimeOffset?>("LastUsedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_used_at");
@@ -231,6 +237,8 @@ namespace ReadyToGoTravel.Support.Persistence.Migrations
                         .HasColumnName("token_hash");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IssuedForOutboxItemId");
 
                     b.HasIndex("RotatedFromTokenId");
 
@@ -470,6 +478,8 @@ namespace ReadyToGoTravel.Support.Persistence.Migrations
                     b.HasIndex("DedupeKey")
                         .IsUnique();
 
+                    b.HasIndex("MessageId");
+
                     b.HasIndex("TicketId");
 
                     b.HasIndex("Status", "NotBeforeUtc");
@@ -486,12 +496,51 @@ namespace ReadyToGoTravel.Support.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ReadyToGoTravel.Support.Domain.SupportAttachment", b =>
+                {
+                    b.HasOne("ReadyToGoTravel.Support.Domain.SupportTicketMessage", null)
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ReadyToGoTravel.Support.Domain.SupportTicket", null)
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ReadyToGoTravel.Support.Domain.SupportGuestAccessToken", null)
+                        .WithMany()
+                        .HasForeignKey("UploaderGuestTokenId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ReadyToGoTravel.Support.Domain.SupportAuditEvent", b =>
+                {
+                    b.HasOne("ReadyToGoTravel.Support.Domain.SupportTicket", null)
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ReadyToGoTravel.Support.Domain.SupportGuestAccessToken", b =>
                 {
+                    b.HasOne("ReadyToGoTravel.Support.Notifications.SupportNotificationOutboxItem", null)
+                        .WithMany()
+                        .HasForeignKey("IssuedForOutboxItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ReadyToGoTravel.Support.Domain.SupportGuestAccessToken", null)
                         .WithMany()
                         .HasForeignKey("RotatedFromTokenId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ReadyToGoTravel.Support.Domain.SupportTicket", null)
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ReadyToGoTravel.Support.Domain.SupportMessageAttachmentUsage", b =>
@@ -516,6 +565,21 @@ namespace ReadyToGoTravel.Support.Persistence.Migrations
                 {
                     b.HasOne("ReadyToGoTravel.Support.Domain.SupportTicket", null)
                         .WithMany("Messages")
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ReadyToGoTravel.Support.Notifications.SupportNotificationOutboxItem", b =>
+                {
+                    b.HasOne("ReadyToGoTravel.Support.Domain.SupportTicketMessage", null)
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ReadyToGoTravel.Support.Domain.SupportTicket", null)
+                        .WithMany()
                         .HasForeignKey("TicketId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

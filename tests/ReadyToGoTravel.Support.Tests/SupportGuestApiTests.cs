@@ -111,12 +111,15 @@ public sealed class SupportGuestApiTests
     }
 
     [Fact]
-    public async Task AGuestReplyOnAClosedTicketReopensIt()
+    public async Task AGuestReplyOnAClosedTicketReopensItAndClearsClosedAt()
     {
         await using var app = await TestApplication.CreateAsync();
         var (ticket, token) = await CreateGuestTicketAsync(app);
         app.SetStaffSubject("staff-1");
-        (await app.Client.PostAsync($"/api/v1/support/staff/tickets/{ticket.Id}/close", null)).EnsureSuccessStatusCode();
+        var closeResponse = await app.Client.PostAsync($"/api/v1/support/staff/tickets/{ticket.Id}/close", null);
+        closeResponse.EnsureSuccessStatusCode();
+        var closed = await (await app.Client.GetAsync($"/api/v1/support/staff/tickets/{ticket.Id}")).ReadAsAsync<TicketResponse>();
+        Assert.NotNull(closed!.ClosedAt);
         app.ClearSubject();
 
         var reply = await GuestPostAsync(app, token, "/api/v1/support/guest/ticket/messages", new { body = "Still need help." });
@@ -124,6 +127,7 @@ public sealed class SupportGuestApiTests
         reply.EnsureSuccessStatusCode();
         var body = await reply.ReadAsAsync<TicketResponse>();
         Assert.Equal("WaitingOnSupport", body!.Status);
+        Assert.Null(body.ClosedAt);
     }
 
     [Fact]

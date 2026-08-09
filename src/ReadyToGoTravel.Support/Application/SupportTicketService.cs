@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ReadyToGoTravel.Support.Domain;
+using ReadyToGoTravel.Support.Guest;
 using ReadyToGoTravel.Support.Notifications;
 using ReadyToGoTravel.Support.Persistence;
 
@@ -19,7 +20,8 @@ public sealed class TicketNotFoundException(Guid ticketId)
 public sealed class SupportMessageTooLongException()
     : InvalidOperationException($"Support message body exceeds {SupportTicketMessage.MaxBodyLength} characters.");
 
-internal sealed class SupportTicketService(SupportDbContext database, TimeProvider timeProvider)
+internal sealed class SupportTicketService(
+    SupportDbContext database, TimeProvider timeProvider, IGuestAccessTokenService guestTokens)
 {
     public async Task<SupportTicket> CreateTicketAsync(
         CreateSupportTicketCommand command,
@@ -47,7 +49,16 @@ internal sealed class SupportTicketService(SupportDbContext database, TimeProvid
         var template = command.CustomerSubject is null
             ? SupportNotificationTemplates.AcknowledgementGuest
             : SupportNotificationTemplates.AcknowledgementCustomer;
-        EnqueueNotification(ticket, ticket.Messages[0].Id, template, now);
+        var notification = EnqueueNotification(ticket, ticket.Messages[0].Id, template, now);
+
+        if (command.CustomerSubject is null)
+        {
+            // Mint the guest link's first (placeholder) generation in the same transaction as the
+            // ticket itself, owned by the acknowledgement notification that will deliver it. See
+            // IGuestAccessTokenService.StageInitialToken: this closes the race where staff could
+            // revoke/rotate guest access before any token exists to act on.
+            guestTokens.StageInitialToken(ticket.Id, notification.Id, now);
+        }
 
         await database.SaveChangesAsync(cancellationToken);
         return ticket;
@@ -134,10 +145,13 @@ internal sealed class SupportTicketService(SupportDbContext database, TimeProvid
         return [.. tickets.OrderByDescending(value => value.UpdatedAt)];
     }
 
-    private void EnqueueNotification(SupportTicket ticket, Guid messageId, string template, DateTimeOffset now)
+    private SupportNotificationOutboxItem EnqueueNotification(
+        SupportTicket ticket, Guid messageId, string template, DateTimeOffset now)
     {
         var payload = new SupportTicketNotificationPayload(ticket.ContactName, ticket.Id, ticket.Category.ToString());
-        database.SupportNotificationOutbox.Add(SupportNotificationOutboxItem.Create(
-            ticket.Id, messageId, ticket.ContactEmail, template, payload.ToJson(), now));
+        var item = SupportNotificationOutboxItem.Create(
+            ticket.Id, messageId, ticket.ContactEmail, template, payload.ToJson(), now);
+        database.SupportNotificationOutbox.Add(item);
+        return item;
     }
 }

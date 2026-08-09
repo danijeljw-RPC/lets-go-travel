@@ -6,9 +6,11 @@ internal sealed class RecordingAttachmentScanner(AttachmentScanOutcome outcome) 
 {
     public int CallCount { get; private set; }
 
+    public AttachmentScanOutcome Outcome { get; set; } = outcome;
+
     public Task<AttachmentScanOutcome> ScanAsync(Stream content, CancellationToken cancellationToken = default)
     {
         CallCount++;
-        return Task.FromResult(outcome);
+        return Task.FromResult(Outcome);
     }
 }

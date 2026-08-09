@@ -29,17 +29,36 @@ internal sealed class SupportNotificationOutboxProcessor(
             return false;
         }
 
+        if (SupportNotificationTemplates.RequiresFreshGuestToken(item.Template))
+        {
+            // Only mint (and embed) a fresh guest token when it is still this item's own
+            // guest-link generation to deliver. A staff revoke or rotate that has since
+            // superseded it means the guest already has the authoritative link (or none, if
+            // staff revoked) delivered through a different path; this stale item must become
+            // Cancelled rather than mint another credential or clobber staff's.
+            var issued = await guestTokens.IssueForNotificationAsync(item.TicketId, item.Id, cancellationToken);
+            if (issued.Superseded)
+            {
+                item.Cancel("support_notification_superseded_by_guest_link_change", timeProvider.GetUtcNow());
+                await database.SaveChangesAsync(cancellationToken);
+                return true;
+            }
+
+            return await SendAndRecordAsync(
+                item,
+                SupportTicketNotificationPayload.FromJson(item.PayloadJson).ToJsonWithGuestToken(issued.RawToken!),
+                cancellationToken);
+        }
+
+        return await SendAndRecordAsync(item, item.PayloadJson, cancellationToken);
+    }
+
+    private async Task<bool> SendAndRecordAsync(
+        SupportNotificationOutboxItem item, string effectivePayload, CancellationToken cancellationToken)
+    {
         SupportNotificationSendResult result;
         try
         {
-            // A fresh guest token is minted here, in memory, immediately before the send
-            // attempt, and is never written back to the durable PayloadJson column - only its
-            // hash is ever persisted (via GuestAccessTokenService), matching the ticket
-            // creation/rotation security model.
-            var effectivePayload = SupportNotificationTemplates.RequiresFreshGuestToken(item.Template)
-                ? SupportTicketNotificationPayload.FromJson(item.PayloadJson)
-                    .ToJsonWithGuestToken(await guestTokens.RotateAsync(item.TicketId, cancellationToken: cancellationToken))
-                : item.PayloadJson;
             result = await sender.SendAsync(
                 new SupportNotification(item.DedupeKey, item.RecipientEmail, item.Template, effectivePayload),
                 cancellationToken);

@@ -11,6 +11,30 @@ public interface IGuestAccessTokenService
     Task RevokeAsync(Guid ticketId, string? actorSubject = null, CancellationToken cancellationToken = default);
 
     Task<Guid?> ResolveAsync(string rawToken, CancellationToken cancellationToken = default);
+
+    // Stages (without saving) a hash-only placeholder token created atomically with a brand-new
+    // guest ticket, owned by the acknowledgement outbox item that will eventually deliver it. This
+    // closes the race where staff could revoke/rotate guest access before any token exists: by the
+    // time the ticket row is visible to staff, its guest-link lifecycle has already begun, so
+    // RevokeAsync/RotateAsync always have a real row to act on. The caller must still call
+    // SaveChangesAsync.
+    void StageInitialToken(Guid ticketId, Guid outboxItemId, DateTimeOffset now);
+
+    // Used exclusively by the notification outbox processor to mint the raw token it embeds in the
+    // guest acknowledgement email. Unlike RotateAsync (staff-authoritative, always mints), this
+    // only mints when the currently active token is the one this outbox item already owns (a first
+    // attempt claiming its own staged placeholder, or a retry rotating its own prior mint) -
+    // otherwise a staff revoke or rotate has superseded this notification and it must not touch
+    // guest-link state.
+    Task<GuestNotificationTokenResult> IssueForNotificationAsync(
+        Guid ticketId, Guid outboxItemId, CancellationToken cancellationToken = default);
+}
+
+public readonly record struct GuestNotificationTokenResult(bool Superseded, string? RawToken)
+{
+    public static GuestNotificationTokenResult SupersededResult { get; } = new(true, null);
+
+    public static GuestNotificationTokenResult Issued(string rawToken) => new(false, rawToken);
 }
 
 internal sealed class GuestAccessTokenService(SupportDbContext database, TimeProvider timeProvider)
@@ -42,10 +66,66 @@ internal sealed class GuestAccessTokenService(SupportDbContext database, TimePro
         var now = timeProvider.GetUtcNow();
         var unrevoked = await FindUnrevokedTokenAsync(ticketId, cancellationToken);
         unrevoked?.Revoke(now);
-        var rawToken = await IssueInternalAsync(ticketId, unrevoked?.Id, cancellationToken);
+        var rawToken = await IssueInternalAsync(ticketId, unrevoked?.Id, issuedForOutboxItemId: null, cancellationToken);
         await AddAuditEventAsync(ticketId, SupportAuditEventType.GuestLinkRotated, "Guest link rotated.", cancellationToken, actorSubject);
         await database.SaveChangesAsync(cancellationToken);
         return rawToken;
+    }
+
+    public void StageInitialToken(Guid ticketId, Guid outboxItemId, DateTimeOffset now)
+    {
+        var (_, tokenHash) = GuestAccessTokenGenerator.Generate();
+        database.GuestAccessTokens.Add(new SupportGuestAccessToken(
+            Guid.CreateVersion7(now),
+            ticketId,
+            tokenHash,
+            now,
+            now.Add(SupportGuestAccessToken.TokenLifetime),
+            rotatedFromTokenId: null,
+            issuedForOutboxItemId: outboxItemId));
+        database.AuditEvents.Add(new SupportAuditEvent(
+            Guid.CreateVersion7(now), ticketId, SupportAuditEventType.GuestLinkIssued, "Guest link issued.", now));
+    }
+
+    public async Task<GuestNotificationTokenResult> IssueForNotificationAsync(
+        Guid ticketId, Guid outboxItemId, CancellationToken cancellationToken = default)
+    {
+        for (var attempt = 1; attempt <= MaxRotationAttempts; attempt++)
+        {
+            try
+            {
+                return await IssueForNotificationOnceAsync(ticketId, outboxItemId, cancellationToken);
+            }
+            catch (DbUpdateException) when (attempt < MaxRotationAttempts)
+            {
+                database.ChangeTracker.Clear();
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Unable to issue a guest link for ticket {ticketId} after {MaxRotationAttempts} attempts due to concurrent changes.");
+    }
+
+    private async Task<GuestNotificationTokenResult> IssueForNotificationOnceAsync(
+        Guid ticketId, Guid outboxItemId, CancellationToken cancellationToken)
+    {
+        var now = timeProvider.GetUtcNow();
+        var current = await FindUnrevokedTokenAsync(ticketId, cancellationToken);
+
+        // The active token is only ours to mint against if it was staged/minted for this exact
+        // outbox item. A null owner (staff-issued), a different owner, or no active token at all
+        // (staff revoked with nothing replacing it) all mean guest-link state has moved on without
+        // us; the notification is stale and must not touch it.
+        if (current is null || current.IssuedForOutboxItemId != outboxItemId)
+        {
+            return GuestNotificationTokenResult.SupersededResult;
+        }
+
+        current.Revoke(now);
+        var rawToken = await IssueInternalAsync(ticketId, current.Id, outboxItemId, cancellationToken);
+        await AddAuditEventAsync(ticketId, SupportAuditEventType.GuestLinkRotated, "Guest link rotated for notification delivery.", cancellationToken);
+        await database.SaveChangesAsync(cancellationToken);
+        return GuestNotificationTokenResult.Issued(rawToken);
     }
 
     public async Task RevokeAsync(Guid ticketId, string? actorSubject = null, CancellationToken cancellationToken = default)
@@ -95,7 +175,8 @@ internal sealed class GuestAccessTokenService(SupportDbContext database, TimePro
         database.GuestAccessTokens
             .SingleOrDefaultAsync(value => value.TicketId == ticketId && value.RevokedAt == null, cancellationToken);
 
-    private async Task<string> IssueInternalAsync(Guid ticketId, Guid? rotatedFromTokenId, CancellationToken cancellationToken)
+    private async Task<string> IssueInternalAsync(
+        Guid ticketId, Guid? rotatedFromTokenId, Guid? issuedForOutboxItemId, CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow();
         var (rawToken, tokenHash) = GuestAccessTokenGenerator.Generate();
@@ -105,7 +186,8 @@ internal sealed class GuestAccessTokenService(SupportDbContext database, TimePro
             tokenHash,
             now,
             now.Add(SupportGuestAccessToken.TokenLifetime),
-            rotatedFromTokenId);
+            rotatedFromTokenId,
+            issuedForOutboxItemId);
         database.GuestAccessTokens.Add(token);
         if (rotatedFromTokenId is null)
         {

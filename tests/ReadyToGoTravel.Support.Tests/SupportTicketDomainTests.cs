@@ -65,6 +65,83 @@ public sealed class SupportTicketDomainTests
     }
 
     [Fact]
+    public void CustomerReplyToAClosedTicketClearsClosedAtOnTheCurrentProjection()
+    {
+        var ticket = SupportTicket.Create("sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help", Now);
+        ticket.Close("staff-1", Now.AddMinutes(5));
+        Assert.NotNull(ticket.ClosedAt);
+
+        ticket.Reply(SupportAuthorType.Customer, "sub-1", "Still need help.", Now.AddMinutes(10));
+
+        Assert.Null(ticket.ClosedAt);
+    }
+
+    [Fact]
+    public void GuestReplyToAClosedTicketReopensItAndClearsClosedAt()
+    {
+        var ticket = SupportTicket.Create(null, "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help", Now);
+        ticket.Close("staff-1", Now.AddMinutes(5));
+
+        ticket.Reply(SupportAuthorType.Guest, null, "Still need help.", Now.AddMinutes(10));
+
+        Assert.Equal(SupportTicketStatus.WaitingOnSupport, ticket.Status);
+        Assert.Null(ticket.ClosedAt);
+        Assert.Equal(SupportAuthorType.System, ticket.Messages[^1].AuthorType);
+        Assert.Equal("Ticket reopened.", ticket.Messages[^1].Body);
+    }
+
+    [Fact]
+    public void ReopeningThenClosingAgainEstablishesANewLaterClosedAt()
+    {
+        var ticket = SupportTicket.Create("sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help", Now);
+        ticket.Close("staff-1", Now.AddMinutes(5));
+        var firstClosedAt = ticket.ClosedAt;
+
+        ticket.Reply(SupportAuthorType.Customer, "sub-1", "Still need help.", Now.AddMinutes(10));
+        Assert.Null(ticket.ClosedAt);
+
+        ticket.Close("staff-2", Now.AddMinutes(15));
+
+        Assert.Equal(SupportTicketStatus.Closed, ticket.Status);
+        Assert.NotNull(ticket.ClosedAt);
+        Assert.NotEqual(firstClosedAt, ticket.ClosedAt);
+        Assert.True(ticket.ClosedAt > firstClosedAt);
+    }
+
+    [Fact]
+    public void NoReachableSequenceOfTransitionsLeavesStatusAndClosedAtContradictory()
+    {
+        var ticket = SupportTicket.Create("sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help", Now);
+        AssertStatusClosedAtInvariant(ticket);
+
+        ticket.Reply(SupportAuthorType.Support, "staff-1", "Looking into it.", Now.AddMinutes(1));
+        AssertStatusClosedAtInvariant(ticket);
+
+        ticket.Reply(SupportAuthorType.Customer, "sub-1", "Thanks.", Now.AddMinutes(2));
+        AssertStatusClosedAtInvariant(ticket);
+
+        ticket.Close("staff-1", Now.AddMinutes(3));
+        AssertStatusClosedAtInvariant(ticket);
+
+        ticket.Close("staff-1", Now.AddMinutes(4));
+        AssertStatusClosedAtInvariant(ticket);
+
+        ticket.Reply(SupportAuthorType.Customer, "sub-1", "Reopening.", Now.AddMinutes(5));
+        AssertStatusClosedAtInvariant(ticket);
+
+        ticket.Close("staff-1", Now.AddMinutes(6));
+        AssertStatusClosedAtInvariant(ticket);
+
+        ticket.Reply(SupportAuthorType.Guest, null, "One more time.", Now.AddMinutes(7));
+        AssertStatusClosedAtInvariant(ticket);
+
+        static void AssertStatusClosedAtInvariant(SupportTicket value)
+        {
+            Assert.Equal(value.Status == SupportTicketStatus.Closed, value.ClosedAt is not null);
+        }
+    }
+
+    [Fact]
     public void SupportCannotReplyToAClosedTicket()
     {
         var ticket = SupportTicket.Create("sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help", Now);
