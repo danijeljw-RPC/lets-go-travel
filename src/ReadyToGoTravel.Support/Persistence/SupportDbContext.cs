@@ -13,6 +13,10 @@ internal sealed class SupportDbContext(DbContextOptions<SupportDbContext> option
 
     public DbSet<SupportGuestAccessToken> GuestAccessTokens => Set<SupportGuestAccessToken>();
 
+    public DbSet<SupportAttachment> Attachments => Set<SupportAttachment>();
+
+    public DbSet<AttachmentScanWork> AttachmentScanWork => Set<AttachmentScanWork>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("support");
