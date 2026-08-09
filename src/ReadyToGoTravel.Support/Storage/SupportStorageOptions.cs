@@ -4,6 +4,8 @@ public sealed class SupportStorageOptions
 {
     public const string SectionName = "Support:Storage";
 
+    public bool Enabled { get; set; }
+
     public string ServiceUrl { get; set; } = string.Empty;
 
     public string AccessKey { get; set; } = string.Empty;

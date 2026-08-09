@@ -5,6 +5,8 @@ using ReadyToGoTravel.Booking.Providers;
 using ReadyToGoTravel.Booking.Reconciliation;
 using ReadyToGoTravel.Booking.Webhooks;
 using ReadyToGoTravel.BuildingBlocks.Hosting;
+using ReadyToGoTravel.Support.Notifications;
+using ReadyToGoTravel.Support.Scanning;
 
 namespace ReadyToGoTravel.Worker;
 
@@ -30,6 +32,10 @@ public sealed partial class Worker(
             }
 
             didWork |= await services.GetRequiredService<INotificationOutboxProcessor>()
+                .ProcessNextAsync(Environment.MachineName, cancellationToken);
+            didWork |= await services.GetRequiredService<IAttachmentScanProcessor>()
+                .ProcessNextAsync(Environment.MachineName, cancellationToken);
+            didWork |= await services.GetRequiredService<ISupportNotificationOutboxProcessor>()
                 .ProcessNextAsync(Environment.MachineName, cancellationToken);
             if (!didWork)
             {

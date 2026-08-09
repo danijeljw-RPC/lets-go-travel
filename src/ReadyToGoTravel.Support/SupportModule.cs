@@ -28,10 +28,16 @@ public static class SupportModule
         services.AddScoped<ISupportNotificationOutboxProcessor, SupportNotificationOutboxProcessor>();
 
         services.AddOptions<SupportStorageOptions>()
-            .Validate(options => !string.IsNullOrWhiteSpace(options.ServiceUrl), "Support:Storage:ServiceUrl is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.BucketName), "Support:Storage:BucketName is required.")
+            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.ServiceUrl), "An enabled Support storage requires Support:Storage:ServiceUrl.")
+            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.BucketName), "An enabled Support storage requires Support:Storage:BucketName.")
             .ValidateOnStart();
-        services.AddScoped<IObjectStorage, S3ObjectStorage>();
+        services.AddScoped<IObjectStorage>(provider =>
+        {
+            var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SupportStorageOptions>>().Value;
+            return options.Enabled
+                ? ActivatorUtilities.CreateInstance<S3ObjectStorage>(provider)
+                : ActivatorUtilities.CreateInstance<DisabledObjectStorage>(provider);
+        });
 
         services.AddOptions<ClamAvOptions>()
             .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.Host), "An enabled ClamAV scanner requires Support:Scanning:ClamAv:Host.")

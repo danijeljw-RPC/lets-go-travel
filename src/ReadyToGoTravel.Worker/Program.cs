@@ -3,6 +3,9 @@ using Microsoft.Extensions.Options;
 using ReadyToGoTravel.Booking;
 using ReadyToGoTravel.BuildingBlocks.Hosting;
 using ReadyToGoTravel.Search.Capabilities;
+using ReadyToGoTravel.Support;
+using ReadyToGoTravel.Support.Scanning;
+using ReadyToGoTravel.Support.Storage;
 using ReadyToGoTravel.Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -23,6 +26,11 @@ builder.Services.AddBookingModule(
     (_, options) => options.UseNpgsql(connectionString),
     environment,
     builder.Configuration.GetValue<bool>("Booking:EnableFixtures"));
+builder.Services.AddSupportModule((_, options) => options.UseNpgsql(connectionString));
+builder.Services.Configure<SupportStorageOptions>(
+    builder.Configuration.GetSection(SupportStorageOptions.SectionName));
+builder.Services.Configure<ClamAvOptions>(
+    builder.Configuration.GetSection(ClamAvOptions.SectionName));
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

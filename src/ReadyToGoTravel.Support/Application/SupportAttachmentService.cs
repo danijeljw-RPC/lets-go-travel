@@ -65,9 +65,14 @@ internal sealed class SupportAttachmentService(
         var storageKey = $"support/{ticketId:D}/{attachmentId:D}{accepted.Extension}";
         var checksum = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(buffer));
 
-        await using (var uploadStream = new MemoryStream(buffer, writable: false))
+        try
         {
+            await using var uploadStream = new MemoryStream(buffer, writable: false);
             await storage.PutAsync(storageKey, uploadStream, declaredContentType, cancellationToken);
+        }
+        catch (ObjectStorageUnavailableException)
+        {
+            return new SupportAttachmentUploadResult.Rejected("attachment_storage_unavailable");
         }
 
         var attachment = new SupportAttachment(
