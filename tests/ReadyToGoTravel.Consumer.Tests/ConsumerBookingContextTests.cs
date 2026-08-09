@@ -23,6 +23,7 @@ public sealed class ConsumerBookingContextTests
         Assert.True(result.IsSuccess);
         Assert.Equal(owner.Id, result.Value!.CustomerId);
         Assert.Equal(trip.Id, result.Value.TripId);
+        Assert.Equal("en-AU", result.Value.PreferredLocale);
         Assert.Equal([traveller.Id], result.Value.Travellers.Select(value => value.TravellerId));
     }
 

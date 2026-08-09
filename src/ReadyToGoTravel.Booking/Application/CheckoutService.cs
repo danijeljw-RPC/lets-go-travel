@@ -8,6 +8,7 @@ using ReadyToGoTravel.Booking.Idempotency;
 using ReadyToGoTravel.Booking.Payments;
 using ReadyToGoTravel.Booking.Persistence;
 using ReadyToGoTravel.Booking.Providers;
+using ReadyToGoTravel.Booking.Reconciliation;
 using ReadyToGoTravel.Consumer.Application;
 using ReadyToGoTravel.Search.Checkout;
 
@@ -30,7 +31,8 @@ internal sealed class CheckoutService(
     IIdempotencyService idempotency,
     IServiceProvider services,
     BookingRuntime runtime,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IReconciliationScheduler reconciliationScheduler)
 {
     private const int PendingRetryAfterSeconds = 15;
     private static readonly TimeSpan ProviderOperationRetryDelay = TimeSpan.FromMinutes(1);
@@ -82,7 +84,8 @@ internal sealed class CheckoutService(
                     consumer.Value.TripId,
                     offerResult.Offers!,
                     travellers,
-                    timeProvider);
+                    timeProvider,
+                    consumer.Value.PreferredLocale);
                 if (!creation.IsSuccess)
                 {
                     return Completed(
@@ -593,7 +596,18 @@ internal sealed class CheckoutService(
                                     checkout.Recover(component.Id, "booking_outcome_unknown", timeProvider);
                                 }
 
-                                await database.SaveChangesAsync(providerCancellationToken);
+                                if (string.IsNullOrWhiteSpace(component.ProviderBookingReference))
+                                {
+                                    await database.SaveChangesAsync(providerCancellationToken);
+                                }
+                                else
+                                {
+                                    await reconciliationScheduler.EnqueueImmediateAsync(
+                                        component.Id,
+                                        "Booking",
+                                        $"checkout:{checkout.Id:N}",
+                                        providerCancellationToken);
+                                }
                             }
 
                             var pending = checkout.Status == CheckoutStatus.BookingPending;
@@ -695,7 +709,11 @@ internal sealed class CheckoutService(
                     break;
                 }
 
-                await database.SaveChangesAsync(cancellationToken);
+                await reconciliationScheduler.EnqueueImmediateAsync(
+                    component.Id,
+                    "BookingRecovery",
+                    $"checkout:{checkout.Id:N}",
+                    cancellationToken);
             }
         }
         else if (checkout.Status == CheckoutStatus.PaymentPending)

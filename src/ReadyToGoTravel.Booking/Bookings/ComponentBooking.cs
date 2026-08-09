@@ -1,4 +1,5 @@
 using ReadyToGoTravel.Booking.Checkout;
+using ReadyToGoTravel.Booking.Reconciliation;
 
 namespace ReadyToGoTravel.Booking.Bookings;
 
@@ -11,6 +12,8 @@ public enum ComponentBookingStatus
     Failed,
     RefundRequired,
     RequiresSupport,
+    Cancelled,
+    Completed,
 }
 
 public enum BookingProviderOutcome
@@ -77,6 +80,14 @@ public sealed class ComponentBooking
     public DateTimeOffset CreatedAt { get; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
+
+    public string? CurrentCanonicalHash { get; private set; }
+
+    public int CurrentVersionNumber { get; private set; }
+
+    public DateTimeOffset? LastReconciledAt { get; private set; }
+
+    public DateTimeOffset? NextDepartureAt { get; private set; }
 
     internal static ComponentBooking Create(CheckoutRevisionComponent component, DateTimeOffset now) => new(
         Guid.CreateVersion7(now),
@@ -150,6 +161,47 @@ public sealed class ComponentBooking
             FailureCode = reason;
             Touch(now);
         }
+    }
+
+    internal bool ApplyReconciliationVersion(BookingVersion version, DateTimeOffset reconciledAt)
+    {
+        ArgumentNullException.ThrowIfNull(version);
+        if (version.ComponentBookingId != Id)
+        {
+            throw new InvalidOperationException("A booking version cannot be applied to another component.");
+        }
+
+        LastReconciledAt = reconciledAt.ToUniversalTime();
+        if (string.Equals(CurrentCanonicalHash, version.CanonicalHash, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (version.VersionNumber != CurrentVersionNumber + 1)
+        {
+            throw new InvalidOperationException("Booking versions must be applied in sequence.");
+        }
+
+        CurrentCanonicalHash = version.CanonicalHash;
+        CurrentVersionNumber = version.VersionNumber;
+        NextDepartureAt = version.NextDepartureAt;
+        Touch(reconciledAt.ToUniversalTime());
+        return true;
+    }
+
+    internal void ApplyRetrievedStatus(RetrievedBookingStatus status, DateTimeOffset now)
+    {
+        Status = status switch
+        {
+            RetrievedBookingStatus.Pending when Status is ComponentBookingStatus.Confirmed or ComponentBookingStatus.Completed => Status,
+            RetrievedBookingStatus.Pending => ComponentBookingStatus.BookingPending,
+            RetrievedBookingStatus.Confirmed => ComponentBookingStatus.Confirmed,
+            RetrievedBookingStatus.Cancelled => ComponentBookingStatus.Cancelled,
+            RetrievedBookingStatus.Failed => ComponentBookingStatus.Failed,
+            RetrievedBookingStatus.Completed => ComponentBookingStatus.Completed,
+            _ => throw new InvalidOperationException("Unsupported retrieved booking status."),
+        };
+        Touch(now);
     }
 
     private void Touch(DateTimeOffset now) =>

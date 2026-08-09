@@ -6,6 +6,7 @@ using ReadyToGoTravel.Api.Endpoints;
 using ReadyToGoTravel.Api.Infrastructure;
 using ReadyToGoTravel.Booking;
 using ReadyToGoTravel.Booking.Http;
+using ReadyToGoTravel.Booking.Webhooks;
 using ReadyToGoTravel.Consumer;
 using ReadyToGoTravel.Consumer.Http;
 using ReadyToGoTravel.Search;
@@ -32,6 +33,8 @@ builder.Services.AddBookingModule(
     (_, options) => options.UseNpgsql(consumerConnectionString),
     bookingEnvironment,
     builder.Configuration.GetValue<bool>("Booking:EnableFixtures"));
+builder.Services.Configure<LiteApiWebhookOptions>(
+    builder.Configuration.GetSection(LiteApiWebhookOptions.SectionName));
 var searchEnvironmentValue = builder.Configuration["Search:Environment"] ?? "Production";
 if (!Enum.TryParse<SearchEnvironment>(searchEnvironmentValue, true, out var searchEnvironment))
 {
@@ -79,6 +82,15 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1),
             }));
+    options.AddPolicy("webhook", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1),
+            }));
 });
 
 var app = builder.Build();
@@ -107,6 +119,7 @@ api.MapPlatformEndpoints();
 api.MapConsumerEndpoints();
 api.MapSearchEndpoints();
 api.MapBookingEndpoints();
+api.MapWebhookEndpoints();
 
 app.MapFallback("/api/{**path}", (HttpContext context) =>
     Results.Problem(

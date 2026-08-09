@@ -3,7 +3,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ReadyToGoTravel.Booking.Checkout;
 using ReadyToGoTravel.Booking.Providers;
+using ReadyToGoTravel.Booking.Reconciliation;
 
 namespace ReadyToGoTravel.Booking.SupplierIntegrations.LiteApi;
 
@@ -46,17 +48,69 @@ public sealed class LiteApiFixtureBookingProvider : IBookingProvider
 
     private static BookingProviderExecutionResult Map(
         BookingFixtureScenario scenario,
-        string? externalReference) => new(
-        scenario.Status switch
+        string? externalReference)
+    {
+        var status = scenario.Status switch
         {
             "Confirmed" => BookingProviderStatus.Confirmed,
             "Pending" => BookingProviderStatus.Pending,
             "Failed" => BookingProviderStatus.Failed,
             "Unknown" => BookingProviderStatus.Unknown,
             _ => throw new InvalidDataException($"Unsupported booking fixture status '{scenario.Status}'."),
-        },
-        externalReference,
-        scenario.ErrorCode);
+        };
+        return new BookingProviderExecutionResult(status, externalReference, scenario.ErrorCode)
+        {
+            RetrievedState = externalReference is null || status is BookingProviderStatus.Failed or BookingProviderStatus.Unknown
+                ? null
+                : CreateRetrievedState(scenario, status),
+        };
+    }
+
+    private static RetrievedBookingState CreateRetrievedState(
+        BookingFixtureScenario scenario,
+        BookingProviderStatus status)
+    {
+        var product = Enum.Parse<CheckoutProduct>(scenario.Product);
+        var retrievedStatus = status == BookingProviderStatus.Confirmed
+            ? RetrievedBookingStatus.Confirmed
+            : RetrievedBookingStatus.Pending;
+        if (product == CheckoutProduct.Hotel)
+        {
+            return new RetrievedBookingState(
+                product,
+                retrievedStatus,
+                "HTL-SANDBOX-001",
+                new RetrievedHotelStay(
+                    "Harbour Lane Hotel",
+                    new DateOnly(2026, 8, 12),
+                    new DateOnly(2026, 8, 14),
+                    "King studio",
+                    ["Breakfast"],
+                    "Free cancellation until 2026-08-10"),
+                [],
+                420m,
+                "AUD",
+                null);
+        }
+
+        var departure = new DateTimeOffset(2026, 8, 12, 23, 0, 0, TimeSpan.Zero);
+        return new RetrievedBookingState(
+            product,
+            retrievedStatus,
+            "FLT-SANDBOX-001",
+            null,
+            [new BookingFlightSegment(
+                "QF401-SYD-MEL-20260812",
+                "QF",
+                "401",
+                "SYD",
+                "MEL",
+                departure,
+                departure.AddHours(1).AddMinutes(35))],
+            309.40m,
+            "AUD",
+            null);
+    }
 
     private static string? OpaqueReference(string? fixtureReference, string idempotencyKey)
     {

@@ -138,5 +138,8 @@ public sealed class LiteApiFixtureProviderTests
         Assert.NotEqual(first.ExternalReference, second.ExternalReference);
         Assert.Equal(BookingProviderStatus.Pending, retrieved.Status);
         Assert.Equal(first.ExternalReference, retrieved.ExternalReference);
+        Assert.NotNull(retrieved.RetrievedState);
+        Assert.Equal(CheckoutProduct.Flight, retrieved.RetrievedState.Product);
+        Assert.NotEmpty(retrieved.RetrievedState.FlightSegments);
     }
 }
