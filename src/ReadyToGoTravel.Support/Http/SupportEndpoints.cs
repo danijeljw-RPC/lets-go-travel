@@ -141,7 +141,15 @@ public static class SupportEndpoints
             return SupportHttpResults.Problem(context, StatusCodes.Status404NotFound, "ticket_not_found");
         }
 
-        await service.AddMessageAsync(ticketId, SupportAuthorType.Customer, subject, request.Body, cancellationToken);
+        try
+        {
+            await service.AddMessageAsync(ticketId, SupportAuthorType.Customer, subject, request.Body, cancellationToken);
+        }
+        catch (SupportReplyConflictException)
+        {
+            return SupportHttpResults.Problem(context, StatusCodes.Status409Conflict, "support_reply_conflict");
+        }
+
         var ticket = await service.GetForCustomerAsync(subject, ticketId, cancellationToken);
         var ticketAttachments = await attachments.ListForTicketAsync(ticketId, cancellationToken);
         return Results.Ok(SupportHttpResults.ToResponse(ticket!, ticketAttachments));

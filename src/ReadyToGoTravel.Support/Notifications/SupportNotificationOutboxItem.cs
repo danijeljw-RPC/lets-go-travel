@@ -143,6 +143,8 @@ public sealed record SupportNotificationSendResult(
     public static SupportNotificationSendResult Sent(string deliveryReference) => new(true, false, deliveryReference, null);
 
     public static SupportNotificationSendResult Retry(string errorCode) => new(false, true, null, errorCode);
+
+    public static SupportNotificationSendResult Permanent(string errorCode) => new(false, false, null, errorCode);
 }
 
 public interface ISupportNotificationSender

@@ -5,6 +5,8 @@ using ReadyToGoTravel.BuildingBlocks.Hosting;
 using ReadyToGoTravel.Consumer;
 using ReadyToGoTravel.Search.Capabilities;
 using ReadyToGoTravel.Support;
+using ReadyToGoTravel.Support.Guest;
+using ReadyToGoTravel.Support.Notifications;
 using ReadyToGoTravel.Support.Scanning;
 using ReadyToGoTravel.Support.Storage;
 using ReadyToGoTravel.Worker;
@@ -34,6 +36,10 @@ builder.Services.Configure<SupportStorageOptions>(
     builder.Configuration.GetSection(SupportStorageOptions.SectionName));
 builder.Services.Configure<ClamAvOptions>(
     builder.Configuration.GetSection(ClamAvOptions.SectionName));
+builder.Services.Configure<GuestTokenOptions>(
+    builder.Configuration.GetSection(GuestTokenOptions.SectionName));
+builder.Services.Configure<SupportNotificationSenderOptions>(
+    builder.Configuration.GetSection(SupportNotificationSenderOptions.SectionName));
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

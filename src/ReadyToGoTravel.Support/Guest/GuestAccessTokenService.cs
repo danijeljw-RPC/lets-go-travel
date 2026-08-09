@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using ReadyToGoTravel.Support.Domain;
 using ReadyToGoTravel.Support.Persistence;
@@ -37,10 +39,18 @@ public readonly record struct GuestNotificationTokenResult(bool Superseded, stri
     public static GuestNotificationTokenResult Issued(string rawToken) => new(false, rawToken);
 }
 
-internal sealed class GuestAccessTokenService(SupportDbContext database, TimeProvider timeProvider)
+internal sealed class GuestAccessTokenService(
+    SupportDbContext database, TimeProvider timeProvider, byte[]? notificationSigningKey = null)
     : IGuestAccessTokenService
 {
     private const int MaxRotationAttempts = 5;
+
+    // Falls back to a fixed, non-secret key so every existing test/call site that does not care
+    // about the notification-retry invariant keeps compiling and passing unmodified. Production
+    // wiring (SupportModule) always supplies a real secret from configuration; see
+    // GuestTokenOptions.NotificationSigningKey.
+    private readonly byte[] notificationSigningKey = notificationSigningKey ??
+        SHA256.HashData("support-guest-notification-token-insecure-default"u8.ToArray());
 
     // The unique partial index on (ticket_id) WHERE revoked_at IS NULL is the real correctness boundary for concurrent rotations; a losing SaveChangesAsync throws DbUpdateException and is retried against the now-current state.
     public async Task<string> RotateAsync(Guid ticketId, string? actorSubject = null, CancellationToken cancellationToken = default)
@@ -121,11 +131,28 @@ internal sealed class GuestAccessTokenService(SupportDbContext database, TimePro
             return GuestNotificationTokenResult.SupersededResult;
         }
 
+        // The raw token content is fully determined by (ticketId, outboxItemId, secret key), so a
+        // retried delivery attempt for this exact same logical notification always recomputes the
+        // same candidate. If the currently active row already matches it, a prior attempt already
+        // minted and (ambiguously) attempted to deliver this exact token: reuse it verbatim rather
+        // than rotating, so a provider deduplicating on our stable DedupeKey never strands the guest
+        // with an invalidated credential.
+        var candidateRawToken = GuestAccessTokenGenerator.GenerateForNotification(notificationSigningKey, ticketId, outboxItemId);
+        var candidateHash = GuestAccessTokenGenerator.Hash(candidateRawToken);
+        if (current.TokenHash == candidateHash)
+        {
+            return GuestNotificationTokenResult.Issued(candidateRawToken);
+        }
+
+        // First delivery attempt for this outbox item: replace whatever it currently owns (the
+        // random placeholder staged at ticket creation) with the deterministic token.
         current.Revoke(now);
-        var rawToken = await IssueInternalAsync(ticketId, current.Id, outboxItemId, cancellationToken);
+        database.GuestAccessTokens.Add(new SupportGuestAccessToken(
+            Guid.CreateVersion7(now), ticketId, candidateHash, now, now.Add(SupportGuestAccessToken.TokenLifetime),
+            current.Id, outboxItemId));
         await AddAuditEventAsync(ticketId, SupportAuditEventType.GuestLinkRotated, "Guest link rotated for notification delivery.", cancellationToken);
         await database.SaveChangesAsync(cancellationToken);
-        return GuestNotificationTokenResult.Issued(rawToken);
+        return GuestNotificationTokenResult.Issued(candidateRawToken);
     }
 
     public async Task RevokeAsync(Guid ticketId, string? actorSubject = null, CancellationToken cancellationToken = default)
@@ -147,6 +174,8 @@ internal sealed class GuestAccessTokenService(SupportDbContext database, TimePro
         var now = timeProvider.GetUtcNow();
         if (string.IsNullOrWhiteSpace(rawToken))
         {
+            await AddAuditEventAsync(null, SupportAuditEventType.GuestLinkAuthenticationFailed, "Guest link authentication failed: no credential presented.", cancellationToken);
+            await database.SaveChangesAsync(cancellationToken);
             return null;
         }
 

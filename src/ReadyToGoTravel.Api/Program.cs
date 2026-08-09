@@ -13,7 +13,9 @@ using ReadyToGoTravel.Search;
 using ReadyToGoTravel.Search.Capabilities;
 using ReadyToGoTravel.Search.Http;
 using ReadyToGoTravel.Support;
+using ReadyToGoTravel.Support.Guest;
 using ReadyToGoTravel.Support.Http;
+using ReadyToGoTravel.Support.Notifications;
 using ReadyToGoTravel.Support.Scanning;
 using ReadyToGoTravel.Support.Storage;
 
@@ -54,6 +56,10 @@ builder.Services.Configure<SupportStorageOptions>(
     builder.Configuration.GetSection(SupportStorageOptions.SectionName));
 builder.Services.Configure<ClamAvOptions>(
     builder.Configuration.GetSection(ClamAvOptions.SectionName));
+builder.Services.Configure<GuestTokenOptions>(
+    builder.Configuration.GetSection(GuestTokenOptions.SectionName));
+builder.Services.Configure<SupportNotificationSenderOptions>(
+    builder.Configuration.GetSection(SupportNotificationSenderOptions.SectionName));
 builder.Services.AddProblemDetails(options =>
 {
     options.CustomizeProblemDetails = context =>

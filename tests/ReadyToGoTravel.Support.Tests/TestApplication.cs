@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ReadyToGoTravel.Support.Guest;
@@ -55,6 +57,10 @@ internal sealed class TestApplication : IAsyncDisposable
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
         builder.WebHost.UseTestServer();
+        builder.Configuration.AddInMemoryCollection(
+        [
+            new("Support:GuestTokens:NotificationSigningKey", Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))),
+        ]);
         builder.Services.AddSingleton<TimeProvider>(clock);
         builder.Services.ConfigureHttpJsonOptions(options =>
             options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase);
@@ -85,6 +91,7 @@ internal sealed class TestApplication : IAsyncDisposable
             }
         });
 
+        builder.Services.Configure<GuestTokenOptions>(builder.Configuration.GetSection(GuestTokenOptions.SectionName));
         builder.Services.AddSupportModule((_, options) => options.UseSqlite(connectionString));
         var storage = new InMemoryObjectStorage();
         var scanner = new RecordingAttachmentScanner(AttachmentScanOutcome.Clean);

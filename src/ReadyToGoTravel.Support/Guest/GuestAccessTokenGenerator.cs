@@ -14,6 +14,23 @@ internal static class GuestAccessTokenGenerator
         return (rawToken, Hash(rawToken));
     }
 
+    // Deterministic regeneration for a single owning outbox item, keyed by an application secret
+    // never persisted in the database. Recomputing the identical raw token (and therefore the same
+    // hash already on the active row) lets a retried delivery attempt for the exact same logical
+    // notification reuse the credential it already minted instead of rotating it - without ever
+    // storing the raw value at rest. The key must stay secret: ticketId and outboxItemId are both
+    // readable by anyone with database access, so without a secret key this would be as bad as
+    // persisting the raw token in plaintext.
+    public static string GenerateForNotification(ReadOnlySpan<byte> signingKey, Guid ticketId, Guid outboxItemId)
+    {
+        Span<byte> material = stackalloc byte[32];
+        ticketId.TryWriteBytes(material[..16]);
+        outboxItemId.TryWriteBytes(material[16..]);
+        Span<byte> mac = stackalloc byte[32];
+        HMACSHA256.HashData(signingKey, material, mac);
+        return Base64UrlEncode(mac.ToArray());
+    }
+
     public static string Hash(string rawToken) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken)));
 

@@ -77,8 +77,11 @@ internal sealed class SupportNotificationOutboxProcessor(
         {
             item.MarkSent(result.DeliveryReference, now);
         }
-        else if (item.Attempts >= MaxAttempts)
+        else if (!result.Retryable || item.Attempts >= MaxAttempts)
         {
+            // A permanent failure (Retryable == false, e.g. an invalid recipient) must become
+            // terminal on the attempt that discovers it, not after burning through the same retry
+            // budget as a transient outage - the sender has already told us retrying cannot help.
             item.Fail(result.ErrorCode ?? "support_notification_retry_exhausted", now);
         }
         else

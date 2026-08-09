@@ -20,9 +20,23 @@ public sealed class TicketNotFoundException(Guid ticketId)
 public sealed class SupportMessageTooLongException()
     : InvalidOperationException($"Support message body exceeds {SupportTicketMessage.MaxBodyLength} characters.");
 
+// Deliberately does not derive from InvalidOperationException: SupportTicket.Reply also throws
+// that (for a closed ticket refusing a support reply), and callers must never confuse "lost every
+// retry against genuine concurrent writers" with "the ticket is closed".
+public sealed class SupportReplyConflictException(Guid ticketId)
+    : Exception($"Unable to save a change to support ticket {ticketId} after repeated concurrent updates.");
+
 internal sealed class SupportTicketService(
     SupportDbContext database, TimeProvider timeProvider, IGuestAccessTokenService guestTokens)
 {
+    // A customer/staff/guest reply and a close race on the same optimistic-concurrency token
+    // (SupportTicket.UpdatedAt) and the same unique (TicketId, SequenceNumber) index. Both are
+    // read-modify-write operations against the same row; the loser must reload the now-current
+    // ticket and retry its own change rather than surface a raw 500, mirroring
+    // IGuestAccessTokenService.RotateAsync's established retry-on-DbUpdateException pattern. A
+    // small random backoff before each retry desynchronizes competing writers that would otherwise
+    // tend to re-collide in lockstep under heavy concurrency.
+    private const int MaxReplyAttempts = 8;
     public async Task<SupportTicket> CreateTicketAsync(
         CreateSupportTicketCommand command,
         CancellationToken cancellationToken = default)
@@ -76,17 +90,30 @@ internal sealed class SupportTicketService(
             throw new SupportMessageTooLongException();
         }
 
-        var ticket = await database.Tickets
-            .Include(value => value.Messages)
-            .SingleOrDefaultAsync(value => value.Id == ticketId, cancellationToken)
-            ?? throw new TicketNotFoundException(ticketId);
+        for (var attempt = 1; attempt <= MaxReplyAttempts; attempt++)
+        {
+            var ticket = await database.Tickets
+                .Include(value => value.Messages)
+                .SingleOrDefaultAsync(value => value.Id == ticketId, cancellationToken)
+                ?? throw new TicketNotFoundException(ticketId);
 
-        var now = timeProvider.GetUtcNow();
-        var message = ticket.Reply(authorType, authorSubject, body, now);
-        database.MessageAttachmentUsage.Add(new SupportMessageAttachmentUsage(message.Id));
-        EnqueueNotification(ticket, message.Id, SupportNotificationTemplates.MessageAdded, now);
-        await database.SaveChangesAsync(cancellationToken);
-        return message;
+            var now = timeProvider.GetUtcNow();
+            var message = ticket.Reply(authorType, authorSubject, body, now);
+            database.MessageAttachmentUsage.Add(new SupportMessageAttachmentUsage(message.Id));
+            EnqueueNotification(ticket, message.Id, SupportNotificationTemplates.MessageAdded, now);
+            try
+            {
+                await database.SaveChangesAsync(cancellationToken);
+                return message;
+            }
+            catch (DbUpdateException) when (attempt < MaxReplyAttempts)
+            {
+                database.ChangeTracker.Clear();
+                await Task.Delay(Random.Shared.Next(1, 15) * attempt, cancellationToken);
+            }
+        }
+
+        throw new SupportReplyConflictException(ticketId);
     }
 
     public async Task CloseAsync(
@@ -94,20 +121,34 @@ internal sealed class SupportTicketService(
         string staffSubject,
         CancellationToken cancellationToken = default)
     {
-        var ticket = await database.Tickets
-            .Include(value => value.Messages)
-            .SingleOrDefaultAsync(value => value.Id == ticketId, cancellationToken)
-            ?? throw new TicketNotFoundException(ticketId);
-
-        if (ticket.Status == SupportTicketStatus.Closed)
+        for (var attempt = 1; attempt <= MaxReplyAttempts; attempt++)
         {
-            return;
+            var ticket = await database.Tickets
+                .Include(value => value.Messages)
+                .SingleOrDefaultAsync(value => value.Id == ticketId, cancellationToken)
+                ?? throw new TicketNotFoundException(ticketId);
+
+            if (ticket.Status == SupportTicketStatus.Closed)
+            {
+                return;
+            }
+
+            var now = timeProvider.GetUtcNow();
+            ticket.Close(staffSubject, now);
+            EnqueueNotification(ticket, ticket.Messages[^1].Id, SupportNotificationTemplates.TicketClosed, now);
+            try
+            {
+                await database.SaveChangesAsync(cancellationToken);
+                return;
+            }
+            catch (DbUpdateException) when (attempt < MaxReplyAttempts)
+            {
+                database.ChangeTracker.Clear();
+                await Task.Delay(Random.Shared.Next(1, 15) * attempt, cancellationToken);
+            }
         }
 
-        var now = timeProvider.GetUtcNow();
-        ticket.Close(staffSubject, now);
-        EnqueueNotification(ticket, ticket.Messages[^1].Id, SupportNotificationTemplates.TicketClosed, now);
-        await database.SaveChangesAsync(cancellationToken);
+        throw new SupportReplyConflictException(ticketId);
     }
 
     public Task<SupportTicket?> GetForCustomerAsync(

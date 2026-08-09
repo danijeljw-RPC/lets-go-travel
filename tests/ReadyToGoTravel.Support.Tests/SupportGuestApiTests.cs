@@ -2,7 +2,11 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using ReadyToGoTravel.Support.Domain;
 using ReadyToGoTravel.Support.Http;
+using ReadyToGoTravel.Support.Persistence;
 
 namespace ReadyToGoTravel.Support.Tests;
 
@@ -33,13 +37,95 @@ public sealed class SupportGuestApiTests
     }
 
     [Fact]
-    public async Task AMissingAuthorizationHeaderReturnsUnauthorized()
+    public async Task AMissingAuthorizationHeaderReturnsUnauthorizedAndWritesAnAuthenticationFailedAuditEvent()
     {
         await using var app = await TestApplication.CreateAsync();
 
         var response = await app.Client.GetAsync("/api/v1/support/guest/ticket");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await AssertAuthenticationFailedAuditEventWrittenAsync(app);
+    }
+
+    [Fact]
+    public async Task AnEmptyAuthorizationHeaderReturnsUnauthorizedAndWritesAnAuthenticationFailedAuditEvent()
+    {
+        await using var app = await TestApplication.CreateAsync();
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/support/guest/ticket");
+        request.Headers.TryAddWithoutValidation("Authorization", string.Empty);
+        var response = await app.Client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await AssertAuthenticationFailedAuditEventWrittenAsync(app);
+    }
+
+    [Fact]
+    public async Task ANonBearerAuthorizationSchemeReturnsUnauthorizedAndWritesAnAuthenticationFailedAuditEventWithoutLoggingTheCredential()
+    {
+        await using var app = await TestApplication.CreateAsync();
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/support/guest/ticket");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", "dXNlcjpwYXNzd29yZA==");
+        var response = await app.Client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await AssertAuthenticationFailedAuditEventWrittenAsync(app);
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+        // The non-Bearer credential must never be hashed, stored or otherwise treated as if it were
+        // a guest token.
+        Assert.DoesNotContain(
+            await database.GuestAccessTokens.ToListAsync(),
+            value => value.TokenHash == ReadyToGoTravel.Support.Guest.GuestAccessTokenGenerator.Hash("dXNlcjpwYXNzd29yZA=="));
+    }
+
+    [Fact]
+    public async Task AMalformedBearerCredentialReturnsUnauthorizedAndWritesAnAuthenticationFailedAuditEvent()
+    {
+        await using var app = await TestApplication.CreateAsync();
+
+        var response = await GuestGetAsync(app, "not base64url!!! and way too $hort", "/api/v1/support/guest/ticket");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await AssertAuthenticationFailedAuditEventWrittenAsync(app);
+    }
+
+    [Fact]
+    public async Task AnUnknownTokenReturnsUnauthorizedAndWritesAnAuthenticationFailedAuditEvent()
+    {
+        await using var app = await TestApplication.CreateAsync();
+
+        var response = await GuestGetAsync(app, Convert.ToBase64String(new byte[32]), "/api/v1/support/guest/ticket");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await AssertAuthenticationFailedAuditEventWrittenAsync(app);
+    }
+
+    [Fact]
+    public async Task AValidTokenNeverWritesAnAuthenticationFailedAuditEventAndWritesAnAuthenticatedOne()
+    {
+        await using var app = await TestApplication.CreateAsync();
+        var (_, token) = await CreateGuestTicketAsync(app);
+
+        var response = await GuestGetAsync(app, token, "/api/v1/support/guest/ticket");
+
+        response.EnsureSuccessStatusCode();
+        await using var scope = app.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+        var events = await database.AuditEvents.ToListAsync();
+        Assert.DoesNotContain(events, value => value.EventType == SupportAuditEventType.GuestLinkAuthenticationFailed);
+        Assert.Contains(events, value => value.EventType == SupportAuditEventType.GuestLinkAuthenticated);
+    }
+
+    private static async Task AssertAuthenticationFailedAuditEventWrittenAsync(TestApplication app)
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+        Assert.Contains(
+            await database.AuditEvents.ToListAsync(),
+            value => value.EventType == SupportAuditEventType.GuestLinkAuthenticationFailed);
     }
 
     [Fact]

@@ -80,6 +80,10 @@ public static class SupportStaffEndpoints
         {
             return SupportHttpResults.Problem(context, StatusCodes.Status400BadRequest, "support_message_too_long");
         }
+        catch (SupportReplyConflictException)
+        {
+            return SupportHttpResults.Problem(context, StatusCodes.Status409Conflict, "support_reply_conflict");
+        }
         catch (InvalidOperationException)
         {
             return SupportHttpResults.Problem(context, StatusCodes.Status409Conflict, "ticket_closed");
@@ -103,7 +107,15 @@ public static class SupportStaffEndpoints
             return SupportHttpResults.Problem(context, StatusCodes.Status404NotFound, "ticket_not_found");
         }
 
-        await service.CloseAsync(ticketId, principal.FindFirstValue("sub") ?? "support", cancellationToken);
+        try
+        {
+            await service.CloseAsync(ticketId, principal.FindFirstValue("sub") ?? "support", cancellationToken);
+        }
+        catch (SupportReplyConflictException)
+        {
+            return SupportHttpResults.Problem(context, StatusCodes.Status409Conflict, "support_reply_conflict");
+        }
+
         return Results.NoContent();
     }
 

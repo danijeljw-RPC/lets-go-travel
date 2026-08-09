@@ -4,6 +4,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ReadyToGoTravel.Support.Domain;
 using ReadyToGoTravel.Support.Guest;
+using ReadyToGoTravel.Support.Notifications;
 using ReadyToGoTravel.Support.Persistence;
 
 namespace ReadyToGoTravel.Support.Tests;
@@ -298,6 +299,108 @@ public sealed class GuestAccessTokenTests
         Assert.Equal(2, tokens.Count);
         Assert.Single(tokens, value => value.RevokedAt == null);
         Assert.Equal(2, results.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task IssueForNotificationAsyncOnAFreshOwnedPlaceholderMintsAndOwnsTheDeterministicToken()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticketId = await CreateTicketAsync(fixture);
+        var outboxItemId = await CreateOutboxItemAsync(fixture, ticketId);
+        var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
+        service.StageInitialToken(ticketId, outboxItemId, Now);
+        await fixture.Context.SaveChangesAsync();
+
+        var result = await service.IssueForNotificationAsync(ticketId, outboxItemId);
+
+        Assert.False(result.Superseded);
+        Assert.Equal(ticketId, await service.ResolveAsync(result.RawToken!));
+    }
+
+    [Fact]
+    public async Task IssueForNotificationAsyncCalledTwiceForTheSameOutboxItemReturnsTheIdenticalTokenWithoutRotating()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticketId = await CreateTicketAsync(fixture);
+        var outboxItemId = await CreateOutboxItemAsync(fixture, ticketId);
+        var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
+        service.StageInitialToken(ticketId, outboxItemId, Now);
+        await fixture.Context.SaveChangesAsync();
+        var first = await service.IssueForNotificationAsync(ticketId, outboxItemId);
+
+        var second = await service.IssueForNotificationAsync(ticketId, outboxItemId);
+
+        Assert.False(second.Superseded);
+        Assert.Equal(first.RawToken, second.RawToken);
+        Assert.Equal(ticketId, await service.ResolveAsync(first.RawToken!));
+        Assert.Equal(1, fixture.Context.GuestAccessTokens.Count(value => value.TicketId == ticketId && value.RevokedAt == null));
+        Assert.Equal(2, fixture.Context.GuestAccessTokens.Count(value => value.TicketId == ticketId));
+    }
+
+    [Fact]
+    public async Task IssueForNotificationAsyncAfterStaffRevocationIsSupersededAndNeverMintsAToken()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticketId = await CreateTicketAsync(fixture);
+        var outboxItemId = await CreateOutboxItemAsync(fixture, ticketId);
+        var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
+        service.StageInitialToken(ticketId, outboxItemId, Now);
+        await fixture.Context.SaveChangesAsync();
+        await service.RevokeAsync(ticketId, actorSubject: "staff-1");
+
+        var result = await service.IssueForNotificationAsync(ticketId, outboxItemId);
+
+        Assert.True(result.Superseded);
+        Assert.Null(result.RawToken);
+        Assert.Empty(fixture.Context.GuestAccessTokens.Where(value => value.TicketId == ticketId && value.RevokedAt == null));
+    }
+
+    [Fact]
+    public async Task IssueForNotificationAsyncAfterStaffRotationIsSupersededAndPreservesStaffsToken()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticketId = await CreateTicketAsync(fixture);
+        var outboxItemId = await CreateOutboxItemAsync(fixture, ticketId);
+        var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
+        service.StageInitialToken(ticketId, outboxItemId, Now);
+        await fixture.Context.SaveChangesAsync();
+        var staffToken = await service.RotateAsync(ticketId, actorSubject: "staff-1");
+
+        var result = await service.IssueForNotificationAsync(ticketId, outboxItemId);
+
+        Assert.True(result.Superseded);
+        Assert.Equal(ticketId, await service.ResolveAsync(staffToken));
+    }
+
+    [Fact]
+    public async Task IssueForNotificationAsyncForDifferentOutboxItemsOnTheSameTicketNeverCollide()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticketA = await CreateTicketAsync(fixture, "sub-a");
+        var ticketB = await CreateTicketAsync(fixture, "sub-b");
+        var outboxA = await CreateOutboxItemAsync(fixture, ticketA);
+        var outboxB = await CreateOutboxItemAsync(fixture, ticketB);
+        var service = new GuestAccessTokenService(fixture.Context, new FixedTimeProvider(Now));
+        service.StageInitialToken(ticketA, outboxA, Now);
+        service.StageInitialToken(ticketB, outboxB, Now);
+        await fixture.Context.SaveChangesAsync();
+
+        var resultA = await service.IssueForNotificationAsync(ticketA, outboxA);
+        var resultB = await service.IssueForNotificationAsync(ticketB, outboxB);
+
+        Assert.NotEqual(resultA.RawToken, resultB.RawToken);
+        Assert.Equal(ticketA, await service.ResolveAsync(resultA.RawToken!));
+        Assert.Equal(ticketB, await service.ResolveAsync(resultB.RawToken!));
+    }
+
+    private static async Task<Guid> CreateOutboxItemAsync(SupportDatabaseFixture fixture, Guid ticketId)
+    {
+        var ticket = await fixture.Context.Tickets.Include(value => value.Messages).SingleAsync(value => value.Id == ticketId);
+        var item = SupportNotificationOutboxItem.Create(
+            ticketId, ticket.Messages[0].Id, ticket.ContactEmail, SupportNotificationTemplates.AcknowledgementGuest, "{}", Now);
+        fixture.Context.SupportNotificationOutbox.Add(item);
+        await fixture.Context.SaveChangesAsync();
+        return item.Id;
     }
 
     private static SupportDbContext CreateContext(string connectionString) =>

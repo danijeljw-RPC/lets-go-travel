@@ -67,7 +67,15 @@ public static class SupportGuestEndpoints
             return SupportHttpResults.Problem(context, StatusCodes.Status401Unauthorized, "guest_link_invalid");
         }
 
-        await service.AddMessageAsync(ticketId.Value, SupportAuthorType.Guest, null, request.Body, cancellationToken);
+        try
+        {
+            await service.AddMessageAsync(ticketId.Value, SupportAuthorType.Guest, null, request.Body, cancellationToken);
+        }
+        catch (SupportReplyConflictException)
+        {
+            return SupportHttpResults.Problem(context, StatusCodes.Status409Conflict, "support_reply_conflict");
+        }
+
         var ticket = await service.GetForStaffAsync(ticketId.Value, cancellationToken);
         var ticketAttachments = await attachments.ListForTicketAsync(ticketId.Value, cancellationToken);
         return Results.Ok(SupportHttpResults.ToResponse(ticket!, ticketAttachments));
@@ -141,12 +149,13 @@ public static class SupportGuestEndpoints
     {
         var header = context.Request.Headers.Authorization.ToString();
         const string prefix = "Bearer ";
-        if (!header.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            return null;
-        }
 
-        var rawToken = header[prefix.Length..];
+        // Always resolve through the shared credential path, even for a missing header or a
+        // non-Bearer scheme, so every guest authentication failure - not just an invalid, expired
+        // or revoked token - creates the same GuestLinkAuthenticationFailed audit event. A
+        // non-Bearer credential (e.g. Basic) is never forwarded: it belongs to a different auth
+        // scheme and must not be logged or hashed as if it were a guest token.
+        var rawToken = header.StartsWith(prefix, StringComparison.Ordinal) ? header[prefix.Length..] : string.Empty;
         return await tokens.ResolveAsync(rawToken, cancellationToken);
     }
 }

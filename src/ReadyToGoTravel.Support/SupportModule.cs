@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using ReadyToGoTravel.Support.Application;
 using ReadyToGoTravel.Support.Guest;
 using ReadyToGoTravel.Support.Notifications;
@@ -21,10 +23,47 @@ public static class SupportModule
         services.TryAddSingleton(TimeProvider.System);
         services.AddDbContext<SupportDbContext>(configureDatabase);
         services.AddScoped<SupportTicketService>();
-        services.AddScoped<IGuestAccessTokenService, GuestAccessTokenService>();
+
+        services.AddOptions<GuestTokenOptions>()
+            .Validate(
+                options => !string.IsNullOrWhiteSpace(options.NotificationSigningKey) && TryDecodeSigningKey(options.NotificationSigningKey, out _),
+                "Support:GuestTokens:NotificationSigningKey must be set to a non-empty base64-encoded secret (never persisted in the database).")
+            .ValidateOnStart();
+        services.AddScoped<IGuestAccessTokenService>(provider =>
+        {
+            var options = provider.GetRequiredService<IOptions<GuestTokenOptions>>().Value;
+            TryDecodeSigningKey(options.NotificationSigningKey, out var signingKey);
+            return new GuestAccessTokenService(
+                provider.GetRequiredService<SupportDbContext>(),
+                provider.GetRequiredService<TimeProvider>(),
+                signingKey);
+        });
+
         services.AddScoped<SupportAttachmentService>();
         services.AddScoped<IAttachmentScanProcessor, AttachmentScanProcessor>();
-        services.TryAddSingleton<ISupportNotificationSender, DisabledSupportNotificationSender>();
+
+        services.AddOptions<SupportNotificationSenderOptions>();
+        services.TryAddSingleton<ISupportNotificationSender>(provider =>
+        {
+            var environment = provider.GetRequiredService<IHostEnvironment>();
+            var mode = provider.GetRequiredService<IOptions<SupportNotificationSenderOptions>>().Value.Sender;
+            if (mode == SupportNotificationSenderMode.DevelopmentLog)
+            {
+                // Belt-and-braces: even if a Production configuration somehow set this value, the
+                // sender never activates outside a host that self-reports Development, so a
+                // deployment mistake cannot silently start logging guest tokens instead of emailing
+                // them.
+                if (!environment.IsDevelopment())
+                {
+                    throw new InvalidOperationException(
+                        "Support:Notifications:Sender=DevelopmentLog is only permitted when the host environment is Development.");
+                }
+
+                return ActivatorUtilities.CreateInstance<DevelopmentLogSupportNotificationSender>(provider);
+            }
+
+            return ActivatorUtilities.CreateInstance<DisabledSupportNotificationSender>(provider);
+        });
         services.AddScoped<ISupportNotificationOutboxProcessor, SupportNotificationOutboxProcessor>();
 
         services.AddOptions<SupportStorageOptions>()
@@ -54,5 +93,19 @@ public static class SupportModule
             .AddDbContextCheck<SupportDbContext>("support_database", tags: ["ready"]);
 
         return services;
+    }
+
+    private static bool TryDecodeSigningKey(string value, out byte[] signingKey)
+    {
+        try
+        {
+            signingKey = Convert.FromBase64String(value);
+            return signingKey.Length > 0;
+        }
+        catch (FormatException)
+        {
+            signingKey = [];
+            return false;
+        }
     }
 }
