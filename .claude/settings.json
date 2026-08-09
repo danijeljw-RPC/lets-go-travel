@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Edit",
+      "Write",
+      "WebFetch",
+      "WebSearch",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(dotnet *)",
+      "Bash(docker *)",
+      "Bash(docker compose *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(pwsh *)",
+      "Bash(powershell *)"
+    ]
+  }
+}
