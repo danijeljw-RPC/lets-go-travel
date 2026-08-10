@@ -151,9 +151,18 @@ internal sealed class SupportRetentionSweepProcessor(
             return false;
         }
 
+        // DeleteTicketAggregateAsync also destroys every attachment and audit event under the
+        // ticket, so a hold scoped to SupportAttachment or SecurityAuditRecord for this same
+        // ticket ID (both record classes are subject-keyed by SupportTicketId, exactly like the
+        // ticket's own class - see LegalHoldScope) must block the whole aggregate teardown just as
+        // much as a hold on the ticket's own record class does. A child item's hold does not need
+        // to have independently expired to be at risk: the aggregate delete removes it the moment
+        // the *ticket* expires, regardless of the child's own age.
         var ticketIds = candidates.Select(value => value.Id).ToList();
         var generalHeld = await legalHoldGuard.ExcludeHeldAsync(RetentionRecordClass.GeneralSupportTicket, RetentionSubjectKind.SupportTicket, ticketIds, cancellationToken);
         var bookingRelatedHeld = await legalHoldGuard.ExcludeHeldAsync(RetentionRecordClass.BookingRelatedSupportTicket, RetentionSubjectKind.SupportTicket, ticketIds, cancellationToken);
+        var attachmentHeld = await legalHoldGuard.ExcludeHeldAsync(RetentionRecordClass.SupportAttachment, RetentionSubjectKind.SupportTicket, ticketIds, cancellationToken);
+        var auditHeld = await legalHoldGuard.ExcludeHeldAsync(RetentionRecordClass.SecurityAuditRecord, RetentionSubjectKind.SupportTicket, ticketIds, cancellationToken);
 
         var generalSuccess = 0;
         var generalFailure = 0;
@@ -163,14 +172,16 @@ internal sealed class SupportRetentionSweepProcessor(
         {
             cancellationToken.ThrowIfCancellationRequested();
             var held = candidate.RecordClass == RetentionRecordClass.GeneralSupportTicket ? generalHeld : bookingRelatedHeld;
-            if (held.Contains(candidate.Id))
+            if (held.Contains(candidate.Id) || attachmentHeld.Contains(candidate.Id) || auditHeld.Contains(candidate.Id))
             {
                 continue;
             }
 
             try
             {
-                if (await legalHoldGuard.IsHeldAsync(candidate.RecordClass, RetentionSubjectKind.SupportTicket, candidate.Id, cancellationToken))
+                if (await legalHoldGuard.IsHeldAsync(candidate.RecordClass, RetentionSubjectKind.SupportTicket, candidate.Id, cancellationToken) ||
+                    await legalHoldGuard.IsHeldAsync(RetentionRecordClass.SupportAttachment, RetentionSubjectKind.SupportTicket, candidate.Id, cancellationToken) ||
+                    await legalHoldGuard.IsHeldAsync(RetentionRecordClass.SecurityAuditRecord, RetentionSubjectKind.SupportTicket, candidate.Id, cancellationToken))
                 {
                     continue;
                 }

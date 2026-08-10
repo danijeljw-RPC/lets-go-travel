@@ -139,6 +139,39 @@ public sealed class SupportRetentionSweepTests
         Assert.False(await fixture.Context.Tickets.AnyAsync(value => value.Id == ticketId));
     }
 
+    [Fact]
+    public async Task AHoldScopedOnlyToSupportAttachmentStillBlocksTheWholeTicketAggregateDelete()
+    {
+        // Regression test for a bug found by Codex review of PR #12 (github issue #13):
+        // DeleteTicketAggregateAsync destroys every attachment and audit event under the ticket,
+        // so a hold naming SupportAttachment or SecurityAuditRecord for this ticket must block the
+        // whole teardown exactly as much as a hold on the ticket's own record class - even though
+        // the ticket's own class is not held at all.
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticketId = await CreateClosedTicketAsync(fixture.Context, bookingReference: null, closedAt: Now.AddYears(-3));
+        var guard = new RecordClassScopedHoldGuard(RetentionRecordClass.SupportAttachment, RetentionSubjectKind.SupportTicket, ticketId);
+        var processor = CreateProcessor(fixture.Context, new InMemoryObjectStorage(), guard, new RecordingReceiptRecorder(), Now);
+
+        var didWork = await processor.ProcessCycleAsync();
+
+        Assert.False(didWork);
+        Assert.True(await fixture.Context.Tickets.AnyAsync(value => value.Id == ticketId));
+    }
+
+    [Fact]
+    public async Task AHoldScopedOnlyToSecurityAuditRecordStillBlocksTheWholeTicketAggregateDelete()
+    {
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var ticketId = await CreateClosedTicketAsync(fixture.Context, bookingReference: null, closedAt: Now.AddYears(-3));
+        var guard = new RecordClassScopedHoldGuard(RetentionRecordClass.SecurityAuditRecord, RetentionSubjectKind.SupportTicket, ticketId);
+        var processor = CreateProcessor(fixture.Context, new InMemoryObjectStorage(), guard, new RecordingReceiptRecorder(), Now);
+
+        var didWork = await processor.ProcessCycleAsync();
+
+        Assert.False(didWork);
+        Assert.True(await fixture.Context.Tickets.AnyAsync(value => value.Id == ticketId));
+    }
+
     // --- Support attachment (90 days from ticket closure) ---
 
     [Fact]
@@ -395,6 +428,22 @@ public sealed class SupportRetentionSweepTests
 
         public Task<bool> IsHeldAsync(RetentionRecordClass recordClass, RetentionSubjectKind subjectKind, Guid subjectId, CancellationToken cancellationToken = default) =>
             Task.FromResult(subjectKind == heldKind && subjectId == heldId);
+    }
+
+    /// <summary>
+    /// Unlike <see cref="SelectiveHoldGuard"/>, this only reports held for the exact record class
+    /// named - needed to prove that a hold on a *different* class than the one being checked (for
+    /// example SupportAttachment while checking GeneralSupportTicket) still protects correctly.
+    /// </summary>
+    private sealed class RecordClassScopedHoldGuard(RetentionRecordClass heldClass, RetentionSubjectKind heldKind, Guid heldId) : ILegalHoldGuard
+    {
+        public Task<IReadOnlySet<Guid>> ExcludeHeldAsync(RetentionRecordClass recordClass, RetentionSubjectKind subjectKind, IReadOnlyCollection<Guid> candidateSubjectIds, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlySet<Guid>>(recordClass == heldClass && subjectKind == heldKind && candidateSubjectIds.Contains(heldId)
+                ? new HashSet<Guid> { heldId }
+                : new HashSet<Guid>());
+
+        public Task<bool> IsHeldAsync(RetentionRecordClass recordClass, RetentionSubjectKind subjectKind, Guid subjectId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(recordClass == heldClass && subjectKind == heldKind && subjectId == heldId);
     }
 
     private sealed class RecordingReceiptRecorder : IRetentionReceiptRecorder
