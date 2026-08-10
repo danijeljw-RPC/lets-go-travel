@@ -84,17 +84,33 @@ internal sealed class SupportRetentionSweepProcessor(
                 }
 
                 // Storage delete first: it is idempotent (a repeat delete of an already-gone key
-                // is a no-op success), so if the process crashes or the DB delete below fails, the
-                // next cycle safely retries both steps without ever leaving an orphaned object with
-                // a still-existing row pointing nowhere, or a row surviving with no object behind it.
+                // is a no-op success), so if the process crashes before the transaction below
+                // commits, the next cycle safely retries the whole item. The row delete and both
+                // quota-counter decrements are wrapped in one transaction because, unlike the
+                // storage delete, deleting the attachment row makes this item permanently
+                // non-candidate (it will never be selected again) - so those counter updates must
+                // either both happen with the row delete or not at all. Ticket.Reopen can bring a
+                // closed ticket's upload quota back into active use, and TicketAttachmentUsage/
+                // MessageAttachmentUsage have no reconciliation job, so a crash between these
+                // statements would otherwise leave the quota permanently overstated, wrongly
+                // blocking future legitimate uploads to a reopened ticket forever.
                 await storage.DeleteAsync(candidate.StorageKey, cancellationToken);
-                await database.Attachments.Where(value => value.Id == candidate.Id).ExecuteDeleteAsync(cancellationToken);
-                await database.TicketAttachmentUsage.Where(value => value.TicketId == candidate.TicketId)
-                    .ExecuteUpdateAsync(setters => setters.SetProperty(
-                        value => value.BytesUsed, value => value.BytesUsed - candidate.SizeBytes), cancellationToken);
-                await database.MessageAttachmentUsage.Where(value => value.MessageId == candidate.MessageId)
-                    .ExecuteUpdateAsync(setters => setters.SetProperty(
-                        value => value.FileCount, value => value.FileCount - 1), cancellationToken);
+                await using (var transaction = await database.Database.BeginTransactionAsync(cancellationToken))
+                {
+                    var deleted = await database.Attachments.Where(value => value.Id == candidate.Id).ExecuteDeleteAsync(cancellationToken);
+                    if (deleted > 0)
+                    {
+                        await database.TicketAttachmentUsage.Where(value => value.TicketId == candidate.TicketId)
+                            .ExecuteUpdateAsync(setters => setters.SetProperty(
+                                value => value.BytesUsed, value => value.BytesUsed - candidate.SizeBytes), cancellationToken);
+                        await database.MessageAttachmentUsage.Where(value => value.MessageId == candidate.MessageId)
+                            .ExecuteUpdateAsync(setters => setters.SetProperty(
+                                value => value.FileCount, value => value.FileCount - 1), cancellationToken);
+                    }
+
+                    await transaction.CommitAsync(cancellationToken);
+                }
+
                 successCount++;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

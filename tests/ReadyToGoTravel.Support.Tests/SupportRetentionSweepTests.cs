@@ -175,26 +175,36 @@ public sealed class SupportRetentionSweepTests
     [Fact]
     public async Task AttachmentPurgeDecrementsUsageCounters()
     {
+        // Both counters are decremented in the same transaction as the attachment row delete
+        // (see the fix note on SweepAttachmentsAsync): once the row is gone this item can never
+        // be selected again, so a partial update here would permanently overstate a still-open
+        // (or later-reopened) ticket's upload quota with no way to self-heal on retry.
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
         var storage = new InMemoryObjectStorage();
         var (_, _, _) = await CreateClosedTicketWithAttachmentAsync(fixture.Context, storage, Now.AddDays(-91));
         var ticket = await fixture.Context.Tickets.AsNoTracking().SingleAsync();
+        var message = (await fixture.Context.TicketMessages.AsNoTracking().Where(value => value.TicketId == ticket.Id).ToListAsync())
+            .OrderBy(value => value.SequenceNumber).First();
         var usageBefore = await fixture.Context.TicketAttachmentUsage.AsNoTracking().SingleAsync(value => value.TicketId == ticket.Id);
+        var messageUsageBefore = await fixture.Context.MessageAttachmentUsage.AsNoTracking().SingleAsync(value => value.MessageId == message.Id);
         Assert.True(usageBefore.BytesUsed > 0);
+        Assert.True(messageUsageBefore.FileCount > 0);
         var processor = CreateProcessor(fixture.Context, storage, new NoHoldGuard(), new RecordingReceiptRecorder(), Now);
 
         await processor.ProcessCycleAsync();
 
         var usageAfter = await fixture.Context.TicketAttachmentUsage.AsNoTracking().SingleAsync(value => value.TicketId == ticket.Id);
+        var messageUsageAfter = await fixture.Context.MessageAttachmentUsage.AsNoTracking().SingleAsync(value => value.MessageId == message.Id);
         Assert.Equal(0, usageAfter.BytesUsed);
+        Assert.Equal(0, messageUsageAfter.FileCount);
     }
 
     [Fact]
-    public async Task AttachmentStorageDeleteFailureLeavesTheRowIntactForRetry()
+    public async Task AttachmentStorageDeleteFailureLeavesTheRowAndUsageCountersIntactForRetry()
     {
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
         var storage = new InMemoryObjectStorage { DeleteFailure = new InvalidOperationException("storage unavailable") };
-        var (_, attachmentId, _) = await CreateClosedTicketWithAttachmentAsync(fixture.Context, storage, Now.AddDays(-91));
+        var (ticketId, attachmentId, _) = await CreateClosedTicketWithAttachmentAsync(fixture.Context, storage, Now.AddDays(-91));
         var recorder = new RecordingReceiptRecorder();
         var processor = CreateProcessor(fixture.Context, storage, new NoHoldGuard(), recorder, Now);
 
@@ -203,6 +213,10 @@ public sealed class SupportRetentionSweepTests
         Assert.False(didWork);
         Assert.True(recorder.OperationalFailures > 0);
         Assert.True(await fixture.Context.Attachments.AnyAsync(value => value.Id == attachmentId));
+        // The row delete and both counter decrements never begin until after the (here, failing)
+        // storage delete, so the usage counters must still reflect the still-present attachment.
+        var usageAfter = await fixture.Context.TicketAttachmentUsage.AsNoTracking().SingleAsync(value => value.TicketId == ticketId);
+        Assert.True(usageAfter.BytesUsed > 0);
     }
 
     [Fact]
