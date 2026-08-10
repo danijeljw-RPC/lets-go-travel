@@ -305,6 +305,36 @@ public sealed class SupportRetentionSweepTests
     }
 
     [Fact]
+    public async Task AWiderScanWindowReachesAnExpiredUnheldAuditRecordPastAFullyHeldPrefix()
+    {
+        // Regression test for Codex review of PR #12 (github issue #16): if the oldest
+        // AuditScanCap rows (by Id, which is chronological) are all held, the sweep must widen
+        // its scan window rather than repeating the exact same stuck prefix every cycle forever,
+        // which would otherwise starve a genuinely eligible, unheld record sitting just past it.
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var heldTicketId = await CreateOpenTicketAsync(fixture.Context);
+        var unheldTicketId = await CreateOpenTicketAsync(fixture.Context);
+        var baseTime = Now.AddYears(-3);
+        var stuckEvents = Enumerable.Range(0, SupportRetentionSweepProcessor.AuditScanCap)
+            .Select(index => new SupportAuditEvent(
+                Guid.CreateVersion7(baseTime.AddSeconds(index)), heldTicketId, SupportAuditEventType.GuestLinkIssued, "issued", baseTime))
+            .ToList();
+        fixture.Context.AuditEvents.AddRange(stuckEvents);
+        var unheldEventId = Guid.CreateVersion7(baseTime.AddSeconds(SupportRetentionSweepProcessor.AuditScanCap));
+        fixture.Context.AuditEvents.Add(new SupportAuditEvent(unheldEventId, unheldTicketId, SupportAuditEventType.GuestLinkIssued, "issued", baseTime));
+        await fixture.Context.SaveChangesAsync();
+        fixture.Context.ChangeTracker.Clear();
+        var guard = new SelectiveHoldGuard(RetentionSubjectKind.SupportTicket, heldTicketId);
+        var processor = CreateProcessor(fixture.Context, new InMemoryObjectStorage(), guard, new RecordingReceiptRecorder(), Now);
+
+        var didWork = await processor.ProcessCycleAsync();
+
+        Assert.True(didWork);
+        Assert.False(await fixture.Context.AuditEvents.AnyAsync(value => value.Id == unheldEventId));
+        Assert.Equal(SupportRetentionSweepProcessor.AuditScanCap, await fixture.Context.AuditEvents.CountAsync(value => value.TicketId == heldTicketId));
+    }
+
+    [Fact]
     public async Task ActiveLegalHoldOnTheLinkedTicketProtectsItsAuditEvent()
     {
         await using var fixture = await SupportDatabaseFixture.CreateAsync();

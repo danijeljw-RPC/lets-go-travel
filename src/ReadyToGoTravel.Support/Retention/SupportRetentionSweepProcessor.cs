@@ -22,9 +22,19 @@ internal sealed class SupportRetentionSweepProcessor(
     /// by the SQLite provider used in tests. This caps how many minimal-column rows one cycle
     /// pulls into memory to filter client-side, bounding memory/work per cycle; a large backlog is
     /// cleared over several cycles rather than in one, which is safe (eventually consistent, never
-    /// incorrect) even though it is not strictly oldest-first within a single cycle.
+    /// incorrect) even though it is not strictly oldest-first within a single cycle. internal so
+    /// tests can seed exactly this many rows rather than hardcoding the value.
     /// </summary>
-    private const int AuditScanCap = 2000;
+    internal const int AuditScanCap = 2000;
+
+    /// <summary>
+    /// If every expired row in an AuditScanCap-sized window is held (or the window is entirely
+    /// not-yet-expired rows with none held to blame), SweepSecurityAuditRecordsAsync widens the
+    /// window up to this many rows before giving up for the cycle, so a permanently-held or
+    /// permanently-failing prefix can never starve later, genuinely actionable rows out of ever
+    /// being reached (github issue #16 from the Codex review of PR #12).
+    /// </summary>
+    private const int AuditScanHardCap = AuditScanCap * 8;
 
     public async Task<bool> ProcessCycleAsync(CancellationToken cancellationToken = default)
     {
@@ -285,22 +295,54 @@ internal sealed class SupportRetentionSweepProcessor(
         const RetentionRecordClass recordClass = RetentionRecordClass.SecurityAuditRecord;
         var policy = RetentionPolicyCatalog.Get(recordClass);
 
-        var candidates = (await database.AuditEvents
+        List<(Guid Id, Guid? TicketId, DateTimeOffset CreatedAt)> candidates;
+        IReadOnlySet<Guid> held;
+        var scanSize = AuditScanCap;
+        while (true)
+        {
+            var window = await database.AuditEvents
                 .OrderBy(value => value.Id)
-                .Take(AuditScanCap)
+                .Take(scanSize)
                 .Select(value => new { value.Id, value.TicketId, value.CreatedAt })
-                .ToListAsync(cancellationToken))
-            .Where(value => RetentionPolicyCatalog.IsExpired(recordClass, value.CreatedAt, now))
-            .OrderBy(value => value.CreatedAt)
-            .Take(RetentionSweepConstants.BatchSize)
-            .ToList();
+                .ToListAsync(cancellationToken);
+            var expired = window
+                .Where(value => RetentionPolicyCatalog.IsExpired(recordClass, value.CreatedAt, now))
+                .Select(value => (value.Id, value.TicketId, value.CreatedAt))
+                .ToList();
+            if (expired.Count == 0)
+            {
+                return false;
+            }
+
+            var expiredTicketIds = expired.Where(value => value.TicketId.HasValue).Select(value => value.TicketId!.Value).Distinct().ToList();
+            held = await legalHoldGuard.ExcludeHeldAsync(recordClass, RetentionSubjectKind.SupportTicket, expiredTicketIds, cancellationToken);
+            var hasActionableRow = expired.Any(value => !value.TicketId.HasValue || !held.Contains(value.TicketId.Value));
+
+            // If every expired row in this window is held, the fixed prefix would never shrink
+            // and later, unheld, expired rows past it would never be reached. Widen the window
+            // and look further before giving up, rather than repeating the exact same stuck
+            // prefix every cycle forever. Bounded by AuditScanHardCap so one cycle's worst case
+            // is still finite.
+            if (hasActionableRow || window.Count < scanSize || scanSize >= AuditScanHardCap)
+            {
+                // Unheld rows sort before held ones (regardless of age) so a BatchSize-limited
+                // selection out of a wide window always prioritises genuine progress over rows
+                // that would just be skipped again - otherwise the oldest BatchSize rows could
+                // themselves all be held even though unheld ones exist later in the window.
+                candidates = [.. expired
+                    .OrderBy(value => value.TicketId.HasValue && held.Contains(value.TicketId!.Value))
+                    .ThenBy(value => value.CreatedAt)
+                    .Take(RetentionSweepConstants.BatchSize)];
+                break;
+            }
+
+            scanSize *= 2;
+        }
+
         if (candidates.Count == 0)
         {
             return false;
         }
-
-        var ticketIds = candidates.Where(value => value.TicketId.HasValue).Select(value => value.TicketId!.Value).Distinct().ToList();
-        var held = await legalHoldGuard.ExcludeHeldAsync(recordClass, RetentionSubjectKind.SupportTicket, ticketIds, cancellationToken);
 
         var successCount = 0;
         var failureCount = 0;
