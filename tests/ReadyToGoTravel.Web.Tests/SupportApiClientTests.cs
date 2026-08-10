@@ -1,12 +1,16 @@
 using System.Net;
 using System.Text;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.Extensions.Configuration;
+using ReadyToGoTravel.Web.Authentication;
 using ReadyToGoTravel.Web.Client;
 
 namespace ReadyToGoTravel.Web.Tests;
 
 public sealed class SupportApiClientTests
 {
+    private static readonly IConfiguration EmptyConfiguration = new ConfigurationBuilder().Build();
+
     [Fact]
     public async Task UploadAttachmentAsyncReturnsNullRatherThanThrowingWhenTheFileExceedsTheSizeLimit()
     {
@@ -78,7 +82,7 @@ public sealed class SupportApiClientTests
               "attachments": []
             }
             """);
-        var client = new SupportGuestApiClient(new HttpClient(handler) { BaseAddress = new Uri("https://api.example.test") });
+        var client = new SupportGuestApiClient(new HttpClient(handler) { BaseAddress = new Uri("https://api.example.test") }, new GuestClientAddressAccessor(), EmptyConfiguration);
 
         await client.GetTicketAsync("raw-guest-token-value");
 
@@ -88,10 +92,70 @@ public sealed class SupportApiClientTests
     }
 
     [Fact]
+    public async Task TheGuestClientForwardsTheCapturedBrowserAddressOnEveryCallNotJustTheFirst()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection([new("Support:InternalCallerSecret", "real-secret")])
+            .Build();
+        var clientAddress = new GuestClientAddressAccessor();
+        // Simulates the address being captured once, during the HTTP request that establishes the
+        // Blazor circuit - well before any of the interactive calls below, which have no
+        // HttpContext of their own at all.
+        clientAddress.Capture(System.Net.IPAddress.Parse("198.51.100.42"));
+
+        var getHandler = new RecordingHandler(HttpStatusCode.OK, """
+            {
+              "id": "018f2b6a-1234-7abc-9def-0123456789ab",
+              "contactName": "Guest",
+              "contactEmail": "guest@example.test",
+              "category": "General",
+              "isUrgent": false,
+              "bookingReference": null,
+              "status": "WaitingOnSupport",
+              "createdAt": "2026-08-09T00:00:00Z",
+              "updatedAt": "2026-08-09T00:00:00Z",
+              "closedAt": null,
+              "messages": [],
+              "attachments": []
+            }
+            """);
+        var getClient = new SupportGuestApiClient(
+            new HttpClient(getHandler) { BaseAddress = new Uri("https://api.example.test") }, clientAddress, configuration);
+        await getClient.GetTicketAsync("raw-guest-token-value");
+        Assert.Equal("198.51.100.42", getHandler.ForwardedClientIp);
+        Assert.Equal("real-secret", getHandler.InternalCallerSecret);
+
+        var replyHandler = new RecordingHandler(HttpStatusCode.OK, "{}");
+        var replyClient = new SupportGuestApiClient(
+            new HttpClient(replyHandler) { BaseAddress = new Uri("https://api.example.test") }, clientAddress, configuration);
+        // Simulates an interactive circuit event (e.g. a form submit raised over the already
+        // established SignalR connection) rather than the initial page request.
+        await replyClient.ReplyAsync("raw-guest-token-value", "Still need help");
+        Assert.Equal("198.51.100.42", replyHandler.ForwardedClientIp);
+        Assert.Equal("real-secret", replyHandler.InternalCallerSecret);
+    }
+
+    [Fact]
+    public async Task TheGuestClientOmitsForwardingHeadersWhenNoAddressHasBeenCaptured()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection([new("Support:InternalCallerSecret", "real-secret")])
+            .Build();
+        var handler = new RecordingHandler(HttpStatusCode.OK, "{}");
+        var client = new SupportGuestApiClient(
+            new HttpClient(handler) { BaseAddress = new Uri("https://api.example.test") }, new GuestClientAddressAccessor(), configuration);
+
+        await client.ReplyAsync("raw-guest-token-value", "Still need help");
+
+        Assert.Null(handler.ForwardedClientIp);
+        Assert.Null(handler.InternalCallerSecret);
+    }
+
+    [Fact]
     public async Task TheGuestClientsUploadAttachmentAsyncReturnsNullRatherThanThrowingWhenTheFileExceedsTheSizeLimit()
     {
         var handler = new RecordingHandler(HttpStatusCode.Created, "{}");
-        var client = new SupportGuestApiClient(new HttpClient(handler) { BaseAddress = new Uri("https://api.example.test") });
+        var client = new SupportGuestApiClient(new HttpClient(handler) { BaseAddress = new Uri("https://api.example.test") }, new GuestClientAddressAccessor(), EmptyConfiguration);
         var oversizedFile = new OversizedBrowserFile();
 
         var result = await client.UploadAttachmentAsync("raw-guest-token-value", Guid.NewGuid(), oversizedFile);
@@ -121,6 +185,10 @@ public sealed class SupportApiClientTests
 
         public string? AuthorizationParameter { get; private set; }
 
+        public string? ForwardedClientIp { get; private set; }
+
+        public string? InternalCallerSecret { get; private set; }
+
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
@@ -129,6 +197,12 @@ public sealed class SupportApiClientTests
             Method = request.Method;
             AuthorizationScheme = request.Headers.Authorization?.Scheme;
             AuthorizationParameter = request.Headers.Authorization?.Parameter;
+            ForwardedClientIp = request.Headers.TryGetValues("X-Rtgt-Forwarded-Client-Ip", out var ipValues)
+                ? ipValues.FirstOrDefault()
+                : null;
+            InternalCallerSecret = request.Headers.TryGetValues("X-Rtgt-Internal-Caller-Secret", out var secretValues)
+                ? secretValues.FirstOrDefault()
+                : null;
             return Task.FromResult(new HttpResponseMessage(statusCode)
             {
                 Content = new StringContent(responseBody, Encoding.UTF8, "application/json"),

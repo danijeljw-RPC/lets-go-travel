@@ -96,8 +96,8 @@ builder.Services.AddHttpClient<SupportApiClient>(client => ConfigureApiClient(cl
     .AddHttpMessageHandler<SupportClientIpForwardingHandler>();
 builder.Services.AddHttpClient<SupportStaffApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
     .AddHttpMessageHandler<ApiAccessTokenHandler>();
-builder.Services.AddHttpClient<SupportGuestApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
-    .AddHttpMessageHandler<SupportClientIpForwardingHandler>();
+builder.Services.AddScoped<GuestClientAddressAccessor>();
+builder.Services.AddHttpClient<SupportGuestApiClient>(client => ConfigureApiClient(client, apiBaseUrl));
 builder.Services.AddTransient<HostedPaymentComponent>();
 
 var app = builder.Build();
@@ -107,6 +107,16 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
 
+// Captures the connecting peer's address into a Scoped service for every request, including the
+// one that establishes a Blazor Server circuit's SignalR connection - a circuit's DI scope is
+// created from that connection-establishing request's scope, so the captured value remains
+// available for the circuit's whole lifetime even once later interactive events no longer have an
+// HttpContext at all. See GuestClientAddressAccessor for why this is needed.
+app.Use(async (context, next) =>
+{
+    context.RequestServices.GetRequiredService<GuestClientAddressAccessor>().Capture(context.Connection.RemoteIpAddress);
+    await next();
+});
 app.UseRequestLocalization();
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseAuthentication();
