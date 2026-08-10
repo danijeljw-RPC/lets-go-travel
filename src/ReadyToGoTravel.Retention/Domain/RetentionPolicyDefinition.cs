@@ -19,7 +19,15 @@ public sealed record RetentionPolicyDefinition(
     int PeriodValue,
     RetentionPeriodUnit PeriodUnit,
     string TriggerDescription,
-    RetentionAction Action)
+    RetentionAction Action,
+    /// <summary>
+    /// The one subject kind a live sweep for this record class actually queries a legal hold
+    /// against (see each module's ILegalHoldGuard calls) - null for a class with no live sweep,
+    /// where no subject kind can yet be wrong. A legal hold scope naming a different subject kind
+    /// than this for a live-swept class would be silently unenforceable (the owning sweep would
+    /// never find it), so LegalHoldEndpoints validates against this at hold-creation time.
+    /// </summary>
+    RetentionSubjectKind? ExpectedSubjectKind = null)
 {
     public DateTimeOffset CalculateExpiry(DateTimeOffset triggerAtUtc) => PeriodUnit switch
     {

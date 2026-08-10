@@ -28,7 +28,7 @@ public sealed class LegalHoldEndpointsTests
         var createResponse = await app.Client.PostAsJsonAsync(
             "/api/v1/retention/legal-holds",
             new CreateLegalHoldRequest("MATTER-1", "Dispute", DateTimeOffset.UtcNow.AddDays(90),
-                [new LegalHoldScopeEntryRequest("GeneralSupportTicket", Guid.CreateVersion7(), null, null)]));
+                [new LegalHoldScopeEntryRequest("GeneralSupportTicket", null, null, Guid.CreateVersion7())]));
 
         Assert.Equal(HttpStatusCode.Forbidden, listResponse.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, createResponse.StatusCode);
@@ -39,12 +39,12 @@ public sealed class LegalHoldEndpointsTests
     {
         await using var app = await TestApplication.CreateAsync();
         app.SetStaffSubject("officer-1");
-        var customerId = Guid.CreateVersion7();
+        var supportTicketId = Guid.CreateVersion7();
 
         var createResponse = await app.Client.PostAsJsonAsync(
             "/api/v1/retention/legal-holds",
             new CreateLegalHoldRequest("MATTER-1", "Dispute", DateTimeOffset.UtcNow.AddDays(90),
-                [new LegalHoldScopeEntryRequest("GeneralSupportTicket", customerId, null, null)]));
+                [new LegalHoldScopeEntryRequest("GeneralSupportTicket", null, null, supportTicketId)]));
         Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
         var created = await createResponse.ReadAsAsync<LegalHoldResponse>();
         Assert.NotNull(created);
@@ -110,6 +110,27 @@ public sealed class LegalHoldEndpointsTests
     }
 
     [Fact]
+    public async Task CreatingAScopeWithASubjectKeyItsOwningSweepDoesNotQueryReturnsBadRequest()
+    {
+        // Regression test for a bug found by Codex review of PR #12 (github issue #14):
+        // GeneralSupportTicket's owning sweep (SweepTicketsAsync) only ever queries
+        // ExcludeHeldAsync/IsHeldAsync with RetentionSubjectKind.SupportTicket. A scope naming
+        // CustomerId instead was previously accepted (201) and persisted, but could never be
+        // found by that sweep - a silently inert hold that looked like real protection.
+        await using var app = await TestApplication.CreateAsync();
+        app.SetStaffSubject("officer-1");
+
+        var response = await app.Client.PostAsJsonAsync(
+            "/api/v1/retention/legal-holds",
+            new CreateLegalHoldRequest("MATTER-1", "Dispute", DateTimeOffset.UtcNow.AddDays(90),
+                [new LegalHoldScopeEntryRequest("GeneralSupportTicket", Guid.CreateVersion7(), null, null)]));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("legal_hold_scope_subject_kind_mismatch", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ReleasingAnAlreadyReleasedHoldIsIdempotentOverHttp()
     {
         await using var app = await TestApplication.CreateAsync();
@@ -117,7 +138,7 @@ public sealed class LegalHoldEndpointsTests
         var createResponse = await app.Client.PostAsJsonAsync(
             "/api/v1/retention/legal-holds",
             new CreateLegalHoldRequest("MATTER-1", "Dispute", DateTimeOffset.UtcNow.AddDays(90),
-                [new LegalHoldScopeEntryRequest("GeneralSupportTicket", Guid.CreateVersion7(), null, null)]));
+                [new LegalHoldScopeEntryRequest("GeneralSupportTicket", null, null, Guid.CreateVersion7())]));
         var created = await createResponse.ReadAsAsync<LegalHoldResponse>();
         await app.Client.PostAsJsonAsync($"/api/v1/retention/legal-holds/{created!.Id}/release", new ReleaseLegalHoldRequest("First"));
 
@@ -147,7 +168,7 @@ public sealed class LegalHoldEndpointsTests
         var createResponse = await app.Client.PostAsJsonAsync(
             "/api/v1/retention/legal-holds",
             new CreateLegalHoldRequest("MATTER-1", "Dispute", DateTimeOffset.UtcNow.AddDays(90),
-                [new LegalHoldScopeEntryRequest("GeneralSupportTicket", Guid.CreateVersion7(), null, null)]));
+                [new LegalHoldScopeEntryRequest("GeneralSupportTicket", null, null, Guid.CreateVersion7())]));
         var created = await createResponse.ReadAsAsync<LegalHoldResponse>();
 
         await using var scope = app.Services.CreateAsyncScope();

@@ -21,6 +21,37 @@ public sealed class LegalHoldServiceTests
     }
 
     [Fact]
+    public async Task OpeningAHoldWithASubjectKeyItsOwningSweepDoesNotQueryThrows()
+    {
+        // Defence in depth alongside LegalHoldEndpoints' own validation (github issue #14): even
+        // if a future caller of LegalHoldService bypassed the HTTP-layer check, the domain layer
+        // itself must not persist a scope that would be silently unenforceable.
+        await using var fixture = await RetentionDatabaseFixture.CreateAsync();
+        var service = new LegalHoldService(fixture.Context, new FixedTimeProvider(Now));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.OpenAsync(
+            "MATTER-1", "Dispute", "officer-1", Now.AddDays(90),
+            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, Guid.CreateVersion7(Now), null, null)],
+            default));
+    }
+
+    [Fact]
+    public async Task OpeningAHoldForARecordClassWithNoLiveSweepAcceptsAnySubjectKind()
+    {
+        // CanonicalBookingEvidence has no ExpectedSubjectKind (PolicyOnlyNoLiveSweep - no sweep
+        // exists yet to be incompatible with), so no subject kind can be rejected for it.
+        await using var fixture = await RetentionDatabaseFixture.CreateAsync();
+        var service = new LegalHoldService(fixture.Context, new FixedTimeProvider(Now));
+
+        var hold = await service.OpenAsync(
+            "MATTER-1", "Dispute", "officer-1", Now.AddDays(90),
+            [new LegalHoldScopeRequest(RetentionRecordClass.CanonicalBookingEvidence, Guid.CreateVersion7(Now), null, null)],
+            default);
+
+        Assert.Single(hold.Scopes);
+    }
+
+    [Fact]
     public async Task OpeningAHoldWithAtLeastOneScopePersistsItAndAnAuditEvent()
     {
         await using var fixture = await RetentionDatabaseFixture.CreateAsync();
@@ -29,7 +60,7 @@ public sealed class LegalHoldServiceTests
 
         var hold = await service.OpenAsync(
             "MATTER-1", "Dispute", "officer-1", Now.AddDays(90),
-            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, customerId, null, null)],
+            [new LegalHoldScopeRequest(RetentionRecordClass.AbandonedCheckoutState, customerId, null, null)],
             default);
 
         Assert.Single(hold.Scopes);
@@ -113,11 +144,11 @@ public sealed class LegalHoldServiceTests
         var otherCustomer = Guid.CreateVersion7(Now);
         await service.OpenAsync(
             "MATTER-1", "Dispute", "officer-1", Now.AddDays(90),
-            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, heldCustomer, null, null)],
+            [new LegalHoldScopeRequest(RetentionRecordClass.AbandonedCheckoutState, heldCustomer, null, null)],
             default);
 
-        Assert.True(await service.IsHeldAsync(RetentionRecordClass.GeneralSupportTicket, RetentionSubjectKind.Customer, heldCustomer, default));
-        Assert.False(await service.IsHeldAsync(RetentionRecordClass.GeneralSupportTicket, RetentionSubjectKind.Customer, otherCustomer, default));
+        Assert.True(await service.IsHeldAsync(RetentionRecordClass.AbandonedCheckoutState, RetentionSubjectKind.Customer, heldCustomer, default));
+        Assert.False(await service.IsHeldAsync(RetentionRecordClass.AbandonedCheckoutState, RetentionSubjectKind.Customer, otherCustomer, default));
     }
 
     [Fact]
@@ -128,14 +159,14 @@ public sealed class LegalHoldServiceTests
         var customerId = Guid.CreateVersion7(Now);
         await service.OpenAsync(
             "MATTER-1", "Dispute A", "officer-1", Now.AddDays(90),
-            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, customerId, null, null)],
+            [new LegalHoldScopeRequest(RetentionRecordClass.AbandonedCheckoutState, customerId, null, null)],
             default);
         await service.OpenAsync(
             "MATTER-2", "Dispute B", "officer-2", Now.AddDays(90),
-            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, customerId, null, null)],
+            [new LegalHoldScopeRequest(RetentionRecordClass.AbandonedCheckoutState, customerId, null, null)],
             default);
 
-        Assert.True(await service.IsHeldAsync(RetentionRecordClass.GeneralSupportTicket, RetentionSubjectKind.Customer, customerId, default));
+        Assert.True(await service.IsHeldAsync(RetentionRecordClass.AbandonedCheckoutState, RetentionSubjectKind.Customer, customerId, default));
     }
 
     [Fact]
@@ -146,12 +177,12 @@ public sealed class LegalHoldServiceTests
         var customerId = Guid.CreateVersion7(Now);
         var hold = await service.OpenAsync(
             "MATTER-1", "Dispute", "officer-1", Now.AddDays(90),
-            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, customerId, null, null)],
+            [new LegalHoldScopeRequest(RetentionRecordClass.AbandonedCheckoutState, customerId, null, null)],
             default);
 
         await service.ReleaseAsync(hold.Id, "officer-1", "Matter resolved", default);
 
-        Assert.False(await service.IsHeldAsync(RetentionRecordClass.GeneralSupportTicket, RetentionSubjectKind.Customer, customerId, default));
+        Assert.False(await service.IsHeldAsync(RetentionRecordClass.AbandonedCheckoutState, RetentionSubjectKind.Customer, customerId, default));
         var releaseEvent = await fixture.Context.LegalHoldAuditEvents
             .SingleAsync(value => value.EventType == LegalHoldAuditEventType.HoldReleased);
         Assert.Equal("officer-1", releaseEvent.ActorSubject);
@@ -165,7 +196,7 @@ public sealed class LegalHoldServiceTests
         var customerId = Guid.CreateVersion7(Now);
         var hold = await service.OpenAsync(
             "MATTER-1", "Dispute", "officer-1", Now.AddDays(90),
-            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, customerId, null, null)],
+            [new LegalHoldScopeRequest(RetentionRecordClass.AbandonedCheckoutState, customerId, null, null)],
             default);
         await service.ReleaseAsync(hold.Id, "officer-1", "First release", default);
 
@@ -188,16 +219,16 @@ public sealed class LegalHoldServiceTests
         var customerId = Guid.CreateVersion7(Now);
         var first = await service.OpenAsync(
             "MATTER-1", "Dispute", "officer-1", Now.AddDays(90),
-            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, customerId, null, null)],
+            [new LegalHoldScopeRequest(RetentionRecordClass.AbandonedCheckoutState, customerId, null, null)],
             default);
         await service.ReleaseAsync(first.Id, "officer-1", "Resolved", default);
 
         await service.OpenAsync(
             "MATTER-3", "New dispute", "officer-1", Now.AddDays(90),
-            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, customerId, null, null)],
+            [new LegalHoldScopeRequest(RetentionRecordClass.AbandonedCheckoutState, customerId, null, null)],
             default);
 
-        Assert.True(await service.IsHeldAsync(RetentionRecordClass.GeneralSupportTicket, RetentionSubjectKind.Customer, customerId, default));
+        Assert.True(await service.IsHeldAsync(RetentionRecordClass.AbandonedCheckoutState, RetentionSubjectKind.Customer, customerId, default));
     }
 
     [Fact]
@@ -208,10 +239,10 @@ public sealed class LegalHoldServiceTests
         var customerId = Guid.CreateVersion7(Now);
         await service.OpenAsync(
             "MATTER-1", "Dispute", "officer-1", Now.AddDays(-1),
-            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, customerId, null, null)],
+            [new LegalHoldScopeRequest(RetentionRecordClass.AbandonedCheckoutState, customerId, null, null)],
             default);
 
-        Assert.True(await service.IsHeldAsync(RetentionRecordClass.GeneralSupportTicket, RetentionSubjectKind.Customer, customerId, default));
+        Assert.True(await service.IsHeldAsync(RetentionRecordClass.AbandonedCheckoutState, RetentionSubjectKind.Customer, customerId, default));
     }
 
     [Fact]
@@ -222,10 +253,10 @@ public sealed class LegalHoldServiceTests
         var customerId = Guid.CreateVersion7(Now);
         var hold = await service.OpenAsync(
             "MATTER-1", "Dispute", "officer-1", Now.AddDays(90),
-            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, customerId, null, null)],
+            [new LegalHoldScopeRequest(RetentionRecordClass.AbandonedCheckoutState, customerId, null, null)],
             default);
 
-        await service.IsHeldAsync(RetentionRecordClass.GeneralSupportTicket, RetentionSubjectKind.Customer, customerId, default);
+        await service.IsHeldAsync(RetentionRecordClass.AbandonedCheckoutState, RetentionSubjectKind.Customer, customerId, default);
 
         var guardEvent = await fixture.Context.LegalHoldAuditEvents
             .SingleAsync(value => value.EventType == LegalHoldAuditEventType.GuardCheckHeld);

@@ -54,6 +54,25 @@ public sealed class LegalHoldScope
                 "A legal hold scope must name exactly one of customer, component booking or support ticket.");
         }
 
+        // Defence in depth alongside LegalHoldEndpoints' own check: a scope naming a subject kind
+        // the owning sweep never queries for this record class would be persisted successfully but
+        // silently unenforceable, since ILegalHoldGuard only matches on the one subject kind each
+        // sweep actually asks about (see RetentionPolicyCatalog.ExpectedSubjectKind).
+        var expectedSubjectKind = RetentionPolicyCatalog.Get(recordClass).ExpectedSubjectKind;
+        if (expectedSubjectKind is not null)
+        {
+            var providedSubjectKind = customerId is not null
+                ? RetentionSubjectKind.Customer
+                : componentBookingId is not null
+                    ? RetentionSubjectKind.ComponentBooking
+                    : RetentionSubjectKind.SupportTicket;
+            if (expectedSubjectKind != providedSubjectKind)
+            {
+                throw new ArgumentException(
+                    $"A {recordClass} legal hold scope must be keyed by {expectedSubjectKind}, not {providedSubjectKind}.");
+            }
+        }
+
         return new LegalHoldScope(Guid.CreateVersion7(now), legalHoldId, recordClass, customerId, componentBookingId, supportTicketId);
     }
 

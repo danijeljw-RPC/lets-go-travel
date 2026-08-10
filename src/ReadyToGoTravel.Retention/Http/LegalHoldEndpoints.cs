@@ -58,6 +58,22 @@ public static class LegalHoldEndpoints
                 return Problem(context, StatusCodes.Status400BadRequest, "legal_hold_scope_subject_invalid");
             }
 
+            // Each live-swept record class's owning sweep queries ExcludeHeldAsync/IsHeldAsync
+            // for exactly one subject kind (RetentionPolicyCatalog.ExpectedSubjectKind). A scope
+            // naming a different, structurally valid subject kind would be persisted successfully
+            // but never found by that sweep - silently providing zero protection while looking
+            // like a real hold. Reject that combination here rather than accepting an inert hold.
+            var providedSubjectKind = scope.CustomerId is not null
+                ? RetentionSubjectKind.Customer
+                : scope.ComponentBookingId is not null
+                    ? RetentionSubjectKind.ComponentBooking
+                    : RetentionSubjectKind.SupportTicket;
+            var expectedSubjectKind = RetentionPolicyCatalog.Get(recordClass).ExpectedSubjectKind;
+            if (expectedSubjectKind is not null && expectedSubjectKind != providedSubjectKind)
+            {
+                return Problem(context, StatusCodes.Status400BadRequest, "legal_hold_scope_subject_kind_mismatch");
+            }
+
             scopeRequests.Add(new LegalHoldScopeRequest(recordClass, scope.CustomerId, scope.ComponentBookingId, scope.SupportTicketId));
         }
 

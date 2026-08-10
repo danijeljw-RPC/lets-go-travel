@@ -16,7 +16,7 @@ public sealed class RetentionPersistenceTests
         var service = new LegalHoldService(fixture.Context, new FixedTimeProvider(Now));
         var hold = await service.OpenAsync(
             "MATTER-1", "Dispute", "officer-1", Now.AddDays(90),
-            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, Guid.CreateVersion7(Now), null, null)],
+            [new LegalHoldScopeRequest(RetentionRecordClass.AbandonedCheckoutState, Guid.CreateVersion7(Now), null, null)],
             default);
 
         // Bypass the domain-level guard entirely to prove the database itself enforces the
@@ -52,7 +52,7 @@ public sealed class RetentionPersistenceTests
         var service = new LegalHoldService(fixture.Context, new FixedTimeProvider(Now));
         await service.OpenAsync(
             "MATTER-1", "Dispute", "officer-1", Now.AddDays(90),
-            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, Guid.CreateVersion7(Now), null, null)],
+            [new LegalHoldScopeRequest(RetentionRecordClass.AbandonedCheckoutState, Guid.CreateVersion7(Now), null, null)],
             default);
 
         var auditEvent = await fixture.Context.LegalHoldAuditEvents.SingleAsync();
@@ -69,7 +69,7 @@ public sealed class RetentionPersistenceTests
         var service = new LegalHoldService(fixture.Context, new FixedTimeProvider(Now));
         await service.OpenAsync(
             "MATTER-1", "Dispute", "officer-1", Now.AddDays(90),
-            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, Guid.CreateVersion7(Now), null, null)],
+            [new LegalHoldScopeRequest(RetentionRecordClass.AbandonedCheckoutState, Guid.CreateVersion7(Now), null, null)],
             default);
 
         var auditEvent = await fixture.Context.LegalHoldAuditEvents.SingleAsync();
