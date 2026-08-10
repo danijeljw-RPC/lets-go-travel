@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ReadyToGoTravel.Booking.Bookings;
 using ReadyToGoTravel.Booking.Checkout;
@@ -179,6 +180,44 @@ public sealed class BookingRetentionSweepTests
         var item = await fixture.Context.WebhookInbox.SingleAsync();
         Assert.NotEqual(string.Empty, item.RawBody);
     }
+
+    [Fact]
+    public async Task ConcurrentReplicasRedactingTheSameWebhookNeverBothClaimSuccess()
+    {
+        // Regression test for Codex review of PR #12 (github issue #17): retention sweeps
+        // deliberately run without a lease (real replicas may race on the same candidate), so the
+        // conditional ExecuteUpdateAsync's affected-row count - not an unconditional successCount++
+        // - must decide whether a replica actually performed the redaction. Uses two independent
+        // BookingDbContext instances against a shared-cache SQLite database (the same real-race
+        // pattern AttachmentUploadDownloadTests uses) rather than mocking the race away.
+        var connectionString = $"Data Source=file:webhook-race-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
+        await using var keepAlive = new SqliteConnection(connectionString);
+        await keepAlive.OpenAsync();
+        await using (var setupContext = CreateContext(connectionString))
+        {
+            await setupContext.Database.EnsureCreatedAsync();
+            await AddCompletedWebhookAsync(setupContext, Guid.CreateVersion7(Now), Now.AddDays(-91));
+        }
+
+        async Task<int> SweepWithFreshContextAsync()
+        {
+            await using var context = CreateContext(connectionString);
+            var recorder = new RecordingReceiptRecorder();
+            var processor = CreateProcessor(context, new NoHoldGuard(), recorder, Now);
+            await processor.ProcessCycleAsync();
+            return recorder.TotalSuccessCount;
+        }
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ => Task.Run(SweepWithFreshContextAsync)));
+
+        Assert.Equal(1, results.Sum());
+        await using var verifyContext = CreateContext(connectionString);
+        var item = await verifyContext.WebhookInbox.SingleAsync();
+        Assert.Equal(string.Empty, item.RawBody);
+    }
+
+    private static BookingDbContext CreateContext(string connectionString) =>
+        new(new DbContextOptionsBuilder<BookingDbContext>().UseSqlite(connectionString).Options);
 
     // --- Notification rendered content ---
 
@@ -499,8 +538,13 @@ public sealed class BookingRetentionSweepTests
     {
         public int OperationalFailures { get; private set; }
 
-        public Task RecordAsync(RetentionRecordClass recordClass, int policyVersion, string action, int successCount, int failureCount, DateTimeOffset completedAtUtc, string? failureSummary, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+        public int TotalSuccessCount { get; private set; }
+
+        public Task RecordAsync(RetentionRecordClass recordClass, int policyVersion, string action, int successCount, int failureCount, DateTimeOffset completedAtUtc, string? failureSummary, CancellationToken cancellationToken = default)
+        {
+            TotalSuccessCount += successCount;
+            return Task.CompletedTask;
+        }
 
         public Task RecordOperationalFailureAsync(RetentionRecordClass recordClass, string scope, string reason, DateTimeOffset nowUtc, CancellationToken cancellationToken = default)
         {

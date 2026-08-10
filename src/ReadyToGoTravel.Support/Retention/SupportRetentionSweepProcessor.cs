@@ -119,9 +119,14 @@ internal sealed class SupportRetentionSweepProcessor(
                     }
 
                     await transaction.CommitAsync(cancellationToken);
+                    // Retention sweeps deliberately have no lease, so a concurrent replica may
+                    // have already deleted this same attachment; only this replica's own actual
+                    // row delete counts as its success, so the receipt does not overstate work.
+                    if (deleted > 0)
+                    {
+                        successCount++;
+                    }
                 }
-
-                successCount++;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -196,14 +201,20 @@ internal sealed class SupportRetentionSweepProcessor(
                     continue;
                 }
 
-                await DeleteTicketAggregateAsync(candidate.Id, cancellationToken);
-                if (candidate.RecordClass == RetentionRecordClass.GeneralSupportTicket)
+                // Retention sweeps deliberately have no lease, so a concurrent replica may have
+                // already deleted this same ticket; only count it as this replica's success if
+                // its own final ticket-row delete actually changed a row.
+                var deleted = await DeleteTicketAggregateAsync(candidate.Id, cancellationToken);
+                if (deleted)
                 {
-                    generalSuccess++;
-                }
-                else
-                {
-                    bookingRelatedSuccess++;
+                    if (candidate.RecordClass == RetentionRecordClass.GeneralSupportTicket)
+                    {
+                        generalSuccess++;
+                    }
+                    else
+                    {
+                        bookingRelatedSuccess++;
+                    }
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -258,7 +269,8 @@ internal sealed class SupportRetentionSweepProcessor(
     /// cycle retries cleanly (phase 1 will find zero remaining attachments and skip straight to
     /// phase 2, which is naturally idempotent since every statement in it is a conditional delete).
     /// </summary>
-    private async Task DeleteTicketAggregateAsync(Guid ticketId, CancellationToken cancellationToken)
+    /// <returns>Whether the ticket row itself was actually deleted by this call.</returns>
+    private async Task<bool> DeleteTicketAggregateAsync(Guid ticketId, CancellationToken cancellationToken)
     {
         var attachmentIds = await database.Attachments
             .Where(value => value.TicketId == ticketId)
@@ -286,8 +298,9 @@ internal sealed class SupportRetentionSweepProcessor(
         await database.SupportNotificationOutbox.Where(value => value.TicketId == ticketId).ExecuteDeleteAsync(cancellationToken);
         await database.AuditEvents.Where(value => value.TicketId == ticketId).ExecuteDeleteAsync(cancellationToken);
         await database.TicketMessages.Where(value => value.TicketId == ticketId).ExecuteDeleteAsync(cancellationToken);
-        await database.Tickets.Where(value => value.Id == ticketId).ExecuteDeleteAsync(cancellationToken);
+        var deletedTickets = await database.Tickets.Where(value => value.Id == ticketId).ExecuteDeleteAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        return deletedTickets > 0;
     }
 
     private async Task<bool> SweepSecurityAuditRecordsAsync(DateTimeOffset now, CancellationToken cancellationToken)
@@ -362,8 +375,13 @@ internal sealed class SupportRetentionSweepProcessor(
                     continue;
                 }
 
-                await database.AuditEvents.Where(value => value.Id == candidate.Id).ExecuteDeleteAsync(cancellationToken);
-                successCount++;
+                // Retention sweeps deliberately have no lease, so a concurrent replica may have
+                // already deleted this same audit event; only count a real change as a success.
+                var deleted = await database.AuditEvents.Where(value => value.Id == candidate.Id).ExecuteDeleteAsync(cancellationToken);
+                if (deleted > 0)
+                {
+                    successCount++;
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

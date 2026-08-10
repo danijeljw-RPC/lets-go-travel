@@ -84,12 +84,17 @@ internal sealed class ConsumerRetentionSweepProcessor(
                     continue;
                 }
 
-                await database.Customers.Where(customer => customer.Id == candidate.Id)
+                // Retention sweeps deliberately have no lease, so a concurrent replica may have
+                // already minimised this same customer; only count a real change as a success.
+                var affected = await database.Customers.Where(customer => customer.Id == candidate.Id)
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(customer => customer.PreferredLocale, Locale.SupportedLocales.Default)
                         .SetProperty(customer => customer.DisplayCurrency, "AUD")
                         .SetProperty(customer => customer.UpdatedAt, now), cancellationToken);
-                successCount++;
+                if (affected > 0)
+                {
+                    successCount++;
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

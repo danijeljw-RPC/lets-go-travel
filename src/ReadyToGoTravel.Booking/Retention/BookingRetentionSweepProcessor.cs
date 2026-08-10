@@ -81,10 +81,17 @@ internal sealed class BookingRetentionSweepProcessor(
                     continue;
                 }
 
-                await database.WebhookInbox
+                // Retention sweeps deliberately have no lease, so two worker replicas can select
+                // the same candidate; only count it as a success if this replica's conditional
+                // update actually changed the row, otherwise a concurrent replica's redaction
+                // (WHERE RawBody != "" already matching zero rows) would be double-counted here.
+                var affected = await database.WebhookInbox
                     .Where(item => item.Id == candidate.Id && item.RawBody != "")
                     .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.RawBody, string.Empty), cancellationToken);
-                successCount++;
+                if (affected > 0)
+                {
+                    successCount++;
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -141,10 +148,13 @@ internal sealed class BookingRetentionSweepProcessor(
                     continue;
                 }
 
-                await database.NotificationOutbox
+                var affected = await database.NotificationOutbox
                     .Where(item => item.Id == candidate.Id && item.PayloadJson != "")
                     .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.PayloadJson, string.Empty), cancellationToken);
-                successCount++;
+                if (affected > 0)
+                {
+                    successCount++;
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -207,7 +217,9 @@ internal sealed class BookingRetentionSweepProcessor(
                 var session = await database.Checkouts.SingleOrDefaultAsync(value => value.Id == candidate.Id, cancellationToken);
                 if (session is null)
                 {
-                    successCount++;
+                    // Already gone - a concurrent replica (retention sweeps deliberately have no
+                    // lease) already deleted it. The end state is correct either way, but this
+                    // replica did not perform the deletion, so it must not claim the success.
                     continue;
                 }
 
