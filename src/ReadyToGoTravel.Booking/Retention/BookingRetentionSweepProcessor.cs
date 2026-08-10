@@ -39,18 +39,19 @@ internal sealed class BookingRetentionSweepProcessor(
     {
         const RetentionRecordClass recordClass = RetentionRecordClass.WebhookPayloadBody;
         var policy = RetentionPolicyCatalog.Get(recordClass);
-        var cutoff = now.AddDays(-policy.PeriodValue);
 
         // The date-boundary filter, ordering and Take all happen client-side after a cheap
         // server-side status/non-empty prefilter: the SQLite provider used in tests cannot
         // translate relational (<=) comparisons on a DateTimeOffset column (PostgreSQL can), and
         // this candidate set is already self-limiting - RawBody != "" excludes every item this
         // sweep has already redacted, so it only ever holds the genuine not-yet-processed backlog.
+        // Filtered via the policy catalog (not a manually computed cutoff) so the period-unit
+        // (days/years) can never be silently miscalculated here.
         var candidates = (await database.WebhookInbox
             .Where(item => item.Status == WebhookInboxStatus.Completed && item.CompletedAt != null && item.RawBody != "")
             .Select(item => new { item.Id, item.ComponentBookingId, item.CompletedAt })
             .ToListAsync(cancellationToken))
-            .Where(item => item.CompletedAt!.Value <= cutoff)
+            .Where(item => RetentionPolicyCatalog.IsExpired(recordClass, item.CompletedAt!.Value, now))
             .OrderBy(item => item.CompletedAt)
             .Take(RetentionSweepConstants.BatchSize)
             .ToList();
@@ -104,7 +105,6 @@ internal sealed class BookingRetentionSweepProcessor(
     {
         const RetentionRecordClass recordClass = RetentionRecordClass.NotificationRenderedContent;
         var policy = RetentionPolicyCatalog.Get(recordClass);
-        var cutoff = now.AddDays(-policy.PeriodValue);
 
         var candidates = (await database.NotificationOutbox
             .Where(item =>
@@ -112,7 +112,7 @@ internal sealed class BookingRetentionSweepProcessor(
                 item.PayloadJson != "")
             .Select(item => new { item.Id, item.ComponentBookingId, item.UpdatedAt })
             .ToListAsync(cancellationToken))
-            .Where(item => item.UpdatedAt <= cutoff)
+            .Where(item => RetentionPolicyCatalog.IsExpired(recordClass, item.UpdatedAt, now))
             .OrderBy(item => item.UpdatedAt)
             .Take(RetentionSweepConstants.BatchSize)
             .ToList();
@@ -165,13 +165,12 @@ internal sealed class BookingRetentionSweepProcessor(
     {
         const RetentionRecordClass recordClass = RetentionRecordClass.AbandonedCheckoutState;
         var policy = RetentionPolicyCatalog.Get(recordClass);
-        var cutoff = now.AddDays(-policy.PeriodValue);
 
         var candidates = (await database.Checkouts
             .Where(session => AbandonableStatuses.Contains(session.Status))
             .Select(session => new { session.Id, session.CustomerId, session.UpdatedAt })
             .ToListAsync(cancellationToken))
-            .Where(session => session.UpdatedAt <= cutoff)
+            .Where(session => RetentionPolicyCatalog.IsExpired(recordClass, session.UpdatedAt, now))
             .OrderBy(session => session.UpdatedAt)
             .Take(RetentionSweepConstants.BatchSize)
             .ToList();

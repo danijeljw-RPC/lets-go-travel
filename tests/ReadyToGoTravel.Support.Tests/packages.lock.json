@@ -316,13 +316,22 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
+      "readytogotravel.retention": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.8, )",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.8, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
       "readytogotravel.support": {
         "type": "Project",
         "dependencies": {
           "AWSSDK.S3": "[4.0.102, )",
           "Microsoft.EntityFrameworkCore": "[10.0.8, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.8, )",
-          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "ReadyToGoTravel.Retention": "[1.0.0, )"
         }
       },
       "AWSSDK.S3": {

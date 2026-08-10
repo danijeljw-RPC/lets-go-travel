@@ -3,10 +3,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using ReadyToGoTravel.Retention;
 using ReadyToGoTravel.Support.Application;
 using ReadyToGoTravel.Support.Guest;
 using ReadyToGoTravel.Support.Notifications;
 using ReadyToGoTravel.Support.Persistence;
+using ReadyToGoTravel.Support.Retention;
 using ReadyToGoTravel.Support.Scanning;
 using ReadyToGoTravel.Support.Storage;
 
@@ -42,6 +44,8 @@ public static class SupportModule
 
         services.AddScoped<SupportAttachmentService>();
         services.AddScoped<IAttachmentScanProcessor, AttachmentScanProcessor>();
+        services.AddOptions<RetentionSweepOptions>().BindConfiguration(RetentionSweepOptions.SectionName);
+        services.AddScoped<ISupportRetentionSweepProcessor, SupportRetentionSweepProcessor>();
 
         services.AddOptions<SupportNotificationSenderOptions>();
         services.TryAddSingleton<ISupportNotificationSender>(provider =>
