@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using ReadyToGoTravel.Support.Domain;
 using ReadyToGoTravel.Support.Notifications;
 using ReadyToGoTravel.Support.Persistence;
@@ -9,6 +11,25 @@ namespace ReadyToGoTravel.Support.Tests;
 public sealed class SupportPersistenceTests
 {
     private static readonly DateTimeOffset Now = new(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void TicketMessageAppendOnlyTriggerRejectsUpdateButAllowsRetentionDelete()
+    {
+        // Regression test for a bug found via a live PostgreSQL drill (see the Slice 7 outcome
+        // report): reject_support_ticket_message_mutation originally blocked BOTH UPDATE and
+        // DELETE, which silently and permanently broke SupportRetentionSweepProcessor's ticket
+        // deletion in production, invisible to every other test in this file because SQLite's
+        // EnsureCreatedAsync never executes migration-only raw trigger SQL. This test instead
+        // generates the real migration script (no live database needed) and asserts the final
+        // trigger definition blocks UPDATE only.
+        var options = new DbContextOptionsBuilder<SupportDbContext>()
+            .UseNpgsql("Host=localhost;Database=rtgt;Username=rtgt")
+            .Options;
+        using var context = new SupportDbContext(options);
+
+        var migrationScript = context.Database.GetService<IMigrator>().GenerateScript();
+        Assert.Contains("BEFORE UPDATE ON support.support_ticket_messages", migrationScript, StringComparison.Ordinal);
+    }
 
     [Fact]
     public async Task NotificationOutboxDedupeKeyIsUnique()
