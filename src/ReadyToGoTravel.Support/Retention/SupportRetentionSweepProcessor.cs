@@ -206,24 +206,34 @@ internal sealed class SupportRetentionSweepProcessor(
     /// <summary>
     /// Deletes a ticket and every row that transitively depends on it, in the order its foreign
     /// keys require (every Support FK is Restrict except attachment_scan_work's cascade from
-    /// attachment - see SupportEntityConfigurations.cs). Wrapped in one transaction so a mid-
-    /// sequence failure never leaves the ticket half-deleted; storage deletes happen first and
-    /// outside the transaction since they are an external side effect a database transaction
-    /// cannot cover, and are safely retryable (idempotent) if the transaction never commits.
+    /// attachment - see SupportEntityConfigurations.cs).
+    ///
+    /// This runs in two phases, deliberately not one single transaction spanning both: phase 1
+    /// deletes each attachment's storage object then its own row as one atomic pair per
+    /// attachment (identical to SweepAttachmentsAsync's own idempotent delete-storage-then-delete-row
+    /// order), so a failure partway through phase 1 can never strand a row whose storage object is
+    /// already gone - an earlier version of this method deleted every attachment's storage object
+    /// up front and only removed the rows inside the phase-2 transaction below, which meant a later
+    /// failure in that same transaction (tokens, messages, anything) rolled the row deletions back
+    /// while the storage objects stayed deleted, resurrecting attachment rows that pointed at
+    /// nothing. Phase 2 is pure Postgres state with no external side effect, so it is safe to wrap
+    /// in one all-or-nothing transaction: a rollback there just means nothing changed, and the next
+    /// cycle retries cleanly (phase 1 will find zero remaining attachments and skip straight to
+    /// phase 2, which is naturally idempotent since every statement in it is a conditional delete).
     /// </summary>
     private async Task DeleteTicketAggregateAsync(Guid ticketId, CancellationToken cancellationToken)
     {
-        var attachments = await database.Attachments
+        var attachmentIds = await database.Attachments
             .Where(value => value.TicketId == ticketId)
-            .Select(value => value.StorageKey)
+            .Select(value => new { value.Id, value.StorageKey })
             .ToListAsync(cancellationToken);
-        foreach (var storageKey in attachments)
+        foreach (var attachment in attachmentIds)
         {
-            await storage.DeleteAsync(storageKey, cancellationToken);
+            await storage.DeleteAsync(attachment.StorageKey, cancellationToken);
+            await database.Attachments.Where(value => value.Id == attachment.Id).ExecuteDeleteAsync(cancellationToken);
         }
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        await database.Attachments.Where(value => value.TicketId == ticketId).ExecuteDeleteAsync(cancellationToken);
         await database.TicketAttachmentUsage.Where(value => value.TicketId == ticketId).ExecuteDeleteAsync(cancellationToken);
         var messageIds = await database.TicketMessages.Where(value => value.TicketId == ticketId).Select(value => value.Id).ToListAsync(cancellationToken);
         await database.MessageAttachmentUsage.Where(value => messageIds.Contains(value.MessageId)).ExecuteDeleteAsync(cancellationToken);

@@ -29,6 +29,32 @@ public sealed class SupportRetentionSweepTests
     }
 
     [Fact]
+    public async Task AttachmentStorageFailureDuringTicketTeardownLeavesBothTheTicketAndTheAttachmentRowIntactForRetry()
+    {
+        // Regression test for a real bug found via a live PostgreSQL drill (see the Slice 7
+        // outcome report): DeleteTicketAggregateAsync originally deleted every attachment's
+        // storage object up front, then removed the attachment rows inside the same transaction
+        // as the rest of the ticket teardown - so a later failure in that transaction rolled the
+        // row deletions back while the storage objects stayed deleted, resurrecting attachment
+        // rows that pointed at nothing. The fix pairs each attachment's storage delete with its
+        // own row delete atomically, before the ticket-teardown transaction even opens.
+        await using var fixture = await SupportDatabaseFixture.CreateAsync();
+        var storage = new InMemoryObjectStorage { DeleteFailure = new InvalidOperationException("storage unavailable") };
+        var (ticketId, attachmentId, storageKey) = await CreateClosedTicketWithAttachmentAsync(fixture.Context, storage, Now.AddYears(-2).AddDays(-1));
+        var recorder = new RecordingReceiptRecorder();
+        var processor = CreateProcessor(fixture.Context, storage, new NoHoldGuard(), recorder, Now);
+
+        var didWork = await processor.ProcessCycleAsync();
+
+        Assert.False(didWork);
+        Assert.True(recorder.OperationalFailures > 0);
+        // Both still present, and still consistent with each other: no orphaned reference either way.
+        Assert.True(await fixture.Context.Tickets.AnyAsync(value => value.Id == ticketId));
+        Assert.True(await fixture.Context.Attachments.AnyAsync(value => value.Id == attachmentId));
+        Assert.True(storage.Contains(storageKey));
+    }
+
+    [Fact]
     public async Task GeneralTicketClosedWithin2YearsIsUntouched()
     {
         await using var fixture = await SupportDatabaseFixture.CreateAsync();
