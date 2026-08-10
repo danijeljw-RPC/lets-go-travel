@@ -291,7 +291,9 @@ internal sealed class WebhookInboxItemConfiguration : IEntityTypeConfiguration<W
         builder.Property(value => value.ErrorCode).HasColumnName("error_code").HasMaxLength(120);
         builder.Property(value => value.ReceivedAt).HasColumnName("received_at").IsRequired();
         builder.Property(value => value.CompletedAt).HasColumnName("completed_at");
+        builder.Property(value => value.ComponentBookingId).HasColumnName("component_booking_id");
         builder.HasIndex(value => new { value.Status, value.NextAttemptAtUtc });
+        builder.HasIndex(value => value.ComponentBookingId);
     }
 }
 

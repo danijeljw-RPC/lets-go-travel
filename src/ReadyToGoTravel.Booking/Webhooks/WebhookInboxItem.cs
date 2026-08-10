@@ -58,6 +58,23 @@ public sealed class WebhookInboxItem
     public DateTimeOffset ReceivedAt { get; private set; }
     public DateTimeOffset? CompletedAt { get; private set; }
 
+    /// <summary>
+    /// The component booking this event was successfully correlated to, set once reconciliation
+    /// work is enqueued. Retention's legal-hold guard needs this to check whether a webhook
+    /// payload body is protected before purging it; it is never set for unsupported, malformed or
+    /// uncorrelated events, which retention treats conservatively (see Slice 7 design doc).
+    /// </summary>
+    public Guid? ComponentBookingId { get; private set; }
+
+    internal void LinkToComponentBooking(Guid componentBookingId) => ComponentBookingId = componentBookingId;
+
+    /// <summary>
+    /// Retention action for the 90-day webhook-payload-body class: destroys the raw body while
+    /// retaining event identity, hash, correlation and processing outcome, per
+    /// docs/security/data-retention-and-legal-hold.md.
+    /// </summary>
+    internal void RedactRawBody() => RawBody = string.Empty;
+
     internal void Quarantine(string errorCode, DateTimeOffset now)
     {
         Status = WebhookInboxStatus.Quarantined;

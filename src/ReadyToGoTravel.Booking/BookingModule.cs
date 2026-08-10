@@ -8,8 +8,10 @@ using ReadyToGoTravel.Booking.Payments;
 using ReadyToGoTravel.Booking.Persistence;
 using ReadyToGoTravel.Booking.Providers;
 using ReadyToGoTravel.Booking.Reconciliation;
+using ReadyToGoTravel.Booking.Retention;
 using ReadyToGoTravel.Booking.SupplierIntegrations.LiteApi;
 using ReadyToGoTravel.Booking.Webhooks;
+using ReadyToGoTravel.Retention;
 using ReadyToGoTravel.Search.Capabilities;
 
 namespace ReadyToGoTravel.Booking;
@@ -42,6 +44,8 @@ public static class BookingModule
         services.AddScoped<IWebhookInboxProcessor, WebhookInboxProcessor>();
         services.TryAddSingleton<ICustomerNotificationSender, DisabledCustomerNotificationSender>();
         services.AddScoped<INotificationOutboxProcessor, NotificationOutboxProcessor>();
+        services.AddOptions<RetentionSweepOptions>().BindConfiguration(RetentionSweepOptions.SectionName);
+        services.AddScoped<IBookingRetentionSweepProcessor, BookingRetentionSweepProcessor>();
         services.AddOptions<LiteApiWebhookOptions>()
             .Validate(options => !options.Enabled || options.CurrentSecret?.Length >= 32,
                 "An enabled LiteAPI webhook requires a current secret of at least 32 characters.")

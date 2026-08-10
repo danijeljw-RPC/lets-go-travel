@@ -103,6 +103,7 @@ internal sealed class WebhookInboxProcessor(
             return true;
         }
 
+        item.LinkToComponentBooking(component.Id);
         try
         {
             await scheduler.EnqueueImmediateAsync(

@@ -142,6 +142,14 @@ public sealed class NotificationOutboxItem
         UpdatedAt = now;
     }
 
+    /// <summary>
+    /// Retention action for the 90-day notification-rendered-content class: destroys the rendered
+    /// payload while retaining recipient reference (CustomerId), template/version, locale, status
+    /// and timestamps, per docs/security/data-retention-and-legal-hold.md. Only meaningful once
+    /// the item has reached a terminal state (Sent or Failed) - the caller enforces that.
+    /// </summary>
+    internal void RedactPayload() => PayloadJson = string.Empty;
+
     private static DateTimeOffset CalculateNotBefore(
         BookingChangeSeverity severity,
         string timeZoneId,
