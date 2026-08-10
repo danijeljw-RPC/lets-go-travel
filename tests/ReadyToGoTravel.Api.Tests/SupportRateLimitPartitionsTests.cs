@@ -118,4 +118,54 @@ public sealed class SupportRateLimitPartitionsTests
 
         Assert.Equal("anon:10.0.0.5", key);
     }
+
+    [Fact]
+    public void GuestPartitionDeniesRequestsPastTheSharedIpCeilingEvenWithANeverRepeatedToken()
+    {
+        // A distinct, test-reserved documentation-range address (RFC 5737) so this test's usage of
+        // the shared, process-wide ceiling limiter never collides with any other test.
+        var ip = System.Net.IPAddress.Parse("192.0.2.201");
+
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            var context = new DefaultHttpContext { Connection = { RemoteIpAddress = ip } };
+            // A fresh, never-repeated token every time: per-token partitioning alone would give
+            // every one of these its own bucket and never throttle anything.
+            context.Request.Headers.Authorization = $"Bearer never-issued-token-{attempt}";
+
+            var partition = SupportRateLimitPartitions.GuestPartition(context);
+
+            Assert.StartsWith("token:", partition.PartitionKey, StringComparison.Ordinal);
+        }
+
+        var overflowContext = new DefaultHttpContext { Connection = { RemoteIpAddress = ip } };
+        overflowContext.Request.Headers.Authorization = "Bearer never-issued-token-overflow";
+
+        var overflowPartition = SupportRateLimitPartitions.GuestPartition(overflowContext);
+
+        // The 201st distinct, never-issued token from the same connection is denied outright by
+        // the shared ceiling - it never even reaches its own per-token bucket.
+        Assert.StartsWith("guest-ip-ceiling-exceeded:", overflowPartition.PartitionKey, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GuestPartitionCeilingsAreIndependentPerConnectionAddress()
+    {
+        var ipA = System.Net.IPAddress.Parse("192.0.2.211");
+        var ipB = System.Net.IPAddress.Parse("192.0.2.212");
+
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            var context = new DefaultHttpContext { Connection = { RemoteIpAddress = ipA } };
+            context.Request.Headers.Authorization = $"Bearer exhausting-ip-a-{attempt}";
+            SupportRateLimitPartitions.GuestPartition(context);
+        }
+
+        var contextB = new DefaultHttpContext { Connection = { RemoteIpAddress = ipB } };
+        contextB.Request.Headers.Authorization = "Bearer first-request-from-ip-b";
+
+        var partitionB = SupportRateLimitPartitions.GuestPartition(contextB);
+
+        Assert.StartsWith("token:", partitionB.PartitionKey, StringComparison.Ordinal);
+    }
 }

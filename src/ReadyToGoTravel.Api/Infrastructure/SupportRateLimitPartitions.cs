@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Http;
 
 namespace ReadyToGoTravel.Api.Infrastructure;
@@ -61,5 +62,45 @@ internal static class SupportRateLimitPartitions
 
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(header[prefix.Length..])));
         return $"token:{hash}";
+    }
+
+    // Per-token partitioning alone is exploitable: an unauthenticated caller can send a fresh,
+    // syntactically valid but never-issued Bearer value on every request, so GuestKey mints a brand
+    // new partition each time and no per-token bucket is ever exhausted - even though every one of
+    // those requests still performs a database lookup and writes a GuestLinkAuthenticationFailed
+    // audit row. A coarse, process-wide ceiling keyed by the connection address closes that: it is
+    // consulted synchronously as a side effect of computing the partition (there is no supported
+    // way to make ASP.NET Core's rate limiter consult two independent partitioned limiters for one
+    // policy), so a caller who cannot exhaust the per-token bucket still exhausts the shared ceiling
+    // for its own connection and gets a real 429 via the framework's normal rejection pipeline.
+    private const int GuestIpCeilingPermitLimit = 200;
+
+    private static readonly PartitionedRateLimiter<string> GuestIpCeiling = PartitionedRateLimiter.Create<string, string>(
+        ip => RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = GuestIpCeilingPermitLimit,
+            QueueLimit = 0,
+            Window = TimeSpan.FromMinutes(1),
+        }));
+
+    public static RateLimitPartition<string> GuestPartition(HttpContext context)
+    {
+        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        if (!GuestIpCeiling.AttemptAcquire(ip).IsAcquired)
+        {
+            return RateLimitPartition.GetFixedWindowLimiter($"guest-ip-ceiling-exceeded:{ip}", _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 0,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1),
+            });
+        }
+
+        return RateLimitPartition.GetFixedWindowLimiter(GuestKey(context), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20,
+            QueueLimit = 0,
+            Window = TimeSpan.FromMinutes(1),
+        });
     }
 }
