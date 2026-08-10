@@ -1,0 +1,489 @@
+@page "/checkout"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject BookingApiClient BookingApi
+@inject ConsumerApiClient ConsumerApi
+@inject HostedPaymentComponent HostedPayment
+@inject NavigationManager Navigation
+
+<PageTitle>Checkout · readytogo.travel</PageTitle>
+
+<main class="content-shell checkout-shell">
+    <p class="eyebrow">Sandbox checkout</p>
+    <h1>Review and book</h1>
+    <p class="intro compact-intro">
+        Prices, terms, payment and supplier confirmation shown here come from the platform API.
+    </p>
+    <p class="capability-notice sandbox-notice">
+        Development uses sanitized LiteAPI fixtures. Production payment and booking are not enabled.
+    </p>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <p class="notice" role="status">@message</p>
+    }
+
+    @if (checkout is null)
+    {
+        <section class="checkout-panel" aria-labelledby="checkout-start-title">
+            <h2 id="checkout-start-title">Choose your saved trip and travellers</h2>
+
+            @if (SelectedOfferIds.Count == 0)
+            {
+                <p class="empty-state">Choose one stay, one flight, or one of each from <a href="/search">search</a>.</p>
+            }
+            else
+            {
+                <p>@SelectedOfferIds.Count provisional offer@(SelectedOfferIds.Count == 1 ? string.Empty : "s") selected. The server will resolve the current price and terms.</p>
+
+                <label for="checkout-trip">Trip</label>
+                <InputSelect id="checkout-trip" @bind-Value="selectedTripId">
+                    <option value="">Choose a trip</option>
+                    @foreach (var trip in trips)
+                    {
+                        <option value="@trip.Id">@trip.Title</option>
+                    }
+                </InputSelect>
+
+                <fieldset class="traveller-picker">
+                    <legend>Travellers</legend>
+                    @foreach (var traveller in travellers)
+                    {
+                        <div class="traveller-option">
+                            <label>
+                                <input type="checkbox"
+                                       checked="@selectedTravellerIds.Contains(traveller.Id)"
+                                       @onchange="eventArgs => SetTravellerSelected(traveller.Id, eventArgs.Value)" />
+                                @traveller.GivenName @traveller.FamilyName
+                            </label>
+                            <label>
+                                Age at travel (optional)
+                                <input type="number"
+                                       min="0"
+                                       max="120"
+                                       value="@AgeAtTravel(traveller.Id)"
+                                       @onchange="eventArgs => SetAgeAtTravel(traveller.Id, eventArgs.Value?.ToString())" />
+                            </label>
+                        </div>
+                    }
+                </fieldset>
+
+                <button class="primary-action" type="button" disabled="@busy" @onclick="CreateCheckoutAsync">
+                    Resolve checkout
+                </button>
+            }
+        </section>
+    }
+    else
+    {
+        <section class="checkout-panel" aria-labelledby="checkout-summary-title">
+            <div class="checkout-heading">
+                <div>
+                    <p class="card-label">Server-resolved checkout</p>
+                    <h2 id="checkout-summary-title">@checkout.CurrentRevision.Currency @checkout.CurrentRevision.Total.ToString("N2")</h2>
+                </div>
+                <span class="state-pill">@checkout.Status</span>
+            </div>
+
+            <p class="list-meta">Revision @checkout.CurrentRevision.Number · terms @checkout.CurrentRevision.TermsHash · expires @checkout.CurrentRevision.ExpiresAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</p>
+
+            <div class="checkout-components">
+                @foreach (var component in checkout.CurrentRevision.Components)
+                {
+                    <article class="checkout-component">
+                        <p class="card-label">@component.Product</p>
+                        <h3>@component.ProductDetail</h3>
+                        <p>@component.Currency @component.MinimumTotal.ToString("N2")</p>
+                        @if (ComponentState(component.OfferId) is { } componentState)
+                        {
+                            <p class="list-meta">Booking: @componentState.Status</p>
+                            @if (!string.IsNullOrWhiteSpace(componentState.FailureCode))
+                            {
+                                <p class="list-meta">Action: @componentState.FailureCode</p>
+                            }
+                        }
+                    </article>
+                }
+            </div>
+
+            @if (checkout.Payments.Count > 0)
+            {
+                <section class="payment-state" aria-labelledby="payment-state-title">
+                    <h3 id="payment-state-title">Payment</h3>
+                    @foreach (var payment in checkout.Payments)
+                    {
+                        <p>@payment.Currency @payment.Amount.ToString("N2") · @payment.Status</p>
+                    }
+                </section>
+            }
+
+            @if (checkout.Status == "Completed" && checkout.Components.All(component => component.Status == "Confirmed"))
+            {
+                <p class="notice success-notice"><strong>Booking confirmed</strong> — every component has supplier confirmation evidence.</p>
+            }
+            else if (checkout.Components.Count > 0)
+            {
+                <p class="notice">This journey is not fully confirmed. Review each component state separately.</p>
+            }
+
+            <div class="checkout-actions">
+                @if (NeedsAcceptance)
+                {
+                    <button class="primary-action" type="button" disabled="@busy" @onclick="AcceptRevisionAsync">Accept this exact price and terms</button>
+                }
+                else if (CanPreparePayment)
+                {
+                    <button class="primary-action" type="button" disabled="@busy" @onclick="PreparePaymentAsync">Continue to hosted payment</button>
+                }
+
+                @if (ActivePaymentSession is not null)
+                {
+                    <div id="hosted-payment" class="hosted-payment"></div>
+                    <button class="primary-action" type="button" disabled="@(busy || !hostedPaymentReady)" @onclick="CompletePaymentAndBookAsync">Complete sandbox payment and book</button>
+                }
+
+                @if (CanResumePayment)
+                {
+                    <button class="secondary-action" type="button" disabled="@busy" @onclick="ResumePaymentAsync">Resume hosted payment</button>
+                }
+
+                @if (CanBookCapturedPayment)
+                {
+                    <button class="primary-action" type="button" disabled="@busy" @onclick="BookCapturedPaymentAsync">Continue supplier booking</button>
+                }
+
+                @if (CanRecover)
+                {
+                    <button class="secondary-action" type="button" disabled="@busy" @onclick="RecoverAsync">Check payment and booking status</button>
+                }
+            </div>
+
+            @if (checkout.RecoveryCaseCount > 0)
+            {
+                <p class="notice">This checkout needs support review. No new payment or booking was issued.</p>
+            }
+        </section>
+    }
+</main>
+
+@code {
+    [SupplyParameterFromQuery(Name = "checkoutId")]
+    private Guid? CheckoutId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "hotelOfferId")]
+    private string? HotelOfferId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "flightOfferId")]
+    private string? FlightOfferId { get; set; }
+
+    private readonly HashSet<Guid> selectedTravellerIds = [];
+    private readonly Dictionary<Guid, int?> agesAtTravel = [];
+    private readonly Dictionary<string, string> idempotencyKeys = [];
+    private IReadOnlyList<TripSummary> trips = [];
+    private IReadOnlyList<TravellerSummary> travellers = [];
+    private Guid? selectedTripId;
+    private CheckoutView? checkout;
+    private string? message;
+    private bool busy;
+    private bool initializeHostedPayment;
+    private bool hostedPaymentReady;
+    private HostedPaymentSessionView? activePaymentSession;
+
+    private IReadOnlyList<string> SelectedOfferIds =>
+        new[] { HotelOfferId, FlightOfferId }
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!)
+            .Distinct(StringComparer.Ordinal)
+            .Take(2)
+            .ToArray();
+
+    private bool NeedsAcceptance => checkout is not null &&
+        (checkout.Acceptance is null || checkout.Acceptance.RevisionNumber != checkout.CurrentRevision.Number);
+
+    private bool CanPreparePayment => checkout is not null &&
+        !NeedsAcceptance &&
+        checkout.PaymentSession is null &&
+        checkout.Status == "ReadyForPayment";
+
+    private HostedPaymentSessionView? ActivePaymentSession =>
+        checkout?.PaymentSession ?? activePaymentSession;
+
+    private CheckoutPaymentView? LatestPayment => checkout?.Payments.LastOrDefault();
+
+    private bool HasCapturedPayment => LatestPayment?.Status == "Captured";
+
+    private bool CanResumePayment => checkout?.Status == "PaymentPending" &&
+        LatestPayment?.Status == "ActionRequired" &&
+        ActivePaymentSession is null;
+
+    private bool CanBookCapturedPayment => checkout?.Status == "PaymentPending" && HasCapturedPayment;
+
+    private bool CanRecover => checkout?.Status is "PaymentPending" or "BookingPending" or "RequiresSupport";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var tripsTask = ConsumerApi.GetTripsAsync();
+        var travellersTask = ConsumerApi.GetTravellersAsync();
+        await Task.WhenAll(tripsTask, travellersTask);
+        trips = await tripsTask;
+        travellers = await travellersTask;
+
+        if (trips.Count == 1)
+        {
+            selectedTripId = trips[0].Id;
+        }
+
+        if (CheckoutId.HasValue)
+        {
+            await ApplyAsync(BookingApi.GetCheckoutAsync(CheckoutId.Value), null);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!initializeHostedPayment || ActivePaymentSession is null)
+        {
+            return;
+        }
+
+        initializeHostedPayment = false;
+        try
+        {
+            await HostedPayment.CreateAsync("hosted-payment", ActivePaymentSession.BrowserToken);
+            hostedPaymentReady = true;
+        }
+        catch (JSException)
+        {
+            message = "Hosted payment could not be initialized. Retrieve the checkout state and retry.";
+        }
+
+        StateHasChanged();
+    }
+
+    private void SetTravellerSelected(Guid travellerId, object? value)
+    {
+        if (value is true)
+        {
+            selectedTravellerIds.Add(travellerId);
+            return;
+        }
+
+        selectedTravellerIds.Remove(travellerId);
+        agesAtTravel.Remove(travellerId);
+    }
+
+    private string? AgeAtTravel(Guid travellerId) =>
+        agesAtTravel.TryGetValue(travellerId, out var age) ? age?.ToString() : null;
+
+    private void SetAgeAtTravel(Guid travellerId, string? value)
+    {
+        agesAtTravel[travellerId] = int.TryParse(value, out var age) && age is >= 0 and <= 120
+            ? age
+            : null;
+    }
+
+    private async Task CreateCheckoutAsync()
+    {
+        if (!selectedTripId.HasValue || SelectedOfferIds.Count == 0 || selectedTravellerIds.Count == 0)
+        {
+            message = "Choose a trip, at least one traveller and one or two offers.";
+            return;
+        }
+
+        var assignments = SelectedOfferIds.SelectMany(offerId => selectedTravellerIds.OrderBy(value => value)
+            .Select(value => new CheckoutTravellerInput(value, agesAtTravel.GetValueOrDefault(value), offerId)))
+            .ToArray();
+        var input = new CreateCheckoutInput(selectedTripId.Value, SelectedOfferIds, assignments);
+        var intent = $"create:{selectedTripId}:{string.Join(',', SelectedOfferIds)}:{string.Join(',', assignments)}";
+        var created = await ApplyAsync(
+            BookingApi.CreateCheckoutAsync(input, KeyFor(intent)),
+            "Checkout resolved. Review the server price and terms.");
+        if (created is not null)
+        {
+            Navigation.NavigateTo($"/checkout?checkoutId={created.Id}", replace: true);
+        }
+    }
+
+    private async Task AcceptRevisionAsync()
+    {
+        if (checkout is null)
+        {
+            return;
+        }
+
+        var revision = checkout.CurrentRevision;
+        await ApplyAsync(
+            BookingApi.AcceptAsync(
+                checkout.Id,
+                new CheckoutAcceptanceInput(
+                    revision.Number,
+                    revision.Total,
+                    revision.Currency,
+                    revision.TermsHash,
+                    "checkout-v1"),
+                KeyFor($"acceptance:{checkout.Id}:{revision.Number}:{revision.TermsHash}")),
+            "The current price and terms are accepted.");
+    }
+
+    private async Task PreparePaymentAsync()
+    {
+        if (checkout is null)
+        {
+            return;
+        }
+
+        var result = await ApplyAsync(
+            BookingApi.CreatePaymentSessionAsync(
+                checkout.Id,
+                KeyFor($"payment-session:{checkout.Id}:{checkout.CurrentRevision.Number}")),
+            "Hosted payment is ready.");
+        if (result?.PaymentSession is not null)
+        {
+            activePaymentSession = result.PaymentSession;
+            hostedPaymentReady = false;
+            initializeHostedPayment = true;
+        }
+    }
+
+    private Task ResumePaymentAsync() => PreparePaymentAsync();
+
+    private async Task CompletePaymentAndBookAsync()
+    {
+        if (checkout is null || ActivePaymentSession is null)
+        {
+            return;
+        }
+
+        busy = true;
+        message = null;
+        try
+        {
+            var hostedResult = await HostedPayment.CompleteAsync();
+            var paymentResult = await BookingApi.ReturnPaymentAsync(
+                checkout.Id,
+                hostedResult.CompletionReference,
+                KeyFor($"payment-return:{checkout.Id}:{hostedResult.CompletionReference}"));
+            UpdateFrom(paymentResult);
+            if (!paymentResult.IsSuccess)
+            {
+                message = MessageFor(paymentResult.ErrorCode);
+                return;
+            }
+
+            if (paymentResult.StatusCode == System.Net.HttpStatusCode.Accepted || !HasCapturedPayment)
+            {
+                if (LatestPayment?.Status != "ActionRequired")
+                {
+                    activePaymentSession = null;
+                    hostedPaymentReady = false;
+                }
+
+                message = "Payment is not yet captured. No supplier booking was submitted; retrieve the provider state before continuing.";
+                return;
+            }
+
+            activePaymentSession = null;
+            hostedPaymentReady = false;
+            await BookCapturedPaymentAsync();
+        }
+        catch (JSException)
+        {
+            message = "Hosted payment did not return a completion reference. No booking was submitted.";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task BookCapturedPaymentAsync()
+    {
+        if (checkout is null || !HasCapturedPayment)
+        {
+            message = "Supplier booking remains blocked until payment is captured.";
+            return;
+        }
+
+        var bookingResult = await ApplyAsync(
+            BookingApi.BookAsync(checkout.Id, KeyFor($"book:{checkout.Id}")),
+            "Payment and supplier booking states have been refreshed.");
+        if (bookingResult is not null && bookingResult.Status != "Completed")
+        {
+            message = "Supplier booking is not fully confirmed. Review each component state or retrieve it safely.";
+        }
+    }
+
+    private async Task RecoverAsync()
+    {
+        var recovered = await ApplyAsync(
+            BookingApi.RecoverAsync(checkout!.Id),
+            "Payment and component states were retrieved without issuing a new operation.");
+        if (recovered is not null && HasCapturedPayment && recovered.Status == "PaymentPending")
+        {
+            await BookCapturedPaymentAsync();
+        }
+    }
+
+    private async Task<CheckoutView?> ApplyAsync(
+        Task<BookingClientResult> operation,
+        string? successMessage)
+    {
+        busy = true;
+        message = null;
+        try
+        {
+            var result = await operation;
+            UpdateFrom(result);
+            message = result.IsSuccess ? successMessage : MessageFor(result.ErrorCode);
+            return result.Checkout;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void UpdateFrom(BookingClientResult result)
+    {
+        if (result.Checkout is not null)
+        {
+            checkout = result.Checkout;
+            if (result.Checkout.PaymentSession is not null)
+            {
+                activePaymentSession = result.Checkout.PaymentSession;
+            }
+
+            if (result.Checkout.Payments.LastOrDefault()?.Status is "Captured" or "Failed" or "OutcomeUnknown")
+            {
+                activePaymentSession = null;
+                hostedPaymentReady = false;
+            }
+        }
+    }
+
+    private string KeyFor(string intent)
+    {
+        if (!idempotencyKeys.TryGetValue(intent, out var key))
+        {
+            key = Guid.CreateVersion7().ToString("N");
+            idempotencyKeys[intent] = key;
+        }
+
+        return key;
+    }
+
+    private CheckoutComponentView? ComponentState(string offerId) =>
+        checkout?.Components.SingleOrDefault(component => component.OfferId == offerId);
+
+    private static string MessageFor(string? code) => code switch
+    {
+        "price_acceptance_required" => "The price or terms changed. Review and accept the new revision before payment.",
+        "booking_capability_unavailable" => "Checkout is unavailable in this environment.",
+        "checkout_not_found" => "This checkout was not found.",
+        "idempotency_conflict" => "This action changed while a retry was in progress. Start the action again.",
+        _ => "Checkout could not be updated. Retry this same action safely.",
+    };
+
+    public ValueTask DisposeAsync() => HostedPayment.DisposeAsync();
+}

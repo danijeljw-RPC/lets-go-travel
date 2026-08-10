@@ -39,6 +39,10 @@ namespace ReadyToGoTravel.Consumer.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("adult_policy_version");
 
+                    b.Property<DateTimeOffset?>("ClosedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");

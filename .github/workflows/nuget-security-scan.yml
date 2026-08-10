@@ -1,0 +1,133 @@
+name: NuGet Security Scan
+
+on:
+  workflow_dispatch:
+
+  pull_request:
+    paths:
+      - "**/*.csproj"
+      - "**/*.props"
+      - "**/*.targets"
+      - "**/*.sln"
+      - "**/*.slnx"
+      - "Directory.Packages.props"
+      - "NuGet.config"
+      - "global.json"
+      - ".github/workflows/nuget-security-scan.yml"
+
+jobs:
+  check-skip:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: check
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            MSG=$(git log -1 --pretty=%B HEAD^2 2>/dev/null || git log -1 --pretty=%B)
+          else
+            MSG=$(git log -1 --pretty=%B)
+          fi
+          echo "Latest commit message: $MSG"
+          if [[ "$MSG" == skip-wf* ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  nuget-security:
+    name: NuGet Package Security
+    needs: check-skip
+    if: needs.check-skip.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      # ------------------------------------------------------------
+      # Outdated packages
+      #
+      # This is informational only.
+      # It deliberately does NOT fail the workflow.
+      # ------------------------------------------------------------
+      - name: Check for outdated NuGet packages
+        shell: bash
+        run: |
+          set +e
+
+          echo "============================================================"
+          echo " OUTDATED NUGET PACKAGES"
+          echo "============================================================"
+          echo
+
+          OUTPUT=$(dotnet package list \
+            --outdated \
+            --include-transitive 2>&1)
+
+          EXIT_CODE=$?
+
+          echo "$OUTPUT"
+          echo
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "::warning::Unable to complete NuGet outdated-package check."
+            exit 0
+          fi
+
+          if echo "$OUTPUT" | grep -qE '^[[:space:]]*> '; then
+            echo "::warning::One or more NuGet packages have newer versions available."
+          else
+            echo "No outdated NuGet packages detected."
+          fi
+
+          exit 0
+
+      # ------------------------------------------------------------
+      # Known CVEs
+      #
+      # Any vulnerable package causes this job to fail.
+      # Includes both direct and transitive dependencies.
+      # ------------------------------------------------------------
+      - name: Check NuGet packages for known vulnerabilities
+        shell: bash
+        run: |
+          set +e
+
+          echo "============================================================"
+          echo " NUGET VULNERABILITY SCAN"
+          echo "============================================================"
+          echo
+
+          OUTPUT=$(dotnet package list \
+            --vulnerable \
+            --include-transitive 2>&1)
+
+          EXIT_CODE=$?
+
+          echo "$OUTPUT"
+          echo
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "::error::NuGet vulnerability scan could not be completed."
+            exit $EXIT_CODE
+          fi
+
+          if echo "$OUTPUT" | grep -qE 'has the following vulnerable packages|has the following vulnerable transitive packages'; then
+            echo
+            echo "::error::Known NuGet package vulnerabilities were detected."
+            exit 1
+          fi
+
+          echo "No known NuGet package vulnerabilities detected."

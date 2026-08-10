@@ -4,7 +4,7 @@
 
 ## Status
 
-Approved project baseline on 2026-07-28 under the Option A direction in closed [OI-0011](../issues/closed/OI-0011-supplier-payload-retention.md). Production activation remains subject to LiteAPI contractual terms and Australian legal/privacy review. A stricter applicable law, court/tribunal order, provider contract or matter-specific legal hold overrides the ordinary schedule only for the affected records.
+Approved project baseline on 2026-07-28 under the Option A direction in closed [OI-0011](../issues/closed/OI-0011-supplier-payload-retention.md). Slice 7 (2026-08-10) implements this schedule for every record class with a real, live persistence store, plus legal hold and deletion receipts, in the `ReadyToGoTravel.Retention` module and each owning module's retention sweep — see the [Slice 7 outcome report](../delivery/2026-08-10-slice-7-retention-privacy-production-readiness-outcome.md) and the [production-readiness certification](../operations/production-readiness-certification.md). Production activation remains subject to LiteAPI contractual terms and Australian legal/privacy review; `Retention:Enabled` defaults disabled in every checked-in configuration. A stricter applicable law, court/tribunal order, provider contract or matter-specific legal hold overrides the ordinary schedule only for the affected records.
 
 ## Principles
 
@@ -69,6 +69,8 @@ Each hold records:
 
 The legal/compliance owner reviews an active hold at least every 90 days. Records outside its scope continue through normal deletion. Held records are immutable or integrity-protected, access-controlled and audited. A hold does not require recovery of data that was lawfully destroyed before the hold began.
 
+A hold is administered by a named `legal-hold-officer` through a staff-only API (`/api/v1/retention/legal-holds`), never exposed to ordinary customers. Every open, release and enforcement-guard check against a held record is written to an append-only audit trail, tamper-evident at the database level in the same way as canonical booking version history.
+
 When the owner releases a hold, each record resumes its ordinary lifecycle. Records already past their expiry are destroyed within 30 days of release unless another hold or retention requirement applies.
 
 ## Backup and Deletion Behaviour
@@ -93,3 +95,4 @@ Within 90 days after final travel completion, a minimisation job removes or irre
 - Australian legal/privacy confirmation of record classification and trigger dates.
 - Confirmation that payment, tax and supplier-settlement records captured by the platform are sufficient without retaining complete provider payloads.
 - Verification that selected PostgreSQL, object-storage, backup and log services can enforce the schedule and legal-hold controls.
+- Production activation of `Retention:Enabled` following a completed production retention/legal-hold drill, and named staffing of the `legal-hold-officer` role — see the [production-readiness certification](../operations/production-readiness-certification.md).

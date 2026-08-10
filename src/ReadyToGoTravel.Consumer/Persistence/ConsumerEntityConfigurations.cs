@@ -22,6 +22,7 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(customer => customer.AdultPolicyVersion).HasColumnName("adult_policy_version").HasMaxLength(20);
         builder.Property(customer => customer.CreatedAt).HasColumnName("created_at");
         builder.Property(customer => customer.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(customer => customer.ClosedAtUtc).HasColumnName("closed_at");
     }
 }
 

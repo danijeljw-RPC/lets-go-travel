@@ -20,7 +20,7 @@ Accepted. See [ADR-0006](../adr/accepted/ADR-0006-application-and-deployment-bas
 
 ## Logical Modules
 
-Customers, travellers, trips, search, accommodation, flights, pricing, bookings, payments, reconciliation, notifications, documents, support and supplier integrations have explicit code and data ownership even when deployed together. Each module owns its PostgreSQL schema or tables; direct access to another module's private data is prohibited.
+Customers, travellers, trips, search, accommodation, flights, pricing, bookings, payments, reconciliation, notifications, documents, support, supplier integrations, and retention/legal hold have explicit code and data ownership even when deployed together. Each module owns its PostgreSQL schema or tables; direct access to another module's private data is prohibited. The retention module owns only the concepts genuinely shared across modules (legal holds, the retention policy catalog, deletion receipts); each other module implements its own retention sweep against its own schema and depends on the retention module, never the reverse.
 
 ## Persistence
 

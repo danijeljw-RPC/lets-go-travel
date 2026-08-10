@@ -1,0 +1,26 @@
+{
+  "provider": "LiteAPI",
+  "environment": "sandbox",
+  "pointOfSale": "AU",
+  "currency": "AUD",
+  "offers": [
+    {
+      "supplierReference": "sandbox-hotel-001",
+      "destination": "Melbourne",
+      "propertyName": "Harbour Lane Hotel",
+      "roomName": "King studio",
+      "rateName": "Flexible stay",
+      "refundable": true,
+      "checkIn": "2026-10-10",
+      "checkOut": "2026-10-12",
+      "adults": 2,
+      "children": 0,
+      "rooms": 1,
+      "minimumTotal": 420.00,
+      "baseAmount": 360.00,
+      "includedTaxes": 48.00,
+      "includedFees": 12.00,
+      "lifetimeMinutes": 20
+    }
+  ]
+}

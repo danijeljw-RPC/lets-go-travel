@@ -34,4 +34,44 @@ public sealed class WebBoundaryTests
         Assert.Contains("/api/v1/trips", clientSource, StringComparison.Ordinal);
         Assert.Contains("/api/v1/travellers", clientSource, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void WebConsumesSearchThroughThePublicV1Api()
+    {
+        var clientSource = File.ReadAllText(RepositoryFiles.FromRoot(
+            "src/ReadyToGoTravel.Web/Client/SearchApiClient.cs"));
+
+        Assert.Contains("/api/v1/search/capabilities", clientSource, StringComparison.Ordinal);
+        Assert.Contains("/api/v1/search/hotels", clientSource, StringComparison.Ordinal);
+        Assert.Contains("/api/v1/search/flights", clientSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WebConsumesBookingOnlyThroughThePublicV1Api()
+    {
+        var clientSource = File.ReadAllText(RepositoryFiles.FromRoot(
+            "src/ReadyToGoTravel.Web/Client/BookingApiClient.cs"));
+
+        Assert.Contains("/api/v1/checkouts", clientSource, StringComparison.Ordinal);
+        Assert.Contains("/acceptance", clientSource, StringComparison.Ordinal);
+        Assert.Contains("/payment-session", clientSource, StringComparison.Ordinal);
+        Assert.Contains("/payment-return", clientSource, StringComparison.Ordinal);
+        Assert.Contains("/book", clientSource, StringComparison.Ordinal);
+        Assert.Contains("/recover", clientSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WebConsumesSupportThroughThePublicV1Api()
+    {
+        var clientSource = File.ReadAllText(RepositoryFiles.FromRoot(
+            "src/ReadyToGoTravel.Web/Client/SupportApiClient.cs"));
+        var guestClientSource = File.ReadAllText(RepositoryFiles.FromRoot(
+            "src/ReadyToGoTravel.Web/Client/SupportGuestApiClient.cs"));
+        var staffClientSource = File.ReadAllText(RepositoryFiles.FromRoot(
+            "src/ReadyToGoTravel.Web/Client/SupportStaffApiClient.cs"));
+
+        Assert.Contains("/api/v1/support/tickets", clientSource, StringComparison.Ordinal);
+        Assert.Contains("/api/v1/support/guest/ticket", guestClientSource, StringComparison.Ordinal);
+        Assert.Contains("/api/v1/support/staff/tickets", staffClientSource, StringComparison.Ordinal);
+    }
 }

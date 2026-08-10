@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="#eaf7ff" name="theme-color"/>
+<meta content="Ready To Go Travel — coming soon." name="description"/>
+<meta content="Ready To Go Travel — Coming Soon" property="og:title"/>
+<meta content="We’re building the home of Ready To Go Travel. Company information, partnerships and launch updates will live here." property="og:description"/>
+<meta content="website" property="og:type"/>
+<meta content="https://readytogo.travel/" property="og:url"/>
+<link href="https://readytogo.travel/" rel="canonical"/>
+<title>Ready To Go Travel — Coming Soon</title>
+
+<link href="./assets/css/styles.css" rel="stylesheet"/></head>
+<body>
+<main class="page">
+<section class="shell">
+<header class="topbar">
+<a aria-label="Ready To Go Travel home" class="brand" href="/">
+<span aria-hidden="true" class="brandmark">
+<img alt="" aria-hidden="true" src="./assets/svg/brand-mark.svg"/>
+</span>
+<span class="brandname">RTGT<small>READY TO GO TRAVEL</small></span>
+</a>
+<nav aria-label="Site" class="nav">
+<span class="pill desktop"><span class="statusdot"></span>Corporate site</span>
+<a class="pill" href="https://repasscloud.com/">RePass Cloud ↗</a>
+</nav>
+</header>
+<section class="hero">
+<div class="copy">
+<div class="kicker">READY TO GO TRAVEL</div>
+<h1><span class="headline-line">We’re getting</span><span class="headline-line">ready to go.</span></h1>
+<p class="coders">Coders At Work</p>
+<p class="subtitle">We’re building the home of Ready To Go Travel. Company information, partnerships and launch updates will live here.</p>
+<div class="formcard">
+<div class="formtitle">
+<span aria-hidden="true" class="formicon">
+<img alt="" aria-hidden="true" src="./assets/svg/mail.svg"/>
+</span>
+<span class="formcopy"><strong>Stay informed</strong><span>Get launch and company updates.</span></span>
+</div>
+<form id="notify-form" novalidate="">
+<label aria-hidden="true" class="hp">Company <input autocomplete="off" id="company" name="company" tabindex="-1" type="text"/></label>
+<input aria-label="Email address" autocomplete="email" id="email" inputmode="email" maxlength="254" name="email" placeholder="Enter your email address" required="" type="email"/>
+<button id="submit" type="submit">Keep me updated</button>
+</form>
+<div aria-live="polite" class="formnote" id="form-note" role="status"></div>
+<p class="micro">We’ll only use your address for Ready To Go Travel launch updates. You can unsubscribe at any time.</p>
+</div>
+</div>
+<div aria-hidden="true" class="art">
+<span class="cloud"></span>
+<span class="cloud c2"></span>
+<span class="flightpath"></span>
+<img alt="" aria-hidden="true" class="plane" src="./assets/svg/plane.svg"/>
+<img alt="" aria-hidden="true" class="artwork" src="./assets/svg/hero-artwork.svg"/>
+</div>
+<footer class="footer">
+<div class="features">
+<span class="feature"><i>✈</i>Explore</span>
+<span class="feature"><i>◫</i>Plan</span>
+<span class="feature"><i>✓</i>Book</span>
+<span class="feature"><i>♥</i>Go</span>
+</div>
+<div class="copyright">
+    © <span id="copyright-year"></span> RePass Cloud Pty Ltd<br/>
+    Company • Partnerships • Travel technology
+</div>
+</footer>
+</section>
+</section>
+</main>
+<script>
+    (() => {
+      // Automatically keep the copyright year current.
+      document.getElementById("copyright-year").textContent =
+        new Date().getFullYear();
+
+      const form = document.getElementById("notify-form");
+      const email = document.getElementById("email");
+      const company = document.getElementById("company");
+      const button = document.getElementById("submit");
+      const note = document.getElementById("form-note");
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        note.className = "formnote";
+
+        if (!email.validity.valid) {
+          note.textContent = "Enter a valid email address.";
+          note.classList.add("error");
+          email.focus();
+          return;
+        }
+
+        button.disabled = true;
+        button.textContent = "Saving…";
+        note.textContent = "";
+
+        try {
+          const response = await fetch("/api/subscribe", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Accept": "application/json"
+            },
+            body: JSON.stringify({
+              email: email.value.trim(),
+              company: company.value,
+              site: "corporate"
+            })
+          });
+
+          let payload = {};
+          try {
+            payload = await response.json();
+          } catch { }
+
+          if (!response.ok) {
+            throw new Error(payload.message || "Could not save your email.");
+          }
+
+          note.textContent =
+            payload.message ||
+            "You’re on the list. We’ll let you know when we launch.";
+
+          note.classList.add("ok");
+          form.reset();
+        } catch (error) {
+          note.textContent =
+            error instanceof Error && error.message
+              ? error.message
+              : "Signup is not connected yet. Please try again later.";
+
+          note.classList.add("error");
+        } finally {
+          button.disabled = false;
+          button.textContent = "Keep me updated";
+        }
+      });
+    })();
+</script>
+</body>
+</html>

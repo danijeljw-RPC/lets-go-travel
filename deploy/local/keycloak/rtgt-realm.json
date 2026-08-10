@@ -10,6 +10,18 @@
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "verifyEmail": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "support-agent",
+        "description": "Grants access to the privileged support ticket console."
+      },
+      {
+        "name": "legal-hold-officer",
+        "description": "Grants access to create, review and release legal holds that suspend retention deletion."
+      }
+    ]
+  },
   "clients": [
     {
       "clientId": "rtgt-api",

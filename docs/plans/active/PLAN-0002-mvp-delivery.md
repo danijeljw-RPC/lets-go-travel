@@ -4,7 +4,7 @@ title: MVP Delivery
 status: active
 owner: Product and Engineering
 created: 2026-07-29
-updated: 2026-07-29
+updated: 2026-08-09
 related_issues:
   - OI-0001
   - OI-0002
@@ -45,7 +45,7 @@ scope:
 
 ## Status
 
-Active. Slices 1 and 2 are implemented and verified. Slice 3 supplier-neutral search and capability discovery is next. Production supplier/payment capabilities remain disabled until their review-register gates are approved.
+Active. Slices 1 through 7 are implemented and verified. Slice 7 retention/privacy operations and production-readiness certification completes the planned MVP slice sequence; remaining work is production-activation evidence and approval, tracked in the [Remaining Review Register](../../decisions/review-register.md). Production supplier, payment, webhook, notification, object-storage, malware-scanning and retention-sweep capabilities remain disabled until their review-register gates are approved.
 
 ## Purpose
 
@@ -55,11 +55,11 @@ Deliver the consumer MVP through independently testable vertical slices while pr
 
 - [x] Slice 1: .NET 10 solution, API contract, Blazor SSR, workers, containers and CI.
 - [x] Slice 2: Keycloak identity, locale, customers, trips and travellers.
-- [ ] Slice 3: supplier-neutral hotel/flight search, pricing and capability registry.
-- [ ] Slice 4: checkout, LiteAPI hosted payment, hotel/flight booking and combined journeys.
-- [ ] Slice 5: webhooks, reconciliation, immutable versions and notifications.
-- [ ] Slice 6: first-party support tickets, guest magic links and private attachments.
-- [ ] Slice 7: retention/privacy operations and production-readiness certification.
+- [x] Slice 3: supplier-neutral hotel/flight search, pricing and capability registry.
+- [x] Slice 4: checkout, LiteAPI hosted payment, hotel/flight booking and combined journeys.
+- [x] Slice 5: webhooks, reconciliation, immutable versions and notifications.
+- [x] Slice 6: first-party support tickets, guest magic links and private attachments.
+- [x] Slice 7: retention/privacy operations and production-readiness certification.
 
 ## Delivery Rules
 
@@ -71,12 +71,17 @@ Deliver the consumer MVP through independently testable vertical slices while pr
 
 ## Current Plan
 
-Slice 2 followed the completed [Consumer Foundation Implementation Plan](../../superpowers/plans/2026-07-29-consumer-foundation.md). The next implementation plan must cover Slice 3 only: provider-neutral hotel/flight search, pricing and capability discovery. It may build against sandbox fixtures while all production supplier capabilities remain disabled.
+Slice 7 followed the completed [Retention, Privacy Operations and Production-Readiness Certification Implementation Plan](../../superpowers/plans/2026-08-10-slice-7-retention-privacy-production-readiness.md). Its [outcome report](../../delivery/2026-08-10-slice-7-retention-privacy-production-readiness-outcome.md) records scope, architecture, verification, the two new production-readiness gates and the code-verifiable production-readiness catalog. This completes the planned Slice 1–7 sequence; no further implementation slice is currently planned. Remaining work is production-activation evidence and approval per the [Remaining Review Register](../../decisions/review-register.md) and the [Production-Readiness Certification](../../operations/production-readiness-certification.md).
 
 ## Change Log
 
 - 2026-07-29: Completed Slice 1 with the .NET 10 solution, public API contract, Blazor SSR host, cooperative workers, non-root containers, locked CI and automated documentation validation.
 - 2026-07-29: Completed Slice 2 with subject-owned consumer profiles, locale handling, trips, low-risk travellers, PostgreSQL migrations, authenticated API routes, Blazor SSR account pages and a pinned local Keycloak/PostgreSQL runtime.
+- 2026-07-29: Completed Slice 3 with supplier-neutral hotel/flight contracts, minimum-total pricing, sanitized LiteAPI fixtures, an environment/market/operation/carrier capability registry, public API routes and a Blazor SSR search shell. Production search remains disabled.
+- 2026-07-29: Completed Slice 4 with server-resolved checkout, renewed price acceptance, hosted-payment isolation, separately evidenced hotel/flight component bookings, durable idempotency, immediate recovery, PostgreSQL migration, authenticated API routes and a Blazor checkout experience. Production payment and booking remain disabled.
+- 2026-08-08: Completed Slice 5 with authenticated fail-closed webhook ingress, durable inbox and reconciliation schedules, retrieval-driven immutable canonical booking versions, customer-safe history, deduplicated notification intents and private worker processing. Production webhook, supplier and email capabilities remain disabled.
+- 2026-08-09: Completed Slice 6 with first-party support tickets and an immutable correspondence thread, guest magic-link access (hash-only storage, 30-day multi-use expiry, staff-only rotate/revoke), private S3-compatible attachments with fail-closed ClamAV scanning, and a Keycloak-role-gated staff console. Production object-storage, malware-scanning and email capabilities remain disabled.
+- 2026-08-10: Completed Slice 7 with a new Retention module (explicit record-class/policy/trigger/expiry model, legal hold with matter scoping and an append-only audit trail, deletion receipts), legal-hold-aware retention sweeps in Booking (webhook payload bodies, notification content, abandoned checkout state), Support (attachments, general/booking-related tickets, security audit records) and Consumer (account-closure profile minimisation), a `legal-hold-officer` Keycloak role and staff-only legal-hold API, and a code-verifiable production-readiness catalog. Retention sweeps and the legal-hold API default disabled/inert until their review-register gates are approved; canonical booking evidence and raw supplier payload classes remain policy-only (no live data yet).
 
 ## Production Gates
 

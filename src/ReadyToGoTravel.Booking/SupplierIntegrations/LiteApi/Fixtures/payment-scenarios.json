@@ -1,0 +1,51 @@
+{
+  "provider": "LiteAPI",
+  "environment": "sandbox",
+  "payments": [
+    {
+      "scenario": "action-required",
+      "paymentReference": "pay_action_required",
+      "status": "ActionRequired",
+      "browserToken": "browser_liteapi_001",
+      "browserTokenLifetimeMinutes": 15,
+      "providerReturnReference": null,
+      "errorCode": null
+    },
+    {
+      "scenario": "processing",
+      "paymentReference": "pay_processing",
+      "status": "Processing",
+      "browserToken": null,
+      "browserTokenLifetimeMinutes": 0,
+      "providerReturnReference": "return_processing",
+      "errorCode": null
+    },
+    {
+      "scenario": "captured-book-failed",
+      "paymentReference": "pay_captured_book_failed",
+      "status": "Captured",
+      "browserToken": null,
+      "browserTokenLifetimeMinutes": 0,
+      "providerReturnReference": "return_captured",
+      "errorCode": null
+    },
+    {
+      "scenario": "failed",
+      "paymentReference": "pay_failed",
+      "status": "Failed",
+      "browserToken": null,
+      "browserTokenLifetimeMinutes": 0,
+      "providerReturnReference": null,
+      "errorCode": "payment_declined"
+    },
+    {
+      "scenario": "unknown",
+      "paymentReference": "pay_unknown",
+      "status": "OutcomeUnknown",
+      "browserToken": null,
+      "browserTokenLifetimeMinutes": 0,
+      "providerReturnReference": null,
+      "errorCode": "payment_outcome_unknown"
+    }
+  ]
+}

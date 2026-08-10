@@ -1,0 +1,156 @@
+@page "/support/new"
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@inject SupportApiClient SupportApi
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>New support ticket · readytogo.travel</PageTitle>
+
+<main class="content-shell">
+    <p class="eyebrow">Help</p>
+    <h1>New support ticket</h1>
+
+@if (guestConfirmation)
+{
+    <p class="intro compact-intro">Thanks — we've received your ticket.</p>
+    <p class="empty-state">We've emailed a secure link to the address you provided. Use that link to follow up on this ticket; no account is needed.</p>
+}
+else
+{
+    <p class="intro compact-intro">Tell us what's going on. Urgent categories are reviewed first.</p>
+
+    <AuthorizeView Context="authState">
+        <Authorized>
+            <EditForm Model="FormModel" FormName="create-support-ticket" OnValidSubmit="CreateAsync" class="editor-card">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <AntiforgeryToken />
+
+                <label for="contact-name">Your name</label>
+                <InputText id="contact-name" @bind-Value="FormModel.ContactName" placeholder="Ari Taylor" />
+
+                <label>Email</label>
+                <p class="list-meta">@authState.User.FindFirst("email")?.Value (from your account)</p>
+
+                <label for="category">Category</label>
+                <InputSelect id="category" @bind-Value="FormModel.Category">
+                    <option value="General">General</option>
+                    <option value="TravelWithin24Hours">Travel within 24 hours</option>
+                    <option value="PaymentBookingMismatch">Payment/booking mismatch</option>
+                    <option value="SupplierCancellationOrRelocation">Supplier cancellation or relocation</option>
+                    <option value="TravellerSafety">Traveller safety</option>
+                    <option value="AccountOrOther">Account or other</option>
+                </InputSelect>
+
+                <label for="booking-reference">Booking reference (optional)</label>
+                <InputText id="booking-reference" @bind-Value="FormModel.BookingReference" />
+
+                <label for="message">Message</label>
+                <InputTextArea id="message" @bind-Value="FormModel.Message" rows="6" />
+
+                <button class="primary-action" type="submit">Submit ticket</button>
+            </EditForm>
+        </Authorized>
+        <NotAuthorized>
+            <EditForm Model="FormModel" FormName="create-support-ticket" OnValidSubmit="CreateAsync" class="editor-card">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <AntiforgeryToken />
+
+                <label for="guest-contact-name">Your name</label>
+                <InputText id="guest-contact-name" @bind-Value="FormModel.ContactName" placeholder="Ari Taylor" />
+
+                <label for="guest-contact-email">Email</label>
+                <InputText id="guest-contact-email" @bind-Value="FormModel.ContactEmail" placeholder="ari@example.com" />
+                <p class="list-meta">We'll email a secure link so you can follow up without creating an account.</p>
+
+                <label for="guest-category">Category</label>
+                <InputSelect id="guest-category" @bind-Value="FormModel.Category">
+                    <option value="General">General</option>
+                    <option value="TravelWithin24Hours">Travel within 24 hours</option>
+                    <option value="PaymentBookingMismatch">Payment/booking mismatch</option>
+                    <option value="SupplierCancellationOrRelocation">Supplier cancellation or relocation</option>
+                    <option value="TravellerSafety">Traveller safety</option>
+                    <option value="AccountOrOther">Account or other</option>
+                </InputSelect>
+
+                <label for="guest-booking-reference">Booking reference (optional)</label>
+                <InputText id="guest-booking-reference" @bind-Value="FormModel.BookingReference" />
+
+                <label for="guest-message">Message</label>
+                <InputTextArea id="guest-message" @bind-Value="FormModel.Message" rows="6" />
+
+                <button class="primary-action" type="submit">Submit ticket</button>
+            </EditForm>
+        </NotAuthorized>
+    </AuthorizeView>
+
+    @if (submitFailed)
+    {
+        <p class="empty-state">We could not submit that ticket. Please check the form and try again.</p>
+    }
+}
+</main>
+
+@code {
+    [SupplyParameterFromForm(FormName = "create-support-ticket")]
+    private SupportTicketForm? Form { get; set; }
+
+    private SupportTicketForm FormModel => Form ??= new();
+
+    private bool submitFailed;
+    private bool guestConfirmation;
+
+    private async Task CreateAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+
+        var ticket = await SupportApi.CreateTicketAsync(new CreateSupportTicketRequest(
+            FormModel.ContactName,
+            FormModel.ContactEmail,
+            FormModel.Category,
+            FormModel.BookingReference,
+            FormModel.Message));
+
+        if (ticket is null)
+        {
+            submitFailed = true;
+            return;
+        }
+
+        var redirect = ResolvePostCreateRedirect(isAuthenticated, ticket.Id);
+        if (redirect is null)
+        {
+            guestConfirmation = true;
+            return;
+        }
+
+        Navigation.NavigateTo(redirect);
+    }
+
+    // An anonymous submitter has no session and no token in hand (the raw guest token is only
+    // ever delivered by email, never by an API response), so /support/{id} — which requires
+    // [Authorize] and ownership by CustomerSubject — can never be a valid destination for them.
+    internal static string? ResolvePostCreateRedirect(bool isAuthenticated, Guid ticketId) =>
+        isAuthenticated ? $"/support/{ticketId}" : null;
+
+    private sealed class SupportTicketForm
+    {
+        [Required, StringLength(200)]
+        public string ContactName { get; set; } = string.Empty;
+
+        [StringLength(320)]
+        public string? ContactEmail { get; set; }
+
+        [Required]
+        public string Category { get; set; } = "General";
+
+        [StringLength(120)]
+        public string? BookingReference { get; set; }
+
+        [Required, StringLength(4000, MinimumLength = 1)]
+        public string Message { get; set; } = string.Empty;
+    }
+}

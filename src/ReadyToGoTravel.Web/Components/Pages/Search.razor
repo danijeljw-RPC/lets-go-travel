@@ -1,0 +1,259 @@
+@page "/search"
+@attribute [StreamRendering]
+@inject SearchApiClient SearchApi
+
+<PageTitle>Search stays and flights · readytogo.travel</PageTitle>
+
+<main class="content-shell search-shell">
+    <p class="eyebrow">Sandbox discovery</p>
+    <h1>Search stays and flights</h1>
+    <p class="intro compact-intro">
+        Compare supplier-neutral minimum totals. Offers are provisional, expire, and must be revalidated before checkout.
+    </p>
+
+    @if (!string.IsNullOrWhiteSpace(HotelOfferId) || !string.IsNullOrWhiteSpace(FlightOfferId))
+    {
+        <p class="capability-notice">
+            One @(string.IsNullOrWhiteSpace(HotelOfferId) ? "flight" : "stay") is selected for a combined journey. Search and add at most one offer of the other type.
+        </p>
+    }
+
+    @if (capabilities.Count == 0)
+    {
+        <p class="capability-notice">Search is not enabled for this environment and market.</p>
+    }
+    else
+    {
+        <p class="capability-notice sandbox-notice">
+            Development uses sanitized LiteAPI sandbox fixtures. Qantas, Jetstar and Virgin Australia are observed search carriers only; production booking is not enabled.
+        </p>
+    }
+
+    <div class="search-grid">
+        <section class="search-panel" aria-labelledby="hotel-search-title">
+            <h2 id="hotel-search-title">Stays</h2>
+            <EditForm Model="HotelFormModel" FormName="hotel-search" OnValidSubmit="SearchHotelsAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <AntiforgeryToken />
+
+                <label for="hotel-destination">Destination</label>
+                <InputText id="hotel-destination" @bind-Value="HotelFormModel.Destination" />
+
+                <div class="date-grid">
+                    <div>
+                        <label for="hotel-check-in">Check in</label>
+                        <InputDate id="hotel-check-in" @bind-Value="HotelFormModel.CheckIn" />
+                    </div>
+                    <div>
+                        <label for="hotel-check-out">Check out</label>
+                        <InputDate id="hotel-check-out" @bind-Value="HotelFormModel.CheckOut" />
+                    </div>
+                </div>
+
+                <label for="hotel-adults">Adults</label>
+                <InputNumber id="hotel-adults" @bind-Value="HotelFormModel.Adults" />
+
+                <button class="primary-action" type="submit">Search stays</button>
+            </EditForm>
+
+            <div class="search-results" aria-live="polite">
+                @if (hotelUnavailable)
+                {
+                    <p class="empty-state">Stay search is not currently available.</p>
+                }
+                @foreach (var offer in hotelOffers)
+                {
+                    <article class="offer-card">
+                        <p class="card-label">@offer.RateName · @(offer.Refundable ? "Refundable" : "Conditions apply")</p>
+                        <h3>@offer.PropertyName</h3>
+                        <p>@offer.RoomName</p>
+                        <p class="offer-price">@Money(offer.Price)</p>
+                        <p class="list-meta">Includes @offer.Price.ReturnedCurrency @offer.Price.IncludedTaxes.ToString("N2") taxes and @offer.Price.ReturnedCurrency @offer.Price.IncludedFees.ToString("N2") fees.</p>
+                        <p class="list-meta">Expires @offer.ExpiresAt.ToLocalTime().ToString("dd MMM yyyy HH:mm"); revalidation required.</p>
+                        <AuthorizeView>
+                            <Authorized>
+                                <a class="selection-action" href="@HotelCheckoutLink(offer.OfferId)">Select this stay</a>
+                                @if (string.IsNullOrWhiteSpace(FlightOfferId))
+                                {
+                                    <a class="selection-action" href="@SelectHotelForCombinedLink(offer.OfferId)">Add a flight</a>
+                                }
+                                else
+                                {
+                                    <a class="selection-action" href="@CombinedCheckoutLink(offer.OfferId, FlightOfferId)">Checkout stay + flight</a>
+                                }
+                            </Authorized>
+                        </AuthorizeView>
+                    </article>
+                }
+            </div>
+        </section>
+
+        <section class="search-panel" aria-labelledby="flight-search-title">
+            <h2 id="flight-search-title">Flights</h2>
+            <EditForm Model="FlightFormModel" FormName="flight-search" OnValidSubmit="SearchFlightsAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <AntiforgeryToken />
+
+                <div class="airport-grid">
+                    <div>
+                        <label for="flight-origin">From</label>
+                        <InputText id="flight-origin" @bind-Value="FlightFormModel.Origin" />
+                    </div>
+                    <div>
+                        <label for="flight-destination">To</label>
+                        <InputText id="flight-destination" @bind-Value="FlightFormModel.Destination" />
+                    </div>
+                </div>
+
+                <label for="flight-date">Departure</label>
+                <InputDate id="flight-date" @bind-Value="FlightFormModel.DepartureDate" />
+
+                <label for="flight-adults">Adults</label>
+                <InputNumber id="flight-adults" @bind-Value="FlightFormModel.Adults" />
+
+                <button class="primary-action" type="submit">Search flights</button>
+            </EditForm>
+
+            <div class="search-results" aria-live="polite">
+                @if (flightUnavailable)
+                {
+                    <p class="empty-state">Flight search is not currently available.</p>
+                }
+                @foreach (var offer in flightOffers)
+                {
+                    <article class="offer-card">
+                        <p class="card-label">@offer.MarketingCarrier · @offer.CabinClass · @offer.Stops stop(s)</p>
+                        <h3>@offer.Segments[0].Origin → @offer.Segments[^1].Destination</h3>
+                        <p>@offer.Segments[0].FlightNumber · @offer.BaggageSummary</p>
+                        <p class="offer-price">@Money(offer.Price)</p>
+                        <p class="list-meta">Includes @offer.Price.ReturnedCurrency @offer.Price.IncludedTaxes.ToString("N2") taxes and @offer.Price.ReturnedCurrency @offer.Price.IncludedFees.ToString("N2") fees.</p>
+                        <p class="list-meta">Expires @offer.ExpiresAt.ToLocalTime().ToString("dd MMM yyyy HH:mm"); revalidation required.</p>
+                        <AuthorizeView>
+                            <Authorized>
+                                <a class="selection-action" href="@FlightCheckoutLink(offer.OfferId)">Select this flight</a>
+                                @if (string.IsNullOrWhiteSpace(HotelOfferId))
+                                {
+                                    <a class="selection-action" href="@SelectFlightForCombinedLink(offer.OfferId)">Add a stay</a>
+                                }
+                                else
+                                {
+                                    <a class="selection-action" href="@CombinedCheckoutLink(HotelOfferId, offer.OfferId)">Checkout stay + flight</a>
+                                }
+                            </Authorized>
+                        </AuthorizeView>
+                    </article>
+                }
+            </div>
+        </section>
+    </div>
+</main>
+
+@code {
+    [SupplyParameterFromQuery(Name = "hotelOfferId")]
+    private string? HotelOfferId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "flightOfferId")]
+    private string? FlightOfferId { get; set; }
+
+    [SupplyParameterFromForm(FormName = "hotel-search")]
+    private HotelForm? Hotel { get; set; }
+
+    [SupplyParameterFromForm(FormName = "flight-search")]
+    private FlightForm? Flight { get; set; }
+
+    private HotelForm HotelFormModel => Hotel ??= new();
+
+    private FlightForm FlightFormModel => Flight ??= new();
+
+    private IReadOnlyList<SearchCapabilitySummary> capabilities = [];
+    private IReadOnlyList<HotelOfferSummary> hotelOffers = [];
+    private IReadOnlyList<FlightOfferSummary> flightOffers = [];
+    private bool hotelUnavailable;
+    private bool flightUnavailable;
+
+    protected override async Task OnInitializedAsync()
+    {
+        capabilities = await SearchApi.GetCapabilitiesAsync();
+    }
+
+    private async Task SearchHotelsAsync()
+    {
+        var result = await SearchApi.SearchHotelsAsync(new HotelSearchInput(
+            HotelFormModel.Destination,
+            HotelFormModel.CheckIn,
+            HotelFormModel.CheckOut,
+            HotelFormModel.Adults,
+            [],
+            1,
+            "AUD",
+            "AU"));
+
+        hotelOffers = result.Offers;
+        hotelUnavailable = !result.Available;
+    }
+
+    private async Task SearchFlightsAsync()
+    {
+        var result = await SearchApi.SearchFlightsAsync(new FlightSearchInput(
+            [new FlightLegInput(FlightFormModel.Origin, FlightFormModel.Destination, FlightFormModel.DepartureDate)],
+            FlightFormModel.Adults,
+            0,
+            0,
+            "Economy",
+            "AUD",
+            "AU"));
+
+        flightOffers = result.Offers;
+        flightUnavailable = !result.Available;
+    }
+
+    private static string Money(SearchPriceSummary price) =>
+        $"From {price.ReturnedCurrency} {price.MinimumTotal:N2} total";
+
+    private static string HotelCheckoutLink(string offerId) =>
+        $"/checkout?hotelOfferId={Uri.EscapeDataString(offerId)}";
+
+    private static string FlightCheckoutLink(string offerId) =>
+        $"/checkout?flightOfferId={Uri.EscapeDataString(offerId)}";
+
+    private static string SelectHotelForCombinedLink(string offerId) =>
+        $"/search?hotelOfferId={Uri.EscapeDataString(offerId)}";
+
+    private static string SelectFlightForCombinedLink(string offerId) =>
+        $"/search?flightOfferId={Uri.EscapeDataString(offerId)}";
+
+    private static string CombinedCheckoutLink(string hotelOfferId, string flightOfferId) =>
+        $"/checkout?hotelOfferId={Uri.EscapeDataString(hotelOfferId)}&flightOfferId={Uri.EscapeDataString(flightOfferId)}";
+
+    private sealed class HotelForm
+    {
+        [Required, StringLength(120)]
+        public string Destination { get; set; } = "Melbourne";
+
+        [Required]
+        public DateOnly CheckIn { get; set; } = new(2026, 10, 10);
+
+        [Required]
+        public DateOnly CheckOut { get; set; } = new(2026, 10, 12);
+
+        [Range(1, 16)]
+        public int Adults { get; set; } = 2;
+    }
+
+    private sealed class FlightForm
+    {
+        [Required, RegularExpression("^[A-Z]{3}$")]
+        public string Origin { get; set; } = "SYD";
+
+        [Required, RegularExpression("^[A-Z]{3}$")]
+        public string Destination { get; set; } = "MEL";
+
+        [Required]
+        public DateOnly DepartureDate { get; set; } = new(2026, 10, 10);
+
+        [Range(1, 9)]
+        public int Adults { get; set; } = 1;
+    }
+}

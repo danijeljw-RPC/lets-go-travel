@@ -1,0 +1,122 @@
+@page "/support/{TicketId:guid}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@inject SupportApiClient SupportApi
+
+<PageTitle>Support ticket · readytogo.travel</PageTitle>
+
+<main class="content-shell">
+    <p class="eyebrow">Help</p>
+    @if (ticket is null)
+    {
+        <h1>Ticket not found</h1>
+        <p class="empty-state">This ticket does not exist or is not yours.</p>
+    }
+    else
+    {
+        <h1>@ticket.Category ticket</h1>
+        <p class="card-label">@ticket.Status@(ticket.IsUrgent ? " · Urgent" : string.Empty)</p>
+
+        <section class="item-list" aria-labelledby="thread-title">
+            <h2 id="thread-title">Correspondence</h2>
+            @foreach (var message in ticket.Messages.OrderBy(m => m.SequenceNumber))
+            {
+                <article class="list-card">
+                    <p class="card-label">@message.AuthorType · @message.CreatedAt.ToString("dd MMM yyyy HH:mm")</p>
+                    <p>@message.Body</p>
+                </article>
+            }
+            @if (ticket.Attachments.Count > 0)
+            {
+                <h3>Attachments</h3>
+                @foreach (var attachment in ticket.Attachments)
+                {
+                    <p>
+                        @attachment.OriginalFileName (@attachment.ScanStatus)
+                        @if (attachment.ScanStatus == "Clean")
+                        {
+                            <button class="primary-action" type="button" @onclick="() => DownloadAsync(attachment.Id)">Download</button>
+                        }
+                    </p>
+                }
+            }
+        </section>
+
+        <EditForm Model="this" OnValidSubmit="ReplyAsync" class="editor-card">
+            <label for="reply-body">Reply</label>
+            <InputTextArea id="reply-body" @bind-Value="replyBody" rows="4" />
+            <button class="primary-action" type="submit" disabled="@(string.IsNullOrWhiteSpace(replyBody))">Send reply</button>
+        </EditForm>
+
+        <div class="editor-card">
+            <label for="attachment-file">Attach a file (PDF, JPEG, PNG or text, up to 10 MB)</label>
+            <InputFile id="attachment-file" OnChange="OnFileSelectedAsync" />
+            @if (uploadFailed)
+            {
+                <p class="empty-state">That file could not be attached.</p>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(downloadUrl))
+        {
+            <p><a href="@downloadUrl" target="_blank" rel="noopener">Open downloaded file</a></p>
+        }
+    }
+</main>
+
+@code {
+    [Parameter]
+    public Guid TicketId { get; set; }
+
+    private SupportTicketDetail? ticket;
+    private string replyBody = string.Empty;
+    private bool uploadFailed;
+    private string? downloadUrl;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ticket = await SupportApi.GetTicketAsync(TicketId);
+    }
+
+    private async Task ReplyAsync()
+    {
+        if (string.IsNullOrWhiteSpace(replyBody))
+        {
+            return;
+        }
+
+        var updated = await SupportApi.ReplyAsync(TicketId, replyBody);
+        if (updated is not null)
+        {
+            ticket = updated;
+            replyBody = string.Empty;
+        }
+    }
+
+    private async Task OnFileSelectedAsync(InputFileChangeEventArgs args)
+    {
+        if (ticket is null || ticket.Messages.Count == 0)
+        {
+            return;
+        }
+
+        uploadFailed = false;
+        var messageId = ticket.Messages.OrderByDescending(m => m.SequenceNumber).First().Id;
+        var attachment = await SupportApi.UploadAttachmentAsync(TicketId, messageId, args.File);
+        if (attachment is null)
+        {
+            uploadFailed = true;
+            return;
+        }
+
+        ticket = await SupportApi.GetTicketAsync(TicketId);
+    }
+
+    private async Task DownloadAsync(Guid attachmentId)
+    {
+        var result = await SupportApi.GetDownloadUrlAsync(TicketId, attachmentId);
+        downloadUrl = result?.Url;
+    }
+}

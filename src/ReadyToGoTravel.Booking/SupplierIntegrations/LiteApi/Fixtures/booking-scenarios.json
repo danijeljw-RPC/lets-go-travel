@@ -1,0 +1,34 @@
+{
+  "provider": "LiteAPI",
+  "environment": "sandbox",
+  "bookings": [
+    {
+      "scenario": "booking-confirmed",
+      "product": "Hotel",
+      "status": "Confirmed",
+      "externalReference": "book_hotel_confirmed",
+      "errorCode": null
+    },
+    {
+      "scenario": "booking-pending",
+      "product": "Flight",
+      "status": "Pending",
+      "externalReference": "book_flight_pending",
+      "errorCode": null
+    },
+    {
+      "scenario": "booking-failed",
+      "product": "Flight",
+      "status": "Failed",
+      "externalReference": null,
+      "errorCode": "flight_unavailable"
+    },
+    {
+      "scenario": "booking-unknown",
+      "product": "Hotel",
+      "status": "Unknown",
+      "externalReference": "book_hotel_unknown",
+      "errorCode": "booking_outcome_unknown"
+    }
+  ]
+}

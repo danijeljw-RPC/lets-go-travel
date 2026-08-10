@@ -20,6 +20,11 @@
           "Microsoft.OpenApi": "2.0.0"
         }
       },
+      "AWSSDK.Core": {
+        "type": "Transitive",
+        "resolved": "4.0.100.9",
+        "contentHash": "OPYy41jZjXwxxcYRotaq24HDrwUnVtBB/mvg1IwB9D1ICXAtHqMa1sp2hpmlVJCZwjlcrPcTCJIejInvV1vp5g=="
+      },
       "Microsoft.EntityFrameworkCore.Abstractions": {
         "type": "Transitive",
         "resolved": "10.0.8",
@@ -98,12 +103,55 @@
           "Microsoft.IdentityModel.Tokens": "8.0.1"
         }
       },
+      "readytogotravel.booking": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.8, )",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.8, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "ReadyToGoTravel.Consumer": "[1.0.0, )",
+          "ReadyToGoTravel.Retention": "[1.0.0, )",
+          "ReadyToGoTravel.Search": "[1.0.0, )"
+        }
+      },
       "readytogotravel.consumer": {
         "type": "Project",
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "[10.0.8, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.8, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "ReadyToGoTravel.Retention": "[1.0.0, )"
+        }
+      },
+      "readytogotravel.retention": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.8, )",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.8, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
+      "readytogotravel.search": {
+        "type": "Project"
+      },
+      "readytogotravel.support": {
+        "type": "Project",
+        "dependencies": {
+          "AWSSDK.S3": "[4.0.102, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.8, )",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.8, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "ReadyToGoTravel.Consumer": "[1.0.0, )",
+          "ReadyToGoTravel.Retention": "[1.0.0, )"
+        }
+      },
+      "AWSSDK.S3": {
+        "type": "CentralTransitive",
+        "requested": "[4.0.102, )",
+        "resolved": "4.0.102",
+        "contentHash": "+5ToRNfpNnu1/oEbb1P+4AnHpknda1+eybYkhT6viFC4v772ZONeFYGR1pHgm7Zum0nvLDpSEJl/4y+wggpIpg==",
+        "dependencies": {
+          "AWSSDK.Core": "[4.0.100.9, 5.0.0)"
         }
       },
       "Microsoft.EntityFrameworkCore": {

@@ -4,8 +4,22 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using ReadyToGoTravel.Api.Endpoints;
 using ReadyToGoTravel.Api.Infrastructure;
+using ReadyToGoTravel.Booking;
+using ReadyToGoTravel.Booking.Http;
+using ReadyToGoTravel.Booking.Webhooks;
 using ReadyToGoTravel.Consumer;
 using ReadyToGoTravel.Consumer.Http;
+using ReadyToGoTravel.Retention;
+using ReadyToGoTravel.Retention.Http;
+using ReadyToGoTravel.Search;
+using ReadyToGoTravel.Search.Capabilities;
+using ReadyToGoTravel.Search.Http;
+using ReadyToGoTravel.Support;
+using ReadyToGoTravel.Support.Guest;
+using ReadyToGoTravel.Support.Http;
+using ReadyToGoTravel.Support.Notifications;
+using ReadyToGoTravel.Support.Scanning;
+using ReadyToGoTravel.Support.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +31,39 @@ builder.Services.AddPlatformAuthentication(builder.Configuration);
 var consumerConnectionString = builder.Configuration.GetConnectionString("Consumer")
     ?? throw new InvalidOperationException("ConnectionStrings:Consumer is required.");
 builder.Services.AddConsumerModule((_, options) => options.UseNpgsql(consumerConnectionString));
+var bookingEnvironmentValue = builder.Configuration["Booking:Environment"] ?? "Production";
+if (!Enum.TryParse<SearchEnvironment>(bookingEnvironmentValue, true, out var bookingEnvironment))
+{
+    throw new InvalidOperationException("Booking:Environment must be Sandbox or Production.");
+}
+
+builder.Services.AddBookingModule(
+    (_, options) => options.UseNpgsql(consumerConnectionString),
+    bookingEnvironment,
+    builder.Configuration.GetValue<bool>("Booking:EnableFixtures"));
+builder.Services.Configure<LiteApiWebhookOptions>(
+    builder.Configuration.GetSection(LiteApiWebhookOptions.SectionName));
+var searchEnvironmentValue = builder.Configuration["Search:Environment"] ?? "Production";
+if (!Enum.TryParse<SearchEnvironment>(searchEnvironmentValue, true, out var searchEnvironment))
+{
+    throw new InvalidOperationException("Search:Environment must be Sandbox or Production.");
+}
+
+builder.Services.AddSearchModule(
+    searchEnvironment,
+    builder.Configuration.GetValue<bool>("Search:EnableFixtures"));
+var supportConnectionString = builder.Configuration.GetConnectionString("Support") ?? consumerConnectionString;
+builder.Services.AddSupportModule((_, options) => options.UseNpgsql(supportConnectionString));
+var retentionConnectionString = builder.Configuration.GetConnectionString("Retention") ?? consumerConnectionString;
+builder.Services.AddRetentionModule((_, options) => options.UseNpgsql(retentionConnectionString));
+builder.Services.Configure<SupportStorageOptions>(
+    builder.Configuration.GetSection(SupportStorageOptions.SectionName));
+builder.Services.Configure<ClamAvOptions>(
+    builder.Configuration.GetSection(ClamAvOptions.SectionName));
+builder.Services.Configure<GuestTokenOptions>(
+    builder.Configuration.GetSection(GuestTokenOptions.SectionName));
+builder.Services.Configure<SupportNotificationSenderOptions>(
+    builder.Configuration.GetSection(SupportNotificationSenderOptions.SectionName));
 builder.Services.AddProblemDetails(options =>
 {
     options.CustomizeProblemDetails = context =>
@@ -25,14 +72,69 @@ builder.Services.AddProblemDetails(options =>
         context.ProblemDetails.Extensions["correlationId"] = context.HttpContext.TraceIdentifier;
     };
 });
+// Required, not merely optional: without it, the Web host's forwarded browser address is never
+// trusted, support-ticket-create partitions by the Web host's own connection for every visitor, and
+// the support-guest ceiling silently degrades to the same single-shared-bucket problem it exists to
+// close - a production deployment that simply omits this from its configuration would fail exactly
+// the way both those fixes were meant to prevent, without any startup signal that anything is wrong.
+var internalCallerSecret = builder.Configuration["Support:InternalCallerSecret"]
+    ?? throw new InvalidOperationException("Support:InternalCallerSecret is required.");
 builder.Services.AddRateLimiter(options =>
 {
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("public-api", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 100,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1),
+            }));
+    options.AddPolicy("search", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1),
+            }));
+    options.AddPolicy("checkout", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1),
+            }));
+    options.AddPolicy("webhook", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1),
+            }));
+    options.AddPolicy("support", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            SupportRateLimitPartitions.AuthenticatedKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1),
+            }));
+    options.AddPolicy("support-guest", context =>
+        SupportRateLimitPartitions.GuestPartition(context, internalCallerSecret));
+    options.AddPolicy("support-ticket-create", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            SupportRateLimitPartitions.TicketCreationKey(context, internalCallerSecret),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1),
             }));
@@ -62,6 +164,13 @@ var api = app.MapGroup("/api/v1")
     .RequireRateLimiting("public-api");
 api.MapPlatformEndpoints();
 api.MapConsumerEndpoints();
+api.MapSearchEndpoints();
+api.MapBookingEndpoints();
+api.MapWebhookEndpoints();
+api.MapSupportEndpoints();
+api.MapSupportGuestEndpoints();
+api.MapSupportStaffEndpoints();
+api.MapLegalHoldEndpoints();
 
 app.MapFallback("/api/{**path}", (HttpContext context) =>
     Results.Problem(
