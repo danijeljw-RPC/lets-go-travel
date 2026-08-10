@@ -93,14 +93,36 @@ public sealed class LegalHoldService(RetentionDbContext database, TimeProvider t
         }
 
         var scopes = ActiveMatchingScopes(recordClass, subjectKind, candidateSubjectIds);
-        var ids = subjectKind switch
+        var matches = subjectKind switch
         {
-            RetentionSubjectKind.Customer => await scopes.Select(scope => scope.CustomerId!.Value).Distinct().ToListAsync(cancellationToken),
-            RetentionSubjectKind.ComponentBooking => await scopes.Select(scope => scope.ComponentBookingId!.Value).Distinct().ToListAsync(cancellationToken),
-            RetentionSubjectKind.SupportTicket => await scopes.Select(scope => scope.SupportTicketId!.Value).Distinct().ToListAsync(cancellationToken),
+            RetentionSubjectKind.Customer => await scopes.Select(scope => new { SubjectId = scope.CustomerId!.Value, scope.LegalHoldId }).Distinct().ToListAsync(cancellationToken),
+            RetentionSubjectKind.ComponentBooking => await scopes.Select(scope => new { SubjectId = scope.ComponentBookingId!.Value, scope.LegalHoldId }).Distinct().ToListAsync(cancellationToken),
+            RetentionSubjectKind.SupportTicket => await scopes.Select(scope => new { SubjectId = scope.SupportTicketId!.Value, scope.LegalHoldId }).Distinct().ToListAsync(cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(subjectKind), subjectKind, "Unsupported retention subject kind."),
         };
-        return ids.ToHashSet();
+        if (matches.Count == 0)
+        {
+            return new HashSet<Guid>();
+        }
+
+        // Every suppression is audited, not only the rarer fine-grained IsHeldAsync recheck path:
+        // this batch-level exclusion is what actually protects the overwhelming majority of held
+        // items in practice (IsHeldAsync only re-fires for the narrow mid-batch race window), so
+        // skipping the audit write here would silently under-report "held records are audited".
+        var now = timeProvider.GetUtcNow();
+        foreach (var match in matches)
+        {
+            database.LegalHoldAuditEvents.Add(new LegalHoldAuditEvent(
+                Guid.CreateVersion7(now),
+                match.LegalHoldId,
+                LegalHoldAuditEventType.GuardCheckHeld,
+                $"Guard check found a held {recordClass} record ({subjectKind}={match.SubjectId}).",
+                now,
+                null));
+        }
+
+        await database.SaveChangesAsync(cancellationToken);
+        return matches.Select(match => match.SubjectId).ToHashSet();
     }
 
     public async Task<bool> IsHeldAsync(

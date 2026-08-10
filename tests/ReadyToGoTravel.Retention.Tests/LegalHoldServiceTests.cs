@@ -62,6 +62,29 @@ public sealed class LegalHoldServiceTests
     }
 
     [Fact]
+    public async Task ExcludeHeldAsyncRecordsAGuardCheckAuditEventForEverySuppressedCandidate()
+    {
+        // A live PostgreSQL drill (see the Slice 7 outcome report) surfaced that the batch-level
+        // exclusion path - which protects the overwhelming majority of held items in practice,
+        // not the rarer fine-grained IsHeldAsync recheck - was not being audited at all. This
+        // guards against regressing that fix.
+        await using var fixture = await RetentionDatabaseFixture.CreateAsync();
+        var service = new LegalHoldService(fixture.Context, new FixedTimeProvider(Now));
+        var heldTicket = Guid.CreateVersion7(Now);
+        var hold = await service.OpenAsync(
+            "MATTER-1", "Dispute", "officer-1", Now.AddDays(90),
+            [new LegalHoldScopeRequest(RetentionRecordClass.GeneralSupportTicket, null, null, heldTicket)],
+            default);
+
+        await service.ExcludeHeldAsync(
+            RetentionRecordClass.GeneralSupportTicket, RetentionSubjectKind.SupportTicket, [heldTicket], default);
+
+        var guardEvent = await fixture.Context.LegalHoldAuditEvents
+            .SingleAsync(value => value.EventType == LegalHoldAuditEventType.GuardCheckHeld);
+        Assert.Equal(hold.Id, guardEvent.LegalHoldId);
+    }
+
+    [Fact]
     public async Task AnUnrelatedRecordClassIsNeverExcludedByAHoldScopedToADifferentClass()
     {
         await using var fixture = await RetentionDatabaseFixture.CreateAsync();
