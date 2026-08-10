@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 620 620">
+<!-- island / desk line -->
+<path d="M40 535c90-29 172-16 248 0 94 20 181 29 292 3v82H40v-85Z" fill="#f7fcff"></path>
+<path d="M36 535h550" stroke="#0a1f38" stroke-linecap="round" stroke-width="6"></path>
+<!-- palm -->
+<path d="M107 531c10-69 13-127 8-183" stroke="#8c4a22" stroke-linecap="round" stroke-width="17"></path>
+<path d="M112 364c-40-53-73-52-93-43 42 5 67 24 89 60" fill="#24bd72" stroke="#0a1f38" stroke-linejoin="round" stroke-width="6"></path>
+<path d="M116 365c7-67 35-88 59-92-24 28-35 56-43 94" fill="#20b96c" stroke="#0a1f38" stroke-linejoin="round" stroke-width="6"></path>
+<path d="M118 367c43-50 80-47 102-34-43 1-71 18-97 49" fill="#2ac77b" stroke="#0a1f38" stroke-linejoin="round" stroke-width="6"></path>
+<path d="M117 362c-4-57-29-80-50-87 19 27 29 53 33 86" fill="#2ac77b" stroke="#0a1f38" stroke-linejoin="round" stroke-width="6"></path>
+<!-- books -->
+<rect fill="#1779e8" height="27" rx="9" stroke="#0a1f38" stroke-width="5" width="103" x="176" y="470"></rect>
+<rect fill="#23bd78" height="26" rx="9" stroke="#0a1f38" stroke-width="5" width="116" x="168" y="495"></rect>
+<rect fill="#ffb72d" height="19" rx="8" stroke="#0a1f38" stroke-width="5" width="102" x="180" y="519"></rect>
+<path d="M197 484h58M193 508h64M201 529h53" stroke="#fff" stroke-linecap="round" stroke-width="3"></path>
+<!-- coffee -->
+<path d="M288 452h46l-6 79h-34l-6-79Z" fill="#fff" stroke="#0a1f38" stroke-width="5"></path>
+<path d="M287 464h49" stroke="#0a1f38" stroke-width="5"></path>
+<path d="M296 482h31" stroke="#1779e8" stroke-linecap="round" stroke-width="12"></path>
+<!-- person -->
+<circle cx="389" cy="350" fill="#f2af76" r="52" stroke="#0a1f38" stroke-width="6"></circle>
+<path d="M337 350c1-54 25-86 62-87 41-2 70 34 65 88-20-18-39-27-63-28-26 0-46 9-64 27Z" fill="#1679e8" stroke="#0a1f38" stroke-width="6"></path>
+<path d="M365 314c13-13 33-18 55-8" stroke="#0a1f38" stroke-linecap="round" stroke-width="6"></path>
+<rect fill="#0a1f38" height="23" rx="11" width="40" x="348" y="342"></rect>
+<rect fill="#0a1f38" height="23" rx="11" width="40" x="394" y="342"></rect>
+<path d="M387 350h8" stroke="#0a1f38" stroke-width="5"></path>
+<path d="M377 382c10 8 22 8 32 0" stroke="#8f4c29" stroke-linecap="round" stroke-width="4"></path>
+<!-- laptop -->
+<path d="M319 374h151c7 0 13 6 13 13l-7 119H318l-12-119c-1-7 5-13 13-13Z" fill="#b9c8d5" stroke="#0a1f38" stroke-width="6"></path>
+<path d="M293 506h205l-13 25H304l-11-25Z" fill="#8297a8" stroke="#0a1f38" stroke-linejoin="round" stroke-width="6"></path>
+<circle cx="396" cy="439" fill="#1779e8" r="20"></circle>
+<path d="M383 440 410 426l-7 28-8-9-7 7-2-8-3-4Z" fill="#fff"></path>
+<!-- cat -->
+<path d="M482 491c9-31 33-47 61-39 33 9 36 42 22 69-17 11-67 7-83-30Z" fill="#727d8c" stroke="#0a1f38" stroke-width="6"></path>
+<path d="m499 464 10-27 18 20m24 5 18-22 3 31" fill="#ff7780" stroke="#0a1f38" stroke-linejoin="round" stroke-width="6"></path>
+<path d="M505 478h24m7 0h23" stroke="#0a1f38" stroke-linecap="round" stroke-width="8"></path>
+<path d="M529 493c6 5 12 5 18 0" stroke="#0a1f38" stroke-linecap="round" stroke-width="4"></path>
+<path d="M560 505c31 4 38 29 26 44-6 8-17 3-13-7 6-16-4-26-18-27" stroke="#0a1f38" stroke-linecap="round" stroke-width="7"></path>
+<path d="M488 517c11 16 30 18 43 2" stroke="#0a1f38" stroke-linecap="round" stroke-width="6"></path>
+<!-- suitcase -->
+<rect fill="#ffbb2e" height="171" rx="19" stroke="#0a1f38" stroke-width="6" width="83" x="504" y="352"></rect>
+<path d="M530 352v-28c0-10 7-17 17-17h9c10 0 17 7 17 17v28" stroke="#0a1f38" stroke-linecap="round" stroke-width="8"></path>
+<circle cx="525" cy="499" fill="#0a1f38" r="5"></circle><circle cx="568" cy="499" fill="#0a1f38" r="5"></circle>
+<circle cx="544" cy="414" fill="#35b6e9" r="17" stroke="#0a1f38" stroke-width="4"></circle>
+<path d="m532 459 26-18 11 25-28 16-9-23Z" fill="#fff" stroke="#0a1f38" stroke-width="4"></path>
+<path d="m538 458 10-7 9 17" stroke="#21bd77" stroke-width="4"></path>
+<!-- speech bubble -->
+<path d="M274 265c0-28 24-51 53-51h61c29 0 53 23 53 51s-24 51-53 51h-26l25 29-47-29h-13c-29 0-53-23-53-51Z" fill="#fff" stroke="#0a1f38" stroke-linejoin="round" stroke-width="6"></path>
+<path d="M311 264 335 250l-5 27-8-8-8 8-1-9-2-4Z" fill="#1779e8" stroke="#0a1f38" stroke-width="3"></path>
+<path d="M370 255c12-18 38-4 28 14-7 12-28 24-28 24s-22-12-28-24c-10-18 16-32 28-14Z" fill="#ff5167"></path>
+</svg>
