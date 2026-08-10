@@ -90,21 +90,24 @@ public static class SupportGuestEndpoints
         SupportAttachmentService attachments,
         CancellationToken cancellationToken)
     {
-        var ticketId = await ResolveAsync(context, tokens, cancellationToken);
-        if (ticketId is null)
+        var resolution = await ResolveTokenAsync(context, tokens, cancellationToken);
+        if (resolution is null)
         {
             return SupportHttpResults.Problem(context, StatusCodes.Status401Unauthorized, "guest_link_invalid");
         }
 
-        var ticket = await service.GetForStaffAsync(ticketId.Value, cancellationToken);
+        var ticketId = resolution.Value.TicketId;
+        var ticket = await service.GetForStaffAsync(ticketId, cancellationToken);
         if (ticket is null || ticket.Messages.All(value => value.Id != messageId))
         {
             return SupportHttpResults.Problem(context, StatusCodes.Status404NotFound, "ticket_message_not_found");
         }
 
         await using var content = file.OpenReadStream();
+        // Attribute the upload to the specific token generation that authenticated it, so a later
+        // rotation cannot make an abusive or infected upload untraceable to its credential.
         var result = await attachments.UploadAsync(
-            ticketId.Value, messageId, null, null, file.FileName, file.ContentType, content, cancellationToken);
+            ticketId, messageId, null, resolution.Value.TokenId, file.FileName, file.ContentType, content, cancellationToken);
         return result switch
         {
             SupportAttachmentUploadResult.Accepted accepted => Results.Created(
@@ -136,13 +139,20 @@ public static class SupportGuestEndpoints
             return SupportHttpResults.Problem(context, StatusCodes.Status401Unauthorized, "guest_link_invalid");
         }
 
-        var url = await attachments.CreateDownloadUrlAsync(ticketId.Value, attachmentId, cancellationToken);
+        var url = await attachments.CreateDownloadUrlAsync(
+            ticketId.Value, attachmentId, actorSubject: null, cancellationToken);
         return url is null
             ? SupportHttpResults.Problem(context, StatusCodes.Status404NotFound, "attachment_not_available")
             : Results.Ok(new DownloadUrlResponse(url.ToString(), DateTimeOffset.UtcNow.AddMinutes(5)));
     }
 
     private static async Task<Guid?> ResolveAsync(
+        HttpContext context,
+        IGuestAccessTokenService tokens,
+        CancellationToken cancellationToken) =>
+        (await ResolveTokenAsync(context, tokens, cancellationToken))?.TicketId;
+
+    private static async Task<GuestTokenResolution?> ResolveTokenAsync(
         HttpContext context,
         IGuestAccessTokenService tokens,
         CancellationToken cancellationToken)
@@ -156,6 +166,6 @@ public static class SupportGuestEndpoints
         // non-Bearer credential (e.g. Basic) is never forwarded: it belongs to a different auth
         // scheme and must not be logged or hashed as if it were a guest token.
         var rawToken = header.StartsWith(prefix, StringComparison.Ordinal) ? header[prefix.Length..] : string.Empty;
-        return await tokens.ResolveAsync(rawToken, cancellationToken);
+        return await tokens.ResolveTokenAsync(rawToken, cancellationToken);
     }
 }

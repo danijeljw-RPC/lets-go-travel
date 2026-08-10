@@ -209,7 +209,7 @@ public static class SupportEndpoints
             return SupportHttpResults.Problem(context, StatusCodes.Status404NotFound, "ticket_not_found");
         }
 
-        var url = await attachments.CreateDownloadUrlAsync(ticketId, attachmentId, cancellationToken);
+        var url = await attachments.CreateDownloadUrlAsync(ticketId, attachmentId, subject, cancellationToken);
         return url is null
             ? SupportHttpResults.Problem(context, StatusCodes.Status404NotFound, "attachment_not_available")
             : Results.Ok(new DownloadUrlResponse(url.ToString(), DateTimeOffset.UtcNow.AddMinutes(5)));

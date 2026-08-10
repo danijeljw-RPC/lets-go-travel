@@ -131,8 +131,11 @@ public class SupportApiClient(HttpClient client)
                 ? await response.Content.ReadFromJsonAsync<SupportAttachment>(cancellationToken)
                 : null;
         }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or IOException)
         {
+            // IOException: IBrowserFile.OpenReadStream throws when the selected file exceeds
+            // MaxAttachmentBytes, before any request is sent - must fail the same way an HTTP
+            // failure would, not escape and tear down the interactive circuit.
             return null;
         }
     }

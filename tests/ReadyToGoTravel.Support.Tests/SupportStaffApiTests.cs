@@ -224,6 +224,39 @@ public sealed class SupportStaffApiTests
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Fact]
+    public async Task DownloadingAnAttachmentThroughTheStaffEndpointRecordsTheActingStaffSubject()
+    {
+        await using var app = await TestApplication.CreateAsync();
+        var (ticket, token) = await CreateGuestTicketAsync(app);
+        using var form = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("hello from a guest"u8.ToArray());
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+        form.Add(fileContent, "file", "note.txt");
+        form.Add(new StringContent(ticket.Messages[0].Id.ToString()), "messageId");
+        using var uploadRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/support/guest/ticket/attachments")
+        {
+            Content = form,
+        };
+        uploadRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var uploadResponse = await app.Client.SendAsync(uploadRequest);
+        uploadResponse.EnsureSuccessStatusCode();
+        var attachment = (await uploadResponse.ReadAsAsync<AttachmentResponse>())!;
+        await app.DrainAttachmentScansAsync();
+
+        app.SetStaffSubject("staff-download-1");
+        var downloadResponse = await app.Client.GetAsync(
+            $"/api/v1/support/staff/tickets/{ticket.Id}/attachments/{attachment.Id}/download");
+
+        downloadResponse.EnsureSuccessStatusCode();
+        await using var scope = app.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+        var authorized = await database.AuditEvents
+            .Where(value => value.TicketId == ticket.Id && value.EventType == SupportAuditEventType.AttachmentDownloadAuthorized)
+            .ToListAsync();
+        Assert.Contains(authorized, value => value.ActorSubject == "staff-download-1");
+    }
+
     private static async Task<TicketResponse> CreateTicketAsync(TestApplication app)
     {
         var response = await app.Client.PostAsJsonAsync("/api/v1/support/tickets", new

@@ -1,11 +1,25 @@
 using System.Net;
 using System.Text;
+using Microsoft.AspNetCore.Components.Forms;
 using ReadyToGoTravel.Web.Client;
 
 namespace ReadyToGoTravel.Web.Tests;
 
 public sealed class SupportApiClientTests
 {
+    [Fact]
+    public async Task UploadAttachmentAsyncReturnsNullRatherThanThrowingWhenTheFileExceedsTheSizeLimit()
+    {
+        var handler = new RecordingHandler(HttpStatusCode.Created, "{}");
+        var client = new SupportApiClient(new HttpClient(handler) { BaseAddress = new Uri("https://api.example.test") });
+        var oversizedFile = new OversizedBrowserFile();
+
+        var result = await client.UploadAttachmentAsync(Guid.NewGuid(), Guid.NewGuid(), oversizedFile);
+
+        Assert.Null(result);
+        Assert.Null(handler.RequestUri);
+    }
+
     [Fact]
     public async Task CreateTicketAsyncPostsToTheSupportTicketsRoute()
     {
@@ -71,6 +85,30 @@ public sealed class SupportApiClientTests
         Assert.Equal("/api/v1/support/guest/ticket", handler.RequestUri!.AbsolutePath);
         Assert.Equal("Bearer", handler.AuthorizationScheme);
         Assert.Equal("raw-guest-token-value", handler.AuthorizationParameter);
+    }
+
+    [Fact]
+    public async Task TheGuestClientsUploadAttachmentAsyncReturnsNullRatherThanThrowingWhenTheFileExceedsTheSizeLimit()
+    {
+        var handler = new RecordingHandler(HttpStatusCode.Created, "{}");
+        var client = new SupportGuestApiClient(new HttpClient(handler) { BaseAddress = new Uri("https://api.example.test") });
+        var oversizedFile = new OversizedBrowserFile();
+
+        var result = await client.UploadAttachmentAsync("raw-guest-token-value", Guid.NewGuid(), oversizedFile);
+
+        Assert.Null(result);
+        Assert.Null(handler.RequestUri);
+    }
+
+    private sealed class OversizedBrowserFile : IBrowserFile
+    {
+        public string Name => "too-big.bin";
+        public DateTimeOffset LastModified => DateTimeOffset.UtcNow;
+        public long Size => 100 * 1024 * 1024;
+        public string ContentType => "application/octet-stream";
+
+        public Stream OpenReadStream(long maxAllowedSize = 512000, CancellationToken cancellationToken = default) =>
+            throw new IOException($"Supplied file with size {Size} bytes exceeds the maximum of {maxAllowedSize} bytes.");
     }
 
     private sealed class RecordingHandler(HttpStatusCode statusCode, string responseBody) : HttpMessageHandler

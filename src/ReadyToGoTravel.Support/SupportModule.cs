@@ -27,7 +27,8 @@ public static class SupportModule
         services.AddOptions<GuestTokenOptions>()
             .Validate(
                 options => !string.IsNullOrWhiteSpace(options.NotificationSigningKey) && TryDecodeSigningKey(options.NotificationSigningKey, out _),
-                "Support:GuestTokens:NotificationSigningKey must be set to a non-empty base64-encoded secret (never persisted in the database).")
+                $"Support:GuestTokens:NotificationSigningKey must be set to a base64-encoded secret of at least {MinimumSigningKeyBytes} random bytes (never persisted in the database). " +
+                    "Guest acknowledgement tokens are deterministic HMAC outputs over ticket/outbox IDs that are visible to anyone with database read access, so a short or guessable key would let that reader brute-force it and reconstruct every active bearer token.")
             .ValidateOnStart();
         services.AddScoped<IGuestAccessTokenService>(provider =>
         {
@@ -95,12 +96,14 @@ public static class SupportModule
         return services;
     }
 
+    private const int MinimumSigningKeyBytes = 32;
+
     private static bool TryDecodeSigningKey(string value, out byte[] signingKey)
     {
         try
         {
             signingKey = Convert.FromBase64String(value);
-            return signingKey.Length > 0;
+            return signingKey.Length >= MinimumSigningKeyBytes;
         }
         catch (FormatException)
         {

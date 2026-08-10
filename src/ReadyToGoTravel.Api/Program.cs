@@ -68,6 +68,7 @@ builder.Services.AddProblemDetails(options =>
         context.ProblemDetails.Extensions["correlationId"] = context.HttpContext.TraceIdentifier;
     };
 });
+var internalCallerSecret = builder.Configuration["Support:InternalCallerSecret"];
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -109,7 +110,7 @@ builder.Services.AddRateLimiter(options =>
             }));
     options.AddPolicy("support", context =>
         RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            SupportRateLimitPartitions.AuthenticatedKey(context),
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 60,
@@ -118,7 +119,7 @@ builder.Services.AddRateLimiter(options =>
             }));
     options.AddPolicy("support-guest", context =>
         RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            SupportRateLimitPartitions.GuestKey(context),
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 20,
@@ -127,7 +128,7 @@ builder.Services.AddRateLimiter(options =>
             }));
     options.AddPolicy("support-ticket-create", context =>
         RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            SupportRateLimitPartitions.TicketCreationKey(context, internalCallerSecret),
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 5,

@@ -122,6 +122,7 @@ public static class SupportStaffEndpoints
     private static async Task<IResult> DownloadAttachmentAsync(
         Guid ticketId,
         Guid attachmentId,
+        ClaimsPrincipal principal,
         SupportTicketService service,
         SupportAttachmentService attachments,
         HttpContext context,
@@ -133,7 +134,8 @@ public static class SupportStaffEndpoints
             return SupportHttpResults.Problem(context, StatusCodes.Status404NotFound, "ticket_not_found");
         }
 
-        var url = await attachments.CreateDownloadUrlAsync(ticketId, attachmentId, cancellationToken);
+        var url = await attachments.CreateDownloadUrlAsync(
+            ticketId, attachmentId, principal.FindFirstValue("sub"), cancellationToken);
         return url is null
             ? SupportHttpResults.Problem(context, StatusCodes.Status404NotFound, "attachment_not_available")
             : Results.Ok(new DownloadUrlResponse(url.ToString(), DateTimeOffset.UtcNow.AddMinutes(5)));

@@ -54,6 +54,52 @@ public sealed class SupportModuleWiringTests
             () => scope.ServiceProvider.GetRequiredService<IGuestAccessTokenService>());
     }
 
+    [Fact]
+    public void StartupValidationRejectsANotificationSigningKeyShorterThanTheCryptographicMinimum()
+    {
+        var services = new ServiceCollection();
+        var configurationValues = new Dictionary<string, string?>
+        {
+            // A single random byte, base64-encoded: nonempty, so a length check alone would accept
+            // it, but with only 256 possible values a database reader could brute-force it against
+            // a stored token hash and reconstruct every deterministic guest acknowledgement token.
+            ["Support:GuestTokens:NotificationSigningKey"] = "YQ==",
+        };
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(configurationValues).Build();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton<IHostEnvironment>(new FakeHostEnvironment(Environments.Production));
+        services.AddLogging();
+        services.AddSupportModule((_, options) => options.UseSqlite("Data Source=:memory:"));
+        services.Configure<GuestTokenOptions>(configuration.GetSection(GuestTokenOptions.SectionName));
+
+        using var provider = services.BuildServiceProvider(validateScopes: true);
+        using var scope = provider.CreateScope();
+
+        Assert.Throws<Microsoft.Extensions.Options.OptionsValidationException>(
+            () => scope.ServiceProvider.GetRequiredService<IGuestAccessTokenService>());
+    }
+
+    [Fact]
+    public void StartupValidationAcceptsAThirtyTwoByteNotificationSigningKey()
+    {
+        var services = new ServiceCollection();
+        var configurationValues = new Dictionary<string, string?>
+        {
+            ["Support:GuestTokens:NotificationSigningKey"] = Convert.ToBase64String(new byte[32]),
+        };
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(configurationValues).Build();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton<IHostEnvironment>(new FakeHostEnvironment(Environments.Production));
+        services.AddLogging();
+        services.AddSupportModule((_, options) => options.UseSqlite("Data Source=:memory:"));
+        services.Configure<GuestTokenOptions>(configuration.GetSection(GuestTokenOptions.SectionName));
+
+        using var provider = services.BuildServiceProvider(validateScopes: true);
+        using var scope = provider.CreateScope();
+
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IGuestAccessTokenService>());
+    }
+
     private static ServiceProvider BuildProvider(string environmentName, string? senderMode)
     {
         var services = new ServiceCollection();

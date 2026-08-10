@@ -84,6 +84,7 @@ builder.Services.AddAuthorization(options =>
 var apiBaseUrl = builder.Configuration["PlatformApi:BaseUrl"]
     ?? throw new InvalidOperationException("PlatformApi:BaseUrl is required.");
 builder.Services.AddTransient<ApiAccessTokenHandler>();
+builder.Services.AddTransient<SupportClientIpForwardingHandler>();
 builder.Services.AddHttpClient<PlatformApiClient>(client => ConfigureApiClient(client, apiBaseUrl));
 builder.Services.AddHttpClient<SearchApiClient>(client => ConfigureApiClient(client, apiBaseUrl));
 builder.Services.AddHttpClient<ConsumerApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
@@ -91,7 +92,8 @@ builder.Services.AddHttpClient<ConsumerApiClient>(client => ConfigureApiClient(c
 builder.Services.AddHttpClient<BookingApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
     .AddHttpMessageHandler<ApiAccessTokenHandler>();
 builder.Services.AddHttpClient<SupportApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
-    .AddHttpMessageHandler<ApiAccessTokenHandler>();
+    .AddHttpMessageHandler<ApiAccessTokenHandler>()
+    .AddHttpMessageHandler<SupportClientIpForwardingHandler>();
 builder.Services.AddHttpClient<SupportStaffApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
     .AddHttpMessageHandler<ApiAccessTokenHandler>();
 builder.Services.AddHttpClient<SupportGuestApiClient>(client => ConfigureApiClient(client, apiBaseUrl));

@@ -207,23 +207,24 @@ internal sealed class SupportAttachmentService(
         }
     }
 
-    public async Task<Uri?> CreateDownloadUrlAsync(Guid ticketId, Guid attachmentId, CancellationToken cancellationToken = default)
+    public async Task<Uri?> CreateDownloadUrlAsync(
+        Guid ticketId, Guid attachmentId, string? actorSubject = null, CancellationToken cancellationToken = default)
     {
         var now = timeProvider.GetUtcNow();
         var attachment = await database.Attachments.SingleOrDefaultAsync(value => value.Id == attachmentId, cancellationToken);
         if (attachment is null || attachment.TicketId != ticketId)
         {
-            await AddAuditEventAsync(ticketId, SupportAuditEventType.AttachmentDownloadDenied, "Attachment not found for ticket.", now, cancellationToken);
+            await AddAuditEventAsync(ticketId, SupportAuditEventType.AttachmentDownloadDenied, "Attachment not found for ticket.", now, cancellationToken, actorSubject);
             return null;
         }
 
         if (attachment.ScanStatus != AttachmentScanStatus.Clean)
         {
-            await AddAuditEventAsync(ticketId, SupportAuditEventType.AttachmentDownloadDenied, "Attachment is not clean.", now, cancellationToken);
+            await AddAuditEventAsync(ticketId, SupportAuditEventType.AttachmentDownloadDenied, "Attachment is not clean.", now, cancellationToken, actorSubject);
             return null;
         }
 
-        await AddAuditEventAsync(ticketId, SupportAuditEventType.AttachmentDownloadAuthorized, "Attachment download authorized.", now, cancellationToken);
+        await AddAuditEventAsync(ticketId, SupportAuditEventType.AttachmentDownloadAuthorized, "Attachment download authorized.", now, cancellationToken, actorSubject);
         return await storage.CreateDownloadUrlAsync(attachment.StorageKey, TimeSpan.FromMinutes(5), cancellationToken);
     }
 
@@ -235,9 +236,10 @@ internal sealed class SupportAttachmentService(
         SupportAuditEventType eventType,
         string detail,
         DateTimeOffset now,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? actorSubject = null)
     {
-        database.AuditEvents.Add(new SupportAuditEvent(Guid.CreateVersion7(now), ticketId, eventType, detail, now));
+        database.AuditEvents.Add(new SupportAuditEvent(Guid.CreateVersion7(now), ticketId, eventType, detail, now, actorSubject));
         await database.SaveChangesAsync(cancellationToken);
     }
 

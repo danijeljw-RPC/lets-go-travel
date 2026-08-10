@@ -14,6 +14,12 @@ public interface IGuestAccessTokenService
 
     Task<Guid?> ResolveAsync(string rawToken, CancellationToken cancellationToken = default);
 
+    // Like ResolveAsync, but also returns the resolved token row's own ID so callers that need to
+    // attribute a subsequent action (e.g. an attachment upload) to the specific credential
+    // generation that authenticated it can do so, without a second round-trip or a second audit
+    // event.
+    Task<GuestTokenResolution?> ResolveTokenAsync(string rawToken, CancellationToken cancellationToken = default);
+
     // Stages (without saving) a hash-only placeholder token created atomically with a brand-new
     // guest ticket, owned by the acknowledgement outbox item that will eventually deliver it. This
     // closes the race where staff could revoke/rotate guest access before any token exists: by the
@@ -31,6 +37,8 @@ public interface IGuestAccessTokenService
     Task<GuestNotificationTokenResult> IssueForNotificationAsync(
         Guid ticketId, Guid outboxItemId, CancellationToken cancellationToken = default);
 }
+
+public readonly record struct GuestTokenResolution(Guid TicketId, Guid TokenId);
 
 public readonly record struct GuestNotificationTokenResult(bool Superseded, string? RawToken)
 {
@@ -169,7 +177,10 @@ internal sealed class GuestAccessTokenService(
         await database.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<Guid?> ResolveAsync(string rawToken, CancellationToken cancellationToken = default)
+    public async Task<Guid?> ResolveAsync(string rawToken, CancellationToken cancellationToken = default) =>
+        (await ResolveTokenAsync(rawToken, cancellationToken))?.TicketId;
+
+    public async Task<GuestTokenResolution?> ResolveTokenAsync(string rawToken, CancellationToken cancellationToken = default)
     {
         var now = timeProvider.GetUtcNow();
         if (string.IsNullOrWhiteSpace(rawToken))
@@ -192,7 +203,7 @@ internal sealed class GuestAccessTokenService(
         token.RecordUse(now);
         await AddAuditEventAsync(token.TicketId, SupportAuditEventType.GuestLinkAuthenticated, "Guest link authenticated.", cancellationToken);
         await database.SaveChangesAsync(cancellationToken);
-        return token.TicketId;
+        return new GuestTokenResolution(token.TicketId, token.Id);
     }
 
     // Deliberately not filtered by expiry: the unique partial index that makes rotation safe

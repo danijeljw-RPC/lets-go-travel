@@ -243,6 +243,35 @@ public sealed class SupportGuestApiTests
         downloadResponse.EnsureSuccessStatusCode();
     }
 
+    [Fact]
+    public async Task AGuestUploadIsAttributedToTheAuthenticatingTokenGeneration()
+    {
+        await using var app = await TestApplication.CreateAsync();
+        var (ticket, token) = await CreateGuestTicketAsync(app);
+
+        using var form = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("hello from a guest"u8.ToArray());
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+        form.Add(fileContent, "file", "note.txt");
+        form.Add(new StringContent(ticket.Messages[0].Id.ToString()), "messageId");
+        using var uploadRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/support/guest/ticket/attachments")
+        {
+            Content = form,
+        };
+        uploadRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var uploadResponse = await app.Client.SendAsync(uploadRequest);
+
+        Assert.Equal(HttpStatusCode.Created, uploadResponse.StatusCode);
+        var attachment = await uploadResponse.ReadAsAsync<AttachmentResponse>();
+        await using var scope = app.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+        var stored = await database.Attachments.SingleAsync(value => value.Id == attachment!.Id);
+        var activeToken = await database.GuestAccessTokens
+            .SingleAsync(value => value.TicketId == ticket.Id && value.RevokedAt == null);
+        Assert.Equal(activeToken.Id, stored.UploaderGuestTokenId);
+    }
+
     private static async Task<HttpResponseMessage> GuestGetAsync(TestApplication app, string token, string path)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, path);
