@@ -12,6 +12,12 @@ using ReadyToGoTravel.Consumer.Http;
 using ReadyToGoTravel.Search;
 using ReadyToGoTravel.Search.Capabilities;
 using ReadyToGoTravel.Search.Http;
+using ReadyToGoTravel.Support;
+using ReadyToGoTravel.Support.Guest;
+using ReadyToGoTravel.Support.Http;
+using ReadyToGoTravel.Support.Notifications;
+using ReadyToGoTravel.Support.Scanning;
+using ReadyToGoTravel.Support.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,6 +50,16 @@ if (!Enum.TryParse<SearchEnvironment>(searchEnvironmentValue, true, out var sear
 builder.Services.AddSearchModule(
     searchEnvironment,
     builder.Configuration.GetValue<bool>("Search:EnableFixtures"));
+var supportConnectionString = builder.Configuration.GetConnectionString("Support") ?? consumerConnectionString;
+builder.Services.AddSupportModule((_, options) => options.UseNpgsql(supportConnectionString));
+builder.Services.Configure<SupportStorageOptions>(
+    builder.Configuration.GetSection(SupportStorageOptions.SectionName));
+builder.Services.Configure<ClamAvOptions>(
+    builder.Configuration.GetSection(ClamAvOptions.SectionName));
+builder.Services.Configure<GuestTokenOptions>(
+    builder.Configuration.GetSection(GuestTokenOptions.SectionName));
+builder.Services.Configure<SupportNotificationSenderOptions>(
+    builder.Configuration.GetSection(SupportNotificationSenderOptions.SectionName));
 builder.Services.AddProblemDetails(options =>
 {
     options.CustomizeProblemDetails = context =>
@@ -52,6 +68,7 @@ builder.Services.AddProblemDetails(options =>
         context.ProblemDetails.Extensions["correlationId"] = context.HttpContext.TraceIdentifier;
     };
 });
+var internalCallerSecret = builder.Configuration["Support:InternalCallerSecret"];
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -91,6 +108,33 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1),
             }));
+    options.AddPolicy("support", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            SupportRateLimitPartitions.AuthenticatedKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1),
+            }));
+    options.AddPolicy("support-guest", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            SupportRateLimitPartitions.GuestKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1),
+            }));
+    options.AddPolicy("support-ticket-create", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            SupportRateLimitPartitions.TicketCreationKey(context, internalCallerSecret),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1),
+            }));
 });
 
 var app = builder.Build();
@@ -120,6 +164,9 @@ api.MapConsumerEndpoints();
 api.MapSearchEndpoints();
 api.MapBookingEndpoints();
 api.MapWebhookEndpoints();
+api.MapSupportEndpoints();
+api.MapSupportGuestEndpoints();
+api.MapSupportStaffEndpoints();
 
 app.MapFallback("/api/{**path}", (HttpContext context) =>
     Results.Problem(

@@ -77,17 +77,26 @@ builder.Services
             RoleClaimType = "roles"
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy("support-agent", policy =>
+        policy.RequireAuthenticatedUser().RequireAssertion(context => HasSupportAgentRole(context.User))));
 
 var apiBaseUrl = builder.Configuration["PlatformApi:BaseUrl"]
     ?? throw new InvalidOperationException("PlatformApi:BaseUrl is required.");
 builder.Services.AddTransient<ApiAccessTokenHandler>();
+builder.Services.AddTransient<SupportClientIpForwardingHandler>();
 builder.Services.AddHttpClient<PlatformApiClient>(client => ConfigureApiClient(client, apiBaseUrl));
 builder.Services.AddHttpClient<SearchApiClient>(client => ConfigureApiClient(client, apiBaseUrl));
 builder.Services.AddHttpClient<ConsumerApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
     .AddHttpMessageHandler<ApiAccessTokenHandler>();
 builder.Services.AddHttpClient<BookingApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
     .AddHttpMessageHandler<ApiAccessTokenHandler>();
+builder.Services.AddHttpClient<SupportApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
+    .AddHttpMessageHandler<ApiAccessTokenHandler>()
+    .AddHttpMessageHandler<SupportClientIpForwardingHandler>();
+builder.Services.AddHttpClient<SupportStaffApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
+    .AddHttpMessageHandler<ApiAccessTokenHandler>();
+builder.Services.AddHttpClient<SupportGuestApiClient>(client => ConfigureApiClient(client, apiBaseUrl));
 builder.Services.AddTransient<HostedPaymentComponent>();
 
 var app = builder.Build();
@@ -146,6 +155,40 @@ static void ConfigureApiClient(HttpClient client, string baseUrl)
 {
     client.BaseAddress = new Uri(baseUrl, UriKind.Absolute);
     client.Timeout = TimeSpan.FromSeconds(5);
+}
+
+static bool HasSupportAgentRole(System.Security.Claims.ClaimsPrincipal user)
+{
+    var realmAccess = user.FindFirst("realm_access")?.Value;
+    if (string.IsNullOrWhiteSpace(realmAccess))
+    {
+        return false;
+    }
+
+    try
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(realmAccess);
+        if (!document.RootElement.TryGetProperty("roles", out var roles) ||
+            roles.ValueKind != System.Text.Json.JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        foreach (var role in roles.EnumerateArray())
+        {
+            if (role.ValueKind == System.Text.Json.JsonValueKind.String &&
+                string.Equals(role.GetString(), "support-agent", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+    catch (System.Text.Json.JsonException)
+    {
+        return false;
+    }
 }
 
 static string SafeReturnUrl(string? returnUrl) =>

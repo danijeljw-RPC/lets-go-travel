@@ -10,6 +10,14 @@
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "verifyEmail": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "support-agent",
+        "description": "Grants access to the privileged support ticket console."
+      }
+    ]
+  },
   "clients": [
     {
       "clientId": "rtgt-api",

@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using ReadyToGoTravel.Support.Http;
 
 namespace ReadyToGoTravel.Api.Infrastructure;
 
@@ -21,9 +23,14 @@ internal static class AuthenticationExtensions
                 options.MapInboundClaims = false;
                 options.RequireHttpsMetadata = !configuration.GetValue<bool>("Authentication:AllowInsecureMetadata");
             });
+        services.AddSingleton<IAuthorizationHandler, SupportAgentAuthorizationHandler>();
         services.AddAuthorization(options =>
+        {
             options.AddPolicy("consumer", policy =>
-                policy.RequireAuthenticatedUser().RequireClaim("sub")));
+                policy.RequireAuthenticatedUser().RequireClaim("sub"));
+            options.AddPolicy("support-agent", policy =>
+                policy.RequireAuthenticatedUser().AddRequirements(new SupportAgentRequirement()));
+        });
 
         return services;
     }

@@ -2,7 +2,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ReadyToGoTravel.Booking;
 using ReadyToGoTravel.BuildingBlocks.Hosting;
+using ReadyToGoTravel.Consumer;
 using ReadyToGoTravel.Search.Capabilities;
+using ReadyToGoTravel.Support;
+using ReadyToGoTravel.Support.Guest;
+using ReadyToGoTravel.Support.Notifications;
+using ReadyToGoTravel.Support.Scanning;
+using ReadyToGoTravel.Support.Storage;
 using ReadyToGoTravel.Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -19,10 +25,21 @@ if (!Enum.TryParse<SearchEnvironment>(environmentValue, true, out var environmen
     throw new InvalidOperationException("Booking:Environment must be Sandbox or Production.");
 }
 
+builder.Services.AddConsumerModule((_, options) => options.UseNpgsql(connectionString));
 builder.Services.AddBookingModule(
     (_, options) => options.UseNpgsql(connectionString),
     environment,
     builder.Configuration.GetValue<bool>("Booking:EnableFixtures"));
+var supportConnectionString = builder.Configuration.GetConnectionString("Support") ?? connectionString;
+builder.Services.AddSupportModule((_, options) => options.UseNpgsql(supportConnectionString));
+builder.Services.Configure<SupportStorageOptions>(
+    builder.Configuration.GetSection(SupportStorageOptions.SectionName));
+builder.Services.Configure<ClamAvOptions>(
+    builder.Configuration.GetSection(ClamAvOptions.SectionName));
+builder.Services.Configure<GuestTokenOptions>(
+    builder.Configuration.GetSection(GuestTokenOptions.SectionName));
+builder.Services.Configure<SupportNotificationSenderOptions>(
+    builder.Configuration.GetSection(SupportNotificationSenderOptions.SectionName));
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();
