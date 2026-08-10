@@ -189,8 +189,9 @@ public sealed class LegalHoldService(RetentionDbContext database, TimeProvider t
             return;
         }
 
-        database.RetentionOperationalCases.Add(new RetentionOperationalCase(
-            Guid.CreateVersion7(nowUtc), recordClass, scope, dedupeKey, reason, nowUtc));
+        var operationalCase = new RetentionOperationalCase(
+            Guid.CreateVersion7(nowUtc), recordClass, scope, dedupeKey, reason, nowUtc);
+        database.RetentionOperationalCases.Add(operationalCase);
         try
         {
             await database.SaveChangesAsync(cancellationToken);
@@ -199,6 +200,13 @@ public sealed class LegalHoldService(RetentionDbContext database, TimeProvider t
         {
             // Another worker inserted the same dedupe key first - the fast-path check above raced
             // and lost, which is the expected, harmless outcome under the unique index backstop.
+            // This service is scoped for the whole worker cycle (see RetentionModule), so the same
+            // RetentionDbContext instance is reused by every later call on it in this cycle -
+            // without detaching, the failed entity stays tracked as Added and the *next*
+            // SaveChangesAsync on this context (another operational failure, or the batch's own
+            // RecordAsync writing its receipt) would retry inserting the same duplicate and fail
+            // too, losing that receipt and aborting the rest of the cycle's sweeps.
+            database.Entry(operationalCase).State = EntityState.Detached;
         }
     }
 

@@ -289,6 +289,45 @@ public sealed class LegalHoldServiceTests
         var cases = await fixture.Context.RetentionOperationalCases.ToListAsync();
         Assert.Single(cases);
     }
+
+    [Fact]
+    public async Task LosingTheDedupeKeyRaceDoesNotPoisonLaterSaveChangesOnTheSameContext()
+    {
+        // Regression test for Codex review of PR #12 (github issue #18): the fast-path AnyAsync
+        // check in RecordOperationalFailureAsync only prevents a duplicate insert when the calls
+        // are sequential. Two real concurrent callers can both pass the check before either
+        // commits, so one of them hits the unique-index DbUpdateException for real. Before the
+        // fix, the losing entity stayed tracked as Added on that LegalHoldService's
+        // RetentionDbContext - which is scoped for a whole worker cycle - so the *next*
+        // SaveChangesAsync on that same context (here, RecordAsync writing a receipt) retried the
+        // same duplicate insert and failed too. Uses two independent RetentionDbContext instances
+        // against a shared-cache SQLite database (the same real-race pattern
+        // AttachmentUploadDownloadTests uses) rather than mocking the race away.
+        var connectionString = $"Data Source=file:operational-case-race-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
+        await using var keepAlive = new SqliteConnection(connectionString);
+        await keepAlive.OpenAsync();
+        await using (var setupContext = new RetentionDbContext(new DbContextOptionsBuilder<RetentionDbContext>().UseSqlite(connectionString).Options))
+        {
+            await setupContext.Database.EnsureCreatedAsync();
+        }
+
+        async Task RaceThenRecordAReceiptAsync()
+        {
+            await using var context = new RetentionDbContext(new DbContextOptionsBuilder<RetentionDbContext>().UseSqlite(connectionString).Options);
+            var service = new LegalHoldService(context, new FixedTimeProvider(Now));
+            await service.RecordOperationalFailureAsync(RetentionRecordClass.SupportAttachment, "support-attachment", "storage_delete_failed", Now, default);
+            // Whether this specific instance won or lost the dedupe race, a later SaveChangesAsync
+            // on the same context (a real receipt write, exactly as SweepAttachmentsAsync's own
+            // RecordAsync call does at the end of a batch) must still succeed.
+            await service.RecordAsync(RetentionRecordClass.SupportAttachment, 1, "Delete", 1, 0, Now, null, default);
+        }
+
+        await Task.WhenAll(Enumerable.Range(0, 2).Select(_ => Task.Run(RaceThenRecordAReceiptAsync)));
+
+        await using var verifyContext = new RetentionDbContext(new DbContextOptionsBuilder<RetentionDbContext>().UseSqlite(connectionString).Options);
+        Assert.Single(await verifyContext.RetentionOperationalCases.ToListAsync());
+        Assert.Equal(2, await verifyContext.RetentionDeletionReceipts.CountAsync());
+    }
 }
 
 internal sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
