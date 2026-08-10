@@ -71,6 +71,36 @@ public sealed class BookingRetentionSweepTests
     }
 
     [Fact]
+    public async Task UncorrelatedCompletedWebhookBodyIsSweptSafelyWithNoPossibleHoldToBypass()
+    {
+        // Regression test for Codex review of PR #12 (github issue #15): SweepWebhookPayloadBodiesAsync
+        // skips the legal-hold check whenever ComponentBookingId is null, on the premise that a
+        // Completed row can only be null-linked if it never correlated to any booking in the
+        // first place - proven here directly against the real WebhookInboxProcessor (an
+        // unsupported event name), not assumed. Since there is no booking to protect, no hold
+        // could ever have applied, so redacting it unconditionally is safe by construction.
+        await using var fixture = await BookingDatabaseFixture.CreateAsync();
+        var clock = new FixedTimeProvider(Now.AddDays(-91));
+        var writer = new WebhookInboxService(fixture.Context, clock);
+        await writer.AcceptAsync(new WebhookEnvelopeInput(
+            "Production", "evt-uncorrelated", "supplier.new_event", "{\"raw\":true}", false, "corr-uncorrelated"));
+        var scheduler = new ReconciliationScheduler(fixture.Context, clock);
+        var inboxProcessor = new WebhookInboxProcessor(fixture.Context, scheduler, clock);
+        Assert.True(await inboxProcessor.ProcessNextAsync("general-worker", default));
+        var processed = await fixture.Context.WebhookInbox.SingleAsync();
+        Assert.Equal(WebhookInboxStatus.Completed, processed.Status);
+        Assert.Null(processed.ComponentBookingId);
+        fixture.Context.ChangeTracker.Clear();
+
+        var processor = CreateProcessor(fixture.Context, new NoHoldGuard(), new RecordingReceiptRecorder(), Now);
+        var didWork = await processor.ProcessCycleAsync();
+
+        Assert.True(didWork);
+        var swept = await fixture.Context.WebhookInbox.SingleAsync();
+        Assert.Equal(string.Empty, swept.RawBody);
+    }
+
+    [Fact]
     public async Task WebhookMetadataSurvivesRedaction()
     {
         await using var fixture = await BookingDatabaseFixture.CreateAsync();
