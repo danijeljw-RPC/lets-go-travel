@@ -491,6 +491,7 @@
           "Microsoft.AspNetCore.OpenApi": "[10.0.8, )",
           "ReadyToGoTravel.Booking": "[1.0.0, )",
           "ReadyToGoTravel.Consumer": "[1.0.0, )",
+          "ReadyToGoTravel.Retention": "[1.0.0, )",
           "ReadyToGoTravel.Search": "[1.0.0, )",
           "ReadyToGoTravel.Support": "[1.0.0, )"
         }
@@ -506,6 +507,14 @@
         }
       },
       "readytogotravel.consumer": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.8, )",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.8, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
+      "readytogotravel.retention": {
         "type": "Project",
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "[10.0.8, )",

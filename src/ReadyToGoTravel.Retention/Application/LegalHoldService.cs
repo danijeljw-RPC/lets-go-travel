@@ -69,7 +69,12 @@ public sealed class LegalHoldService(RetentionDbContext database, TimeProvider t
             false => query.Where(hold => hold.ReleasedAtUtc != null),
             null => query,
         };
-        return await query.OrderByDescending(hold => hold.CreatedAtUtc).ToListAsync(cancellationToken);
+
+        // Ordering by DateTimeOffset in SQL is unsupported by the SQLite provider used in tests
+        // (PostgreSQL handles it natively); the legal-hold list is small and staff-facing, so
+        // ordering the already-materialized page in memory is the correct, portable choice here.
+        var holds = await query.ToListAsync(cancellationToken);
+        return [.. holds.OrderByDescending(hold => hold.CreatedAtUtc)];
     }
 
     public Task<LegalHold?> GetAsync(Guid legalHoldId, CancellationToken cancellationToken = default) =>
