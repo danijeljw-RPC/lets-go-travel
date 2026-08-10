@@ -1,0 +1,197 @@
+using Microsoft.EntityFrameworkCore;
+using ReadyToGoTravel.Retention.Domain;
+using ReadyToGoTravel.Retention.Persistence;
+
+namespace ReadyToGoTravel.Retention.Application;
+
+public sealed class LegalHoldService(RetentionDbContext database, TimeProvider timeProvider)
+    : ILegalHoldGuard, IRetentionReceiptRecorder
+{
+    public async Task<LegalHold> OpenAsync(
+        string matterReference,
+        string reason,
+        string authorizedOwnerSubject,
+        DateTimeOffset reviewByUtc,
+        IReadOnlyCollection<LegalHoldScopeRequest> scopeRequests,
+        CancellationToken cancellationToken = default)
+    {
+        var now = timeProvider.GetUtcNow();
+        var hold = LegalHold.Open(matterReference, reason, authorizedOwnerSubject, reviewByUtc, scopeRequests, now);
+        database.LegalHolds.Add(hold);
+        database.LegalHoldAuditEvents.Add(new LegalHoldAuditEvent(
+            Guid.CreateVersion7(now),
+            hold.Id,
+            LegalHoldAuditEventType.HoldOpened,
+            $"Opened matter '{matterReference}' with {hold.Scopes.Count} scope entries.",
+            now,
+            authorizedOwnerSubject));
+        await database.SaveChangesAsync(cancellationToken);
+        return hold;
+    }
+
+    /// <summary>Returns null when no hold exists with that ID. Idempotent when already released.</summary>
+    public async Task<LegalHold?> ReleaseAsync(
+        Guid legalHoldId,
+        string releasedBySubject,
+        string releaseReason,
+        CancellationToken cancellationToken = default)
+    {
+        var hold = await database.LegalHolds.SingleOrDefaultAsync(value => value.Id == legalHoldId, cancellationToken);
+        if (hold is null)
+        {
+            return null;
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var wasActive = hold.IsActive;
+        hold.Release(releasedBySubject, releaseReason, now);
+        if (wasActive)
+        {
+            database.LegalHoldAuditEvents.Add(new LegalHoldAuditEvent(
+                Guid.CreateVersion7(now),
+                hold.Id,
+                LegalHoldAuditEventType.HoldReleased,
+                $"Released: {releaseReason}",
+                now,
+                releasedBySubject));
+        }
+
+        await database.SaveChangesAsync(cancellationToken);
+        return hold;
+    }
+
+    public async Task<IReadOnlyList<LegalHold>> ListAsync(bool? active, CancellationToken cancellationToken = default)
+    {
+        var query = database.LegalHolds.AsNoTracking().Include(hold => hold.Scopes).AsQueryable();
+        query = active switch
+        {
+            true => query.Where(hold => hold.ReleasedAtUtc == null),
+            false => query.Where(hold => hold.ReleasedAtUtc != null),
+            null => query,
+        };
+        return await query.OrderByDescending(hold => hold.CreatedAtUtc).ToListAsync(cancellationToken);
+    }
+
+    public Task<LegalHold?> GetAsync(Guid legalHoldId, CancellationToken cancellationToken = default) =>
+        database.LegalHolds.AsNoTracking().Include(hold => hold.Scopes)
+            .SingleOrDefaultAsync(hold => hold.Id == legalHoldId, cancellationToken);
+
+    public async Task<IReadOnlySet<Guid>> ExcludeHeldAsync(
+        RetentionRecordClass recordClass,
+        RetentionSubjectKind subjectKind,
+        IReadOnlyCollection<Guid> candidateSubjectIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (candidateSubjectIds.Count == 0)
+        {
+            return new HashSet<Guid>();
+        }
+
+        var scopes = ActiveMatchingScopes(recordClass, subjectKind, candidateSubjectIds);
+        var ids = subjectKind switch
+        {
+            RetentionSubjectKind.Customer => await scopes.Select(scope => scope.CustomerId!.Value).Distinct().ToListAsync(cancellationToken),
+            RetentionSubjectKind.ComponentBooking => await scopes.Select(scope => scope.ComponentBookingId!.Value).Distinct().ToListAsync(cancellationToken),
+            RetentionSubjectKind.SupportTicket => await scopes.Select(scope => scope.SupportTicketId!.Value).Distinct().ToListAsync(cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(subjectKind), subjectKind, "Unsupported retention subject kind."),
+        };
+        return ids.ToHashSet();
+    }
+
+    public async Task<bool> IsHeldAsync(
+        RetentionRecordClass recordClass,
+        RetentionSubjectKind subjectKind,
+        Guid subjectId,
+        CancellationToken cancellationToken = default)
+    {
+        var scopes = ActiveMatchingScopes(recordClass, subjectKind, [subjectId]);
+        var holdIds = await scopes.Select(scope => scope.LegalHoldId).Distinct().ToListAsync(cancellationToken);
+        if (holdIds.Count == 0)
+        {
+            return false;
+        }
+
+        var now = timeProvider.GetUtcNow();
+        foreach (var holdId in holdIds)
+        {
+            database.LegalHoldAuditEvents.Add(new LegalHoldAuditEvent(
+                Guid.CreateVersion7(now),
+                holdId,
+                LegalHoldAuditEventType.GuardCheckHeld,
+                $"Guard check found a held {recordClass} record ({subjectKind}={subjectId}).",
+                now,
+                null));
+        }
+
+        await database.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task RecordAsync(
+        RetentionRecordClass recordClass,
+        int policyVersion,
+        string action,
+        int successCount,
+        int failureCount,
+        DateTimeOffset completedAtUtc,
+        string? failureSummary,
+        CancellationToken cancellationToken = default)
+    {
+        database.RetentionDeletionReceipts.Add(new RetentionDeletionReceipt(
+            Guid.CreateVersion7(completedAtUtc),
+            recordClass,
+            policyVersion,
+            action,
+            successCount,
+            failureCount,
+            completedAtUtc,
+            failureSummary));
+        await database.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RecordOperationalFailureAsync(
+        RetentionRecordClass recordClass,
+        string scope,
+        string reason,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var dedupeKey = RetentionOperationalCase.CreateDedupeKey(scope, recordClass.ToString(), reason);
+        if (await database.RetentionOperationalCases.AnyAsync(value => value.DedupeKey == dedupeKey, cancellationToken))
+        {
+            return;
+        }
+
+        database.RetentionOperationalCases.Add(new RetentionOperationalCase(
+            Guid.CreateVersion7(nowUtc), recordClass, scope, dedupeKey, reason, nowUtc));
+        try
+        {
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // Another worker inserted the same dedupe key first - the fast-path check above raced
+            // and lost, which is the expected, harmless outcome under the unique index backstop.
+        }
+    }
+
+    private IQueryable<LegalHoldScope> ActiveMatchingScopes(
+        RetentionRecordClass recordClass,
+        RetentionSubjectKind subjectKind,
+        IReadOnlyCollection<Guid> candidateSubjectIds)
+    {
+        var activeHoldIds = database.LegalHolds.Where(hold => hold.ReleasedAtUtc == null).Select(hold => hold.Id);
+        var scopes = database.LegalHoldScopes.AsNoTracking()
+            .Where(scope => scope.RecordClass == recordClass && activeHoldIds.Contains(scope.LegalHoldId));
+        return subjectKind switch
+        {
+            RetentionSubjectKind.Customer => scopes.Where(scope =>
+                scope.CustomerId != null && candidateSubjectIds.Contains(scope.CustomerId.Value)),
+            RetentionSubjectKind.ComponentBooking => scopes.Where(scope =>
+                scope.ComponentBookingId != null && candidateSubjectIds.Contains(scope.ComponentBookingId.Value)),
+            RetentionSubjectKind.SupportTicket => scopes.Where(scope =>
+                scope.SupportTicketId != null && candidateSubjectIds.Contains(scope.SupportTicketId.Value)),
+            _ => throw new ArgumentOutOfRangeException(nameof(subjectKind), subjectKind, "Unsupported retention subject kind."),
+        };
+    }
+}
