@@ -68,7 +68,13 @@ builder.Services.AddProblemDetails(options =>
         context.ProblemDetails.Extensions["correlationId"] = context.HttpContext.TraceIdentifier;
     };
 });
-var internalCallerSecret = builder.Configuration["Support:InternalCallerSecret"];
+// Required, not merely optional: without it, the Web host's forwarded browser address is never
+// trusted, support-ticket-create partitions by the Web host's own connection for every visitor, and
+// the support-guest ceiling silently degrades to the same single-shared-bucket problem it exists to
+// close - a production deployment that simply omits this from its configuration would fail exactly
+// the way both those fixes were meant to prevent, without any startup signal that anything is wrong.
+var internalCallerSecret = builder.Configuration["Support:InternalCallerSecret"]
+    ?? throw new InvalidOperationException("Support:InternalCallerSecret is required.");
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
