@@ -18,4 +18,9 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ReadyToGoTravel.Consumer\ReadyToGoTravel.Consumer.csproj" />
+    <ProjectReference Include="..\ReadyToGoTravel.Retention\ReadyToGoTravel.Retention.csproj" />
+  </ItemGroup>
+
 </Project>

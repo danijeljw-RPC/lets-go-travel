@@ -3,9 +3,12 @@ using ReadyToGoTravel.Booking.Checkout;
 using ReadyToGoTravel.Booking.Notifications;
 using ReadyToGoTravel.Booking.Providers;
 using ReadyToGoTravel.Booking.Reconciliation;
+using ReadyToGoTravel.Booking.Retention;
 using ReadyToGoTravel.Booking.Webhooks;
 using ReadyToGoTravel.BuildingBlocks.Hosting;
+using ReadyToGoTravel.Consumer.Retention;
 using ReadyToGoTravel.Support.Notifications;
+using ReadyToGoTravel.Support.Retention;
 using ReadyToGoTravel.Support.Scanning;
 
 namespace ReadyToGoTravel.Worker;
@@ -37,6 +40,12 @@ public sealed partial class Worker(
                 .ProcessNextAsync(Environment.MachineName, cancellationToken);
             didWork |= await services.GetRequiredService<ISupportNotificationOutboxProcessor>()
                 .ProcessNextAsync(Environment.MachineName, cancellationToken);
+            didWork |= await services.GetRequiredService<IBookingRetentionSweepProcessor>()
+                .ProcessCycleAsync(cancellationToken);
+            didWork |= await services.GetRequiredService<ISupportRetentionSweepProcessor>()
+                .ProcessCycleAsync(cancellationToken);
+            didWork |= await services.GetRequiredService<IConsumerRetentionSweepProcessor>()
+                .ProcessCycleAsync(cancellationToken);
             if (!didWork)
             {
                 LogReady(logger);

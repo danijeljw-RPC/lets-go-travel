@@ -26,6 +26,8 @@ internal sealed class Customer
 
     public DateTimeOffset UpdatedAt { get; private set; }
 
+    public DateTimeOffset? ClosedAtUtc { get; private set; }
+
     public static DomainResult<Customer> Create(
         string subject,
         string locale,
@@ -74,6 +76,28 @@ internal sealed class Customer
         PreferredLocale = SupportedLocales.Normalize(locale);
         UpdatedAt = timeProvider.GetUtcNow().ToUniversalTime();
         return DomainResult<Customer>.Success(this);
+    }
+
+    /// <summary>
+    /// Customer-initiated account closure. Idempotent: closing an already-closed account is a
+    /// no-op success rather than an error, and never overwrites the original ClosedAtUtc.
+    /// ConsumerBookingContextResolver already filters booking-context resolution to
+    /// Status == Active, so this alone denies further customer-scoped access immediately - the
+    /// concrete, testable control this repository owns (Keycloak owns credential/session
+    /// termination separately; see docs/security/identity-and-access.md).
+    /// </summary>
+    public void Close(TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        if (Status == CustomerStatus.Closed)
+        {
+            return;
+        }
+
+        var now = timeProvider.GetUtcNow().ToUniversalTime();
+        Status = CustomerStatus.Closed;
+        ClosedAtUtc = now;
+        UpdatedAt = now;
     }
 }
 

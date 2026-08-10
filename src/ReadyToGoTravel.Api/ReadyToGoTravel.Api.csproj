@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ReadyToGoTravel.Booking\ReadyToGoTravel.Booking.csproj" />
     <ProjectReference Include="..\ReadyToGoTravel.Consumer\ReadyToGoTravel.Consumer.csproj" />
+    <ProjectReference Include="..\ReadyToGoTravel.Retention\ReadyToGoTravel.Retention.csproj" />
     <ProjectReference Include="..\ReadyToGoTravel.Search\ReadyToGoTravel.Search.csproj" />
     <ProjectReference Include="..\ReadyToGoTravel.Support\ReadyToGoTravel.Support.csproj" />
   </ItemGroup>

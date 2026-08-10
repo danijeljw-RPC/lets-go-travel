@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using ReadyToGoTravel.Booking;
 using ReadyToGoTravel.BuildingBlocks.Hosting;
 using ReadyToGoTravel.Consumer;
+using ReadyToGoTravel.Retention;
 using ReadyToGoTravel.Search.Capabilities;
 using ReadyToGoTravel.Support;
 using ReadyToGoTravel.Support.Guest;
@@ -40,6 +41,8 @@ builder.Services.Configure<GuestTokenOptions>(
     builder.Configuration.GetSection(GuestTokenOptions.SectionName));
 builder.Services.Configure<SupportNotificationSenderOptions>(
     builder.Configuration.GetSection(SupportNotificationSenderOptions.SectionName));
+var retentionConnectionString = builder.Configuration.GetConnectionString("Retention") ?? connectionString;
+builder.Services.AddRetentionModule((_, options) => options.UseNpgsql(retentionConnectionString));
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

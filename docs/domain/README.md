@@ -8,3 +8,4 @@ The domain is organised around customer-owned trips and durable platform booking
 - [Booking Lifecycle](booking-lifecycle.md)
 - [Booking Reconciliation and Version History](booking-reconciliation-and-version-history.md)
 - [Support Tickets, Guest Access and Private Attachments](support-tickets-and-guest-access.md)
+- [Retention and Legal Hold](retention-and-legal-hold.md)

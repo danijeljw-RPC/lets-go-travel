@@ -801,13 +801,13 @@ namespace ReadyToGoTravel.Booking.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("attempts");
 
-                    b.Property<int>("ConsecutiveFailures")
-                        .HasColumnType("integer")
-                        .HasColumnName("consecutive_failures");
-
                     b.Property<Guid>("ComponentBookingId")
                         .HasColumnType("uuid")
                         .HasColumnName("component_booking_id");
+
+                    b.Property<int>("ConsecutiveFailures")
+                        .HasColumnType("integer")
+                        .HasColumnName("consecutive_failures");
 
                     b.Property<string>("CorrelationId")
                         .IsRequired()
@@ -885,6 +885,10 @@ namespace ReadyToGoTravel.Booking.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("completed_at");
 
+                    b.Property<Guid?>("ComponentBookingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("component_booking_id");
+
                     b.Property<string>("CorrelationId")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -960,6 +964,8 @@ namespace ReadyToGoTravel.Booking.Persistence.Migrations
                         .HasColumnName("status");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ComponentBookingId");
 
                     b.HasIndex("Status", "NextAttemptAtUtc");
 

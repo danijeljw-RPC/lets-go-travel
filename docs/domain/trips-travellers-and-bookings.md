@@ -44,6 +44,6 @@ Future sharing may introduce owner, editor, viewer and traveller capabilities. S
 
 ## Retention
 
-Removing a trip from the customer view does not automatically delete confirmed bookings, financial evidence, support records or legally retained data. [Data Retention and Legal Hold](../security/data-retention-and-legal-hold.md) defines the approved record-class periods, de-identification, backup expiry and matter-specific legal-hold process.
+Removing a trip from the customer view does not automatically delete confirmed bookings, financial evidence, support records or legally retained data. [Data Retention and Legal Hold](../security/data-retention-and-legal-hold.md) defines the approved record-class periods, de-identification, backup expiry and matter-specific legal-hold process; [Retention and Legal Hold](retention-and-legal-hold.md) documents how Slice 7 implements it.
 
-The product distinguishes hiding/archiving, removing an item from a trip, deleting a draft, deleting a preference, closing an account, retaining required booking evidence and anonymising eligible records.
+The product distinguishes hiding/archiving, removing an item from a trip, deleting a draft, deleting a preference, closing an account, retaining required booking evidence and anonymising eligible records. Account closure (`Customer.Close`, Slice 7) is customer-initiated, idempotent and immediately denies further customer-scoped booking-context access; it never rewrites confirmed-booking, financial, refund, dispute or legal-hold evidence, and a subsequent minimisation sweep only proceeds once every module confirms the closed customer has no such protected evidence remaining.

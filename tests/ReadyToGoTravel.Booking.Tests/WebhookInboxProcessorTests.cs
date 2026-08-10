@@ -34,6 +34,11 @@ public sealed class WebhookInboxProcessorTests
         var storedComponent = await fixture.Context.ComponentBookings.SingleAsync();
         Assert.Equal(WebhookInboxStatus.Completed, inbox.Status);
         Assert.Equal(component.Id, work.ComponentBookingId);
+        // Retention's legal-hold guard depends on this: SweepWebhookPayloadBodiesAsync only
+        // checks a hold when WebhookInboxItem.ComponentBookingId is set, on the premise that a
+        // successfully correlated event always has it set by the time it reaches Completed (see
+        // Codex review of PR #12, github issue #15). This pins that premise down directly.
+        Assert.Equal(component.Id, inbox.ComponentBookingId);
         Assert.Equal(ComponentBookingStatus.Confirmed, storedComponent.Status);
         Assert.Empty(await fixture.Context.BookingVersions.ToArrayAsync());
     }

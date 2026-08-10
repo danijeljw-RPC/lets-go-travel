@@ -39,12 +39,12 @@ Quiet hours are 22:00–07:00 in the customer's selected timezone. Informational
 | Search/reference caches | None | 24 hours | Rebuildable and never authoritative. |
 | Notification delivery | 15 minutes | 4 hours | Durable outbox is replayed after recovery. |
 
-Restore exercises run before production, at least twice yearly and after a material storage/topology change. Post-restore steps reapply retention tombstones, rotate exposed secrets if required, reconcile affected supplier bookings and verify idempotent outbox/inbox replay.
+Restore exercises run before production, at least twice yearly and after a material storage/topology change. Post-restore steps reapply retention tombstones, rotate exposed secrets if required, reconcile affected supplier bookings and verify idempotent outbox/inbox replay. Slice 7's retention sweeps are stateless and live-recomputed from stable trigger timestamps rather than a pre-populated queue, so tombstone reapplication after a restore is automatic once the worker resumes running; this has been verified against a live PostgreSQL drill but not yet against a real restored environment.
 
 ## Operational Evidence Still Required
 
 - Named on-call/support assignments and escalation contacts.
 - Controlled urgent-ticket and notification exercises.
 - PostgreSQL, Keycloak and object restore evidence against the stated objectives.
-- Retention expiry, legal-hold, deletion receipt and restored-backup tests.
+- Retention expiry, legal-hold, deletion receipt and restored-backup tests. Retention expiry, legal-hold protection, hold-release and deletion/de-identification behaviour are implemented and verified against a live PostgreSQL drill (Slice 7); restored-backup exercises specifically remain outstanding.
 - Supplier support contact and SLA evidence where available.

@@ -58,6 +58,24 @@ public sealed class WebhookInboxItem
     public DateTimeOffset ReceivedAt { get; private set; }
     public DateTimeOffset? CompletedAt { get; private set; }
 
+    /// <summary>
+    /// The component booking this event was successfully correlated to, set synchronously by
+    /// WebhookInboxProcessor.ProcessNextAsync before the item ever reaches Completed - never set
+    /// for an unsupported event, an unparseable payload, or a booking reference that cannot be
+    /// resolved, since those genuinely have no booking to correlate to. Retention's legal-hold
+    /// guard (SweepWebhookPayloadBodiesAsync) relies on this ordering: a null value on a
+    /// Completed row is only ever a real "nothing to protect" case, never a lost link, which is
+    /// why the sweep safely skips the hold check for it (see WebhookInboxProcessorTests'
+    /// KnownEventEnqueuesRetrievalWithoutMutatingBookingFromPayload and
+    /// BookingRetentionSweepTests' UncorrelatedCompletedWebhookBodyIsSweptSafelyWithNoPossibleHoldToBypass,
+    /// which both pin this down directly - see also github issue #15 from the Codex review of
+    /// PR #12, and this codebase has never been deployed, so no pre-existing row can predate this
+    /// column's introduction in the Slice 7 migration).
+    /// </summary>
+    public Guid? ComponentBookingId { get; private set; }
+
+    internal void LinkToComponentBooking(Guid componentBookingId) => ComponentBookingId = componentBookingId;
+
     internal void Quarantine(string errorCode, DateTimeOffset now)
     {
         Status = WebhookInboxStatus.Quarantined;

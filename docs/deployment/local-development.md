@@ -2,7 +2,7 @@
 
 # Local Development
 
-This runbook starts the Slice 6 development dependencies without live supplier, notification, object-storage or malware-scanning access or committed secrets. PostgreSQL 17.10 is the product-data store. Keycloak 26.7.0 owns local credentials and issues an API audience to the public PKCE web client; the imported realm also defines a `support-agent` realm role for the privileged staff console. The imported realm contains no users, passwords or production configuration. MinIO and ClamAV are optional local dependencies for exercising private support-ticket attachments; support-ticket creation, correspondence and ticket status work without them. Search, hosted payment, booking and retrieval use sanitized deterministic fixtures only in Development.
+This runbook starts the Slice 7 development dependencies without live supplier, notification, object-storage, malware-scanning or retention-sweep production access or committed secrets. PostgreSQL 17.10 is the product-data store. Keycloak 26.7.0 owns local credentials and issues an API audience to the public PKCE web client; the imported realm also defines a `support-agent` realm role for the privileged staff console and a `legal-hold-officer` realm role for the privileged legal-hold API. The imported realm contains no users, passwords or production configuration. MinIO and ClamAV are optional local dependencies for exercising private support-ticket attachments; support-ticket creation, correspondence and ticket status work without them. Search, hosted payment, booking and retrieval use sanitized deterministic fixtures only in Development. Retention sweeps and the legal-hold API are implemented but default disabled (`Retention:Enabled=false`); see [Retention and Legal Hold](../domain/retention-and-legal-hold.md).
 
 ## Prerequisites
 
@@ -36,7 +36,7 @@ docker compose --env-file deploy/local/.env --file deploy/local/compose.yaml exe
   sh -c 'mc alias set local http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" && mc mb --ignore-existing local/rtgt-support-attachments'
 ```
 
-## Apply the Consumer, Booking and Support Migrations
+## Apply the Consumer, Booking, Support and Retention Migrations
 
 Load the local variables, restore the pinned EF tool and apply the checked-in migrations explicitly:
 
@@ -56,13 +56,19 @@ dotnet tool run dotnet-ef database update \
   --project src/ReadyToGoTravel.Support/ReadyToGoTravel.Support.csproj \
   --context ReadyToGoTravel.Support.Persistence.SupportDbContext \
   --connection "Host=localhost;Port=5432;Database=rtgt;Username=rtgt;Password=${RTGT_POSTGRES_PASSWORD}"
+dotnet tool run dotnet-ef database update \
+  --project src/ReadyToGoTravel.Retention/ReadyToGoTravel.Retention.csproj \
+  --context ReadyToGoTravel.Retention.Persistence.RetentionDbContext \
+  --connection "Host=localhost;Port=5432;Database=rtgt;Username=rtgt;Password=${RTGT_POSTGRES_PASSWORD}"
 ```
 
 Applications do not silently migrate a production database during startup. Deployment automation must run the reviewed migration as a controlled step.
 
 ## Run the API and Web Host
 
-Both the API and Worker hosts resolve the Support module's connection string from `ConnectionStrings:Support`, falling back to the host's own default (`ConnectionStrings:Consumer` in the API, `ConnectionStrings:Booking` in the Worker) when `Support` is unset. Set `ConnectionStrings__Support` explicitly on both hosts if Support ever needs to point somewhere other than that host's default.
+Both the API and Worker hosts resolve the Support module's connection string from `ConnectionStrings:Support`, falling back to the host's own default (`ConnectionStrings:Consumer` in the API, `ConnectionStrings:Booking` in the Worker) when `Support` is unset. The Worker resolves the Retention module's connection string the same way, from `ConnectionStrings:Retention` falling back to `ConnectionStrings:Booking`. Set `ConnectionStrings__Support`/`ConnectionStrings__Retention` explicitly if either module ever needs to point somewhere other than that host's default.
+
+Retention sweeps default disabled (`Retention:Enabled=false`). To exercise them locally, set `Retention__Enabled=true` on the Worker; there is no reason to enable this on the API host, which never runs sweeps.
 
 Keep the variables loaded. Start the API in the first terminal:
 

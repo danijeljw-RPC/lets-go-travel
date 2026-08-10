@@ -45,7 +45,7 @@ scope:
 
 ## Status
 
-Active. Slices 1 through 6 are implemented and verified. Slice 7 retention/privacy operations and production-readiness certification is next. Production supplier, payment, webhook, notification, object-storage and malware-scanning capabilities remain disabled until their review-register gates are approved.
+Active. Slices 1 through 7 are implemented and verified. Slice 7 retention/privacy operations and production-readiness certification completes the planned MVP slice sequence; remaining work is production-activation evidence and approval, tracked in the [Remaining Review Register](../../decisions/review-register.md). Production supplier, payment, webhook, notification, object-storage, malware-scanning and retention-sweep capabilities remain disabled until their review-register gates are approved.
 
 ## Purpose
 
@@ -59,7 +59,7 @@ Deliver the consumer MVP through independently testable vertical slices while pr
 - [x] Slice 4: checkout, LiteAPI hosted payment, hotel/flight booking and combined journeys.
 - [x] Slice 5: webhooks, reconciliation, immutable versions and notifications.
 - [x] Slice 6: first-party support tickets, guest magic links and private attachments.
-- [ ] Slice 7: retention/privacy operations and production-readiness certification.
+- [x] Slice 7: retention/privacy operations and production-readiness certification.
 
 ## Delivery Rules
 
@@ -71,7 +71,7 @@ Deliver the consumer MVP through independently testable vertical slices while pr
 
 ## Current Plan
 
-Slice 6 followed the completed [Support Tickets, Guest Magic Links and Private Attachments Implementation Plan](../../superpowers/plans/2026-08-09-slice-6-support-tickets-magic-links.md). Its [outcome report](../../delivery/2026-08-09-slice-6-support-tickets-magic-links-outcome.md) records scope, verification, the new object-storage/malware-scanning production gate and unchanged prior gates. The next implementation plan must cover Slice 7 only: retention/privacy operations and production-readiness certification.
+Slice 7 followed the completed [Retention, Privacy Operations and Production-Readiness Certification Implementation Plan](../../superpowers/plans/2026-08-10-slice-7-retention-privacy-production-readiness.md). Its [outcome report](../../delivery/2026-08-10-slice-7-retention-privacy-production-readiness-outcome.md) records scope, architecture, verification, the two new production-readiness gates and the code-verifiable production-readiness catalog. This completes the planned Slice 1–7 sequence; no further implementation slice is currently planned. Remaining work is production-activation evidence and approval per the [Remaining Review Register](../../decisions/review-register.md) and the [Production-Readiness Certification](../../operations/production-readiness-certification.md).
 
 ## Change Log
 
@@ -81,6 +81,7 @@ Slice 6 followed the completed [Support Tickets, Guest Magic Links and Private A
 - 2026-07-29: Completed Slice 4 with server-resolved checkout, renewed price acceptance, hosted-payment isolation, separately evidenced hotel/flight component bookings, durable idempotency, immediate recovery, PostgreSQL migration, authenticated API routes and a Blazor checkout experience. Production payment and booking remain disabled.
 - 2026-08-08: Completed Slice 5 with authenticated fail-closed webhook ingress, durable inbox and reconciliation schedules, retrieval-driven immutable canonical booking versions, customer-safe history, deduplicated notification intents and private worker processing. Production webhook, supplier and email capabilities remain disabled.
 - 2026-08-09: Completed Slice 6 with first-party support tickets and an immutable correspondence thread, guest magic-link access (hash-only storage, 30-day multi-use expiry, staff-only rotate/revoke), private S3-compatible attachments with fail-closed ClamAV scanning, and a Keycloak-role-gated staff console. Production object-storage, malware-scanning and email capabilities remain disabled.
+- 2026-08-10: Completed Slice 7 with a new Retention module (explicit record-class/policy/trigger/expiry model, legal hold with matter scoping and an append-only audit trail, deletion receipts), legal-hold-aware retention sweeps in Booking (webhook payload bodies, notification content, abandoned checkout state), Support (attachments, general/booking-related tickets, security audit records) and Consumer (account-closure profile minimisation), a `legal-hold-officer` Keycloak role and staff-only legal-hold API, and a code-verifiable production-readiness catalog. Retention sweeps and the legal-hold API default disabled/inert until their review-register gates are approved; canonical booking evidence and raw supplier payload classes remain policy-only (no live data yet).
 
 ## Production Gates
 

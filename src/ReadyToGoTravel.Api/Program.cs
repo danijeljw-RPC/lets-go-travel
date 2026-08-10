@@ -9,6 +9,8 @@ using ReadyToGoTravel.Booking.Http;
 using ReadyToGoTravel.Booking.Webhooks;
 using ReadyToGoTravel.Consumer;
 using ReadyToGoTravel.Consumer.Http;
+using ReadyToGoTravel.Retention;
+using ReadyToGoTravel.Retention.Http;
 using ReadyToGoTravel.Search;
 using ReadyToGoTravel.Search.Capabilities;
 using ReadyToGoTravel.Search.Http;
@@ -52,6 +54,8 @@ builder.Services.AddSearchModule(
     builder.Configuration.GetValue<bool>("Search:EnableFixtures"));
 var supportConnectionString = builder.Configuration.GetConnectionString("Support") ?? consumerConnectionString;
 builder.Services.AddSupportModule((_, options) => options.UseNpgsql(supportConnectionString));
+var retentionConnectionString = builder.Configuration.GetConnectionString("Retention") ?? consumerConnectionString;
+builder.Services.AddRetentionModule((_, options) => options.UseNpgsql(retentionConnectionString));
 builder.Services.Configure<SupportStorageOptions>(
     builder.Configuration.GetSection(SupportStorageOptions.SectionName));
 builder.Services.Configure<ClamAvOptions>(
@@ -166,6 +170,7 @@ api.MapWebhookEndpoints();
 api.MapSupportEndpoints();
 api.MapSupportGuestEndpoints();
 api.MapSupportStaffEndpoints();
+api.MapLegalHoldEndpoints();
 
 app.MapFallback("/api/{**path}", (HttpContext context) =>
     Results.Problem(
