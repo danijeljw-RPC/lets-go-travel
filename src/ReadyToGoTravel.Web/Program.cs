@@ -96,7 +96,8 @@ builder.Services.AddHttpClient<SupportApiClient>(client => ConfigureApiClient(cl
     .AddHttpMessageHandler<SupportClientIpForwardingHandler>();
 builder.Services.AddHttpClient<SupportStaffApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
     .AddHttpMessageHandler<ApiAccessTokenHandler>();
-builder.Services.AddHttpClient<SupportGuestApiClient>(client => ConfigureApiClient(client, apiBaseUrl));
+builder.Services.AddHttpClient<SupportGuestApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
+    .AddHttpMessageHandler<SupportClientIpForwardingHandler>();
 builder.Services.AddTransient<HostedPaymentComponent>();
 
 var app = builder.Build();

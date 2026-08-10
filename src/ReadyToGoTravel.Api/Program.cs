@@ -117,7 +117,8 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1),
             }));
-    options.AddPolicy("support-guest", SupportRateLimitPartitions.GuestPartition);
+    options.AddPolicy("support-guest", context =>
+        SupportRateLimitPartitions.GuestPartition(context, internalCallerSecret));
     options.AddPolicy("support-ticket-create", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             SupportRateLimitPartitions.TicketCreationKey(context, internalCallerSecret),
