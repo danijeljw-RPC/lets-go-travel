@@ -1,7 +1,13 @@
 @page "/support/guest/{Token}"
 @rendermode InteractiveServer
+@using System.Net
 @using Microsoft.AspNetCore.Components.Forms
+@using ReadyToGoTravel.Web.Authentication
+@implements IDisposable
 @inject SupportGuestApiClient GuestApi
+@inject IHttpContextAccessor HttpContextAccessor
+@inject PersistentComponentState ApplicationState
+@inject GuestClientAddressAccessor ClientAddress
 
 <PageTitle>Support ticket · readytogo.travel</PageTitle>
 
@@ -68,15 +74,46 @@
     [Parameter]
     public string Token { get; set; } = string.Empty;
 
+    private const string PersistedClientAddressKey = "guest-client-address";
+
     private SupportTicketDetail? ticket;
     private string replyBody = string.Empty;
     private bool uploadFailed;
     private string? downloadUrl;
+    private PersistingComponentStateSubscription persistingSubscription;
+
+    // A Blazor Server circuit gets its own DI scope, independent of the HTTP request that
+    // established its SignalR connection, so GuestClientAddressAccessor cannot simply be populated
+    // from ambient request state once the circuit is running - HttpContextAccessor.HttpContext is
+    // only valid during the prerender pass below. PersistentComponentState is the framework's own
+    // mechanism for carrying a value from that prerender pass into the interactive circuit that
+    // follows it (a fresh component instance, in a fresh DI scope): persist the address here while
+    // it's still available, then recover it once HttpContext is gone.
+    protected override void OnInitialized()
+    {
+        var httpContext = HttpContextAccessor.HttpContext;
+        if (httpContext is not null)
+        {
+            ClientAddress.Capture(httpContext.Connection.RemoteIpAddress);
+            persistingSubscription = ApplicationState.RegisterOnPersisting(() =>
+            {
+                ApplicationState.PersistAsJson(PersistedClientAddressKey, ClientAddress.ClientAddress?.ToString());
+                return Task.CompletedTask;
+            });
+        }
+        else if (ApplicationState.TryTakeFromJson<string?>(PersistedClientAddressKey, out var persistedAddress) &&
+            persistedAddress is not null)
+        {
+            ClientAddress.Capture(IPAddress.Parse(persistedAddress));
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
         ticket = await GuestApi.GetTicketAsync(Token);
     }
+
+    public void Dispose() => persistingSubscription.Dispose();
 
     private async Task ReplyAsync()
     {
