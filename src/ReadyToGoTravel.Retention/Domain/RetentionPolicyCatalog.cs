@@ -91,6 +91,18 @@ public static class RetentionPolicyCatalog
                 RetentionPeriodUnit.Days,
                 "Final travel completion.",
                 RetentionAction.PolicyOnlyNoLiveSweep),
+            [RetentionRecordClass.CustomerAccountClosure] = new(
+                RetentionRecordClass.CustomerAccountClosure,
+                PolicyVersion: 1,
+                // No explicit grace period is documented for account-closure-triggered
+                // minimisation specifically; 90 days matches the documented grace period for the
+                // closest analogous "minimise personal fields after a terminal event" rule
+                // (traveller sensitive-field minimisation, 90 days after final travel completion)
+                // rather than an arbitrary invented figure.
+                PeriodValue: 90,
+                RetentionPeriodUnit.Days,
+                "Account closure request (customer-initiated).",
+                RetentionAction.DeIdentify),
         }.AsReadOnly();
 
     public static RetentionPolicyDefinition Get(RetentionRecordClass recordClass) =>

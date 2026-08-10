@@ -41,4 +41,7 @@ public enum RetentionRecordClass
 
     /// <summary>Reusable date-of-birth, contact and direct traveller-identification fields.</summary>
     TravellerSensitiveFieldMinimisation,
+
+    /// <summary>Eligible personal-preference fields on a customer-initiated account closure.</summary>
+    CustomerAccountClosure,
 }

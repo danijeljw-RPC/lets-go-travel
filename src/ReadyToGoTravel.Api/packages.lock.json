@@ -110,6 +110,7 @@
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.8, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "ReadyToGoTravel.Consumer": "[1.0.0, )",
+          "ReadyToGoTravel.Retention": "[1.0.0, )",
           "ReadyToGoTravel.Search": "[1.0.0, )"
         }
       },
@@ -118,7 +119,8 @@
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "[10.0.8, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.8, )",
-          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "ReadyToGoTravel.Retention": "[1.0.0, )"
         }
       },
       "readytogotravel.retention": {
@@ -138,7 +140,9 @@
           "AWSSDK.S3": "[4.0.102, )",
           "Microsoft.EntityFrameworkCore": "[10.0.8, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.8, )",
-          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "ReadyToGoTravel.Consumer": "[1.0.0, )",
+          "ReadyToGoTravel.Retention": "[1.0.0, )"
         }
       },
       "AWSSDK.S3": {

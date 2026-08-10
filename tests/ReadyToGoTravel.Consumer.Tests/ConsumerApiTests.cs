@@ -82,6 +82,45 @@ public sealed class ConsumerApiTests
     }
 
     [Fact]
+    public async Task ClosingTheAccountReturnsNoContentAndIsIdempotent()
+    {
+        await using var application = await TestApplication.CreateAsync("owner");
+        await application.ActivateProfileAsync();
+
+        var first = await application.Client.PostAsync("/api/v1/me/close", content: null);
+        var second = await application.Client.PostAsync("/api/v1/me/close", content: null);
+
+        Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, second.StatusCode);
+    }
+
+    [Fact]
+    public async Task ClosingTheAccountDeniesFurtherCustomerScopedAccessImmediately()
+    {
+        await using var application = await TestApplication.CreateAsync("owner");
+        await application.ActivateProfileAsync();
+        (await application.Client.PostAsync("/api/v1/me/close", content: null)).EnsureSuccessStatusCode();
+
+        // The JWT itself would still validate (Keycloak owns session/credential lifetime); the
+        // application-layer denial below is the concrete control this repository owns.
+        var response = await application.Client.GetAsync("/api/v1/trips");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemResponse>();
+        Assert.Equal("profile_required", problem!.Code);
+    }
+
+    [Fact]
+    public async Task ClosingAnUnknownProfileReturnsNotFound()
+    {
+        await using var application = await TestApplication.CreateAsync("never-provisioned");
+
+        var response = await application.Client.PostAsync("/api/v1/me/close", content: null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task MinorTravellerRequiresGuardianAuthority()
     {
         await using var application = await TestApplication.CreateAsync("owner");

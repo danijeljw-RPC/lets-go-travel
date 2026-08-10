@@ -18,6 +18,7 @@ public sealed class RetentionPolicyCatalogTests
     [InlineData(RetentionRecordClass.SuccessfulSupplierPayload, 90, RetentionPeriodUnit.Days)]
     [InlineData(RetentionRecordClass.ExceptionalSupplierPayload, 1, RetentionPeriodUnit.Years)]
     [InlineData(RetentionRecordClass.TravellerSensitiveFieldMinimisation, 90, RetentionPeriodUnit.Days)]
+    [InlineData(RetentionRecordClass.CustomerAccountClosure, 90, RetentionPeriodUnit.Days)]
     public void EveryRecordClassMatchesTheApprovedSchedule(RetentionRecordClass recordClass, int periodValue, RetentionPeriodUnit unit)
     {
         var definition = RetentionPolicyCatalog.Get(recordClass);
@@ -103,5 +104,11 @@ public sealed class RetentionPolicyCatalogTests
     public void ConcretelySweptClassesUseDeleteAction(RetentionRecordClass recordClass)
     {
         Assert.Equal(RetentionAction.Delete, RetentionPolicyCatalog.Get(recordClass).Action);
+    }
+
+    [Fact]
+    public void CustomerAccountClosureUsesDeIdentifyAction()
+    {
+        Assert.Equal(RetentionAction.DeIdentify, RetentionPolicyCatalog.Get(RetentionRecordClass.CustomerAccountClosure).Action);
     }
 }

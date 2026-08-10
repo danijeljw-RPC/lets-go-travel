@@ -25,6 +25,7 @@ public static class ConsumerEndpoints
         var protectedGroup = group.MapGroup(string.Empty).RequireAuthorization("consumer");
         protectedGroup.MapGet("/me", GetProfileAsync);
         protectedGroup.MapPut("/me", UpsertProfileAsync);
+        protectedGroup.MapPost("/me/close", CloseAccountAsync);
         protectedGroup.MapGet("/trips", ListTripsAsync);
         protectedGroup.MapPost("/trips", CreateTripAsync);
         protectedGroup.MapGet("/trips/{tripId:guid}", GetTripAsync);
@@ -103,6 +104,27 @@ public static class ConsumerEndpoints
 
         await database.SaveChangesAsync(cancellationToken);
         return Results.Ok(ToResponse(customer, principal));
+    }
+
+    private static async Task<IResult> CloseAccountAsync(
+        ClaimsPrincipal principal,
+        ConsumerDbContext database,
+        TimeProvider timeProvider,
+        HttpContext context,
+        CancellationToken cancellationToken)
+    {
+        var subject = principal.FindFirstValue("sub")!;
+        var customer = await database.Customers.SingleOrDefaultAsync(item => item.Subject == subject, cancellationToken);
+        if (customer is null)
+        {
+            return ConsumerHttpResults.Problem(context, StatusCodes.Status404NotFound, "profile_not_found", "Profile not found");
+        }
+
+        // Idempotent: closing an already-closed account is a no-op 204, not an error, matching
+        // Customer.Close's own idempotent behaviour.
+        customer.Close(timeProvider);
+        await database.SaveChangesAsync(cancellationToken);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> ListTripsAsync(

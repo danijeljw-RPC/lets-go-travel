@@ -26,6 +26,8 @@ internal sealed class Customer
 
     public DateTimeOffset UpdatedAt { get; private set; }
 
+    public DateTimeOffset? ClosedAtUtc { get; private set; }
+
     public static DomainResult<Customer> Create(
         string subject,
         string locale,
@@ -74,6 +76,43 @@ internal sealed class Customer
         PreferredLocale = SupportedLocales.Normalize(locale);
         UpdatedAt = timeProvider.GetUtcNow().ToUniversalTime();
         return DomainResult<Customer>.Success(this);
+    }
+
+    /// <summary>
+    /// Customer-initiated account closure. Idempotent: closing an already-closed account is a
+    /// no-op success rather than an error, and never overwrites the original ClosedAtUtc.
+    /// ConsumerBookingContextResolver already filters booking-context resolution to
+    /// Status == Active, so this alone denies further customer-scoped access immediately - the
+    /// concrete, testable control this repository owns (Keycloak owns credential/session
+    /// termination separately; see docs/security/identity-and-access.md).
+    /// </summary>
+    public void Close(TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        if (Status == CustomerStatus.Closed)
+        {
+            return;
+        }
+
+        var now = timeProvider.GetUtcNow().ToUniversalTime();
+        Status = CustomerStatus.Closed;
+        ClosedAtUtc = now;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// Retention minimisation for an eligible closed account (see ConsumerRetentionSweepProcessor
+    /// for the eligibility check - no protected booking/support evidence). Resets the only
+    /// personal-preference fields this record holds; Id/Subject/Status/ClosedAtUtc are preserved
+    /// exactly as the retention baseline requires ("stable internal identifiers preserve evidence
+    /// relationships without retaining unnecessary data").
+    /// </summary>
+    internal void MinimiseProfile(TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        PreferredLocale = SupportedLocales.Default;
+        DisplayCurrency = "AUD";
+        UpdatedAt = timeProvider.GetUtcNow().ToUniversalTime();
     }
 }
 
