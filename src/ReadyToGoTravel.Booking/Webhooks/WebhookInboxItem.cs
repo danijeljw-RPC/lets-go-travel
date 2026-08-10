@@ -68,13 +68,6 @@ public sealed class WebhookInboxItem
 
     internal void LinkToComponentBooking(Guid componentBookingId) => ComponentBookingId = componentBookingId;
 
-    /// <summary>
-    /// Retention action for the 90-day webhook-payload-body class: destroys the raw body while
-    /// retaining event identity, hash, correlation and processing outcome, per
-    /// docs/security/data-retention-and-legal-hold.md.
-    /// </summary>
-    internal void RedactRawBody() => RawBody = string.Empty;
-
     internal void Quarantine(string errorCode, DateTimeOffset now)
     {
         Status = WebhookInboxStatus.Quarantined;

@@ -99,21 +99,6 @@ internal sealed class Customer
         ClosedAtUtc = now;
         UpdatedAt = now;
     }
-
-    /// <summary>
-    /// Retention minimisation for an eligible closed account (see ConsumerRetentionSweepProcessor
-    /// for the eligibility check - no protected booking/support evidence). Resets the only
-    /// personal-preference fields this record holds; Id/Subject/Status/ClosedAtUtc are preserved
-    /// exactly as the retention baseline requires ("stable internal identifiers preserve evidence
-    /// relationships without retaining unnecessary data").
-    /// </summary>
-    internal void MinimiseProfile(TimeProvider timeProvider)
-    {
-        ArgumentNullException.ThrowIfNull(timeProvider);
-        PreferredLocale = SupportedLocales.Default;
-        DisplayCurrency = "AUD";
-        UpdatedAt = timeProvider.GetUtcNow().ToUniversalTime();
-    }
 }
 
 internal enum CustomerStatus
