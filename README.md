@@ -4,7 +4,7 @@
 
 `readytogo.travel` is a standalone consumer travel product centred on customer-owned trips, travellers and bookings. The product shortcode is `RTGT`, and `ReadyToGoTravel` is the default root namespace/package prefix where ecosystem conventions permit it.
 
-The repository contains the .NET 10 MVP foundation and its canonical product documentation. Start with the [documentation index](docs/README.md) for product direction, accepted decisions, remaining production reviews and active delivery plans.
+The repository contains the .NET 10 MVP foundation and its canonical product documentation. Start with the [documentation index](docs/README.md) for product direction, accepted decisions, remaining production reviews and active delivery plans. See [CHANGELOG.md](CHANGELOG.md) for what shipped in each delivery slice.
 
 ## Application Foundation
 
