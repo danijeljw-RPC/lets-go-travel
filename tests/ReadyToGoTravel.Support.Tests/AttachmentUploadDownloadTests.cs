@@ -200,6 +200,34 @@ public sealed class AttachmentUploadDownloadTests
     }
 
     [Fact]
+    public async Task ACompensatingDeleteAfterRequestCancellationStillDeletesTheOrphanedObject()
+    {
+        var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var context = new SupportDbContext(new DbContextOptionsBuilder<SupportDbContext>().UseSqlite(connection).Options);
+        await context.Database.EnsureCreatedAsync();
+        var ticket = SupportTicket.Create("sub-1", "Ari", "ari@example.test", SupportTicketCategory.General, null, "Help", Now);
+        context.Tickets.Add(ticket);
+        await context.SaveChangesAsync();
+
+        // Simulates the request being cancelled (e.g. the client disconnected) at the exact moment
+        // between the storage write succeeding and the database work that follows it - the request
+        // token used for everything after PutAsync is already cancelled by the time the failure is
+        // caught and compensating cleanup runs.
+        using var cts = new CancellationTokenSource();
+        var storage = new CancelsAfterPutObjectStorage(cts);
+        var service = new SupportAttachmentService(context, storage, new FixedTimeProvider(Now));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.UploadAsync(
+            ticket.Id, ticket.Messages[0].Id, "sub-1", null, "receipt.pdf", "application/pdf",
+            new MemoryStream("%PDF-1.7"u8.ToArray()), cts.Token));
+
+        Assert.Single(storage.DeletedKeys);
+        Assert.Empty(storage.Contents);
+        Assert.False(storage.DeleteCalledWithCancellationRequested);
+    }
+
+    [Fact]
     public async Task ConcurrentUploadsToTheSameMessageNeverExceedTheFileLimit()
     {
         var connectionString = $"Data Source=file:attachment-race-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
@@ -287,6 +315,40 @@ internal sealed class DisposesConnectionAfterPutObjectStorage(SqliteConnection c
 
     public Task DeleteAsync(string key, CancellationToken cancellationToken = default)
     {
+        Contents.Remove(key);
+        DeletedKeys.Add(key);
+        return Task.CompletedTask;
+    }
+}
+
+// Simulates a request that is cancelled at the exact moment its storage write succeeds, so tests
+// can assert compensating cleanup still runs (and is not itself handed the now-cancelled token).
+internal sealed class CancelsAfterPutObjectStorage(CancellationTokenSource cancelAfterPut) : ReadyToGoTravel.Support.Storage.IObjectStorage
+{
+    public Dictionary<string, byte[]> Contents { get; } = [];
+
+    public List<string> DeletedKeys { get; } = [];
+
+    public bool DeleteCalledWithCancellationRequested { get; private set; }
+
+    public Task PutAsync(string key, Stream content, string contentType, CancellationToken cancellationToken = default)
+    {
+        using var buffer = new MemoryStream();
+        content.CopyTo(buffer);
+        Contents[key] = buffer.ToArray();
+        cancelAfterPut.Cancel();
+        return Task.CompletedTask;
+    }
+
+    public Task<Stream> OpenReadAsync(string key, CancellationToken cancellationToken = default) =>
+        Task.FromResult<Stream>(new MemoryStream(Contents[key], writable: false));
+
+    public Task<Uri> CreateDownloadUrlAsync(string key, TimeSpan validFor, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new Uri($"https://storage.test/{key}"));
+
+    public Task DeleteAsync(string key, CancellationToken cancellationToken = default)
+    {
+        DeleteCalledWithCancellationRequested = cancellationToken.IsCancellationRequested;
         Contents.Remove(key);
         DeletedKeys.Add(key);
         return Task.CompletedTask;

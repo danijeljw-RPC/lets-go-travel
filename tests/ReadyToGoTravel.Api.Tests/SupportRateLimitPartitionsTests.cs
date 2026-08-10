@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Http;
 using ReadyToGoTravel.Api.Infrastructure;
 
@@ -117,5 +118,113 @@ public sealed class SupportRateLimitPartitionsTests
         var key = SupportRateLimitPartitions.GuestKey(context);
 
         Assert.Equal("anon:10.0.0.5", key);
+    }
+
+    [Fact]
+    public void GuestPartitionDeniesRequestsPastTheSharedIpCeilingEvenWithANeverRepeatedToken()
+    {
+        // A distinct, test-reserved documentation-range address (RFC 5737) so this test's usage of
+        // the shared, process-wide ceiling limiter never collides with any other test.
+        var ip = System.Net.IPAddress.Parse("192.0.2.201");
+
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            var context = new DefaultHttpContext { Connection = { RemoteIpAddress = ip } };
+            // A fresh, never-repeated token every time: per-token partitioning alone would give
+            // every one of these its own bucket and never throttle anything.
+            context.Request.Headers.Authorization = $"Bearer never-issued-token-{attempt}";
+
+            var partition = SupportRateLimitPartitions.GuestPartition(context, internalCallerSecret: null);
+
+            Assert.StartsWith("token:", partition.PartitionKey, StringComparison.Ordinal);
+        }
+
+        var overflowContext = new DefaultHttpContext { Connection = { RemoteIpAddress = ip } };
+        overflowContext.Request.Headers.Authorization = "Bearer never-issued-token-overflow";
+
+        var overflowPartition = SupportRateLimitPartitions.GuestPartition(overflowContext, internalCallerSecret: null);
+
+        // The 201st distinct, never-issued token from the same connection is denied outright by
+        // the shared ceiling - it never even reaches its own per-token bucket.
+        Assert.StartsWith("guest-ceiling-exceeded:", overflowPartition.PartitionKey, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GuestPartitionCeilingsAreIndependentPerConnectionAddress()
+    {
+        var ipA = System.Net.IPAddress.Parse("192.0.2.211");
+        var ipB = System.Net.IPAddress.Parse("192.0.2.212");
+
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            var context = new DefaultHttpContext { Connection = { RemoteIpAddress = ipA } };
+            context.Request.Headers.Authorization = $"Bearer exhausting-ip-a-{attempt}";
+            SupportRateLimitPartitions.GuestPartition(context, internalCallerSecret: null);
+        }
+
+        var contextB = new DefaultHttpContext { Connection = { RemoteIpAddress = ipB } };
+        contextB.Request.Headers.Authorization = "Bearer first-request-from-ip-b";
+
+        var partitionB = SupportRateLimitPartitions.GuestPartition(contextB, internalCallerSecret: null);
+
+        Assert.StartsWith("token:", partitionB.PartitionKey, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GuestPartitionsExceededLimiterActuallyRejectsInsteadOfThrowing()
+    {
+        var ip = System.Net.IPAddress.Parse("192.0.2.221");
+        RateLimitPartition<string> exceededPartition = default;
+        for (var attempt = 0; attempt <= 200; attempt++)
+        {
+            var context = new DefaultHttpContext { Connection = { RemoteIpAddress = ip } };
+            context.Request.Headers.Authorization = $"Bearer token-{attempt}";
+            exceededPartition = SupportRateLimitPartitions.GuestPartition(context, internalCallerSecret: null);
+        }
+
+        // Constructing and using the limiter this partition returns must not throw - a
+        // PermitLimit of zero would make FixedWindowRateLimiter throw ArgumentOutOfRangeException
+        // here, turning every request past the ceiling into an unhandled 500 instead of a 429.
+        using var limiter = PartitionedRateLimiter.Create<string, string>(_ => exceededPartition);
+        using var lease = limiter.AttemptAcquire("irrelevant-resource");
+
+        Assert.False(lease.IsAcquired);
+    }
+
+    [Fact]
+    public void GuestPartitionUsesTheForwardedBrowserAddressWhenTheInternalSecretMatches()
+    {
+        // Two different browsers reaching the API through the same Web-host connection (Blazor
+        // Server) must not share a ceiling with each other, or with a connection resolved purely
+        // by RemoteIpAddress for a caller that never sends the forwarded header at all.
+        var webHostConnectionAddress = System.Net.IPAddress.Parse("10.0.0.9");
+        var contextBrowserA = new DefaultHttpContext { Connection = { RemoteIpAddress = webHostConnectionAddress } };
+        contextBrowserA.Request.Headers.Authorization = "Bearer browser-a-token";
+        contextBrowserA.Request.Headers[SupportRateLimitPartitions.ForwardedClientIpHeader] = "198.51.100.31";
+        contextBrowserA.Request.Headers[SupportRateLimitPartitions.InternalCallerSecretHeader] = "real-secret";
+
+        var partitionA = SupportRateLimitPartitions.GuestPartition(contextBrowserA, internalCallerSecret: "real-secret");
+
+        Assert.StartsWith("token:", partitionA.PartitionKey, StringComparison.Ordinal);
+
+        // Exhausting browser A's forwarded-address ceiling must not affect browser B, even though
+        // both share the same underlying Web-host TCP connection address.
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            var context = new DefaultHttpContext { Connection = { RemoteIpAddress = webHostConnectionAddress } };
+            context.Request.Headers.Authorization = $"Bearer browser-a-exhausting-{attempt}";
+            context.Request.Headers[SupportRateLimitPartitions.ForwardedClientIpHeader] = "198.51.100.31";
+            context.Request.Headers[SupportRateLimitPartitions.InternalCallerSecretHeader] = "real-secret";
+            SupportRateLimitPartitions.GuestPartition(context, internalCallerSecret: "real-secret");
+        }
+
+        var contextBrowserB = new DefaultHttpContext { Connection = { RemoteIpAddress = webHostConnectionAddress } };
+        contextBrowserB.Request.Headers.Authorization = "Bearer browser-b-token";
+        contextBrowserB.Request.Headers[SupportRateLimitPartitions.ForwardedClientIpHeader] = "198.51.100.32";
+        contextBrowserB.Request.Headers[SupportRateLimitPartitions.InternalCallerSecretHeader] = "real-secret";
+
+        var partitionB = SupportRateLimitPartitions.GuestPartition(contextBrowserB, internalCallerSecret: "real-secret");
+
+        Assert.StartsWith("token:", partitionB.PartitionKey, StringComparison.Ordinal);
     }
 }

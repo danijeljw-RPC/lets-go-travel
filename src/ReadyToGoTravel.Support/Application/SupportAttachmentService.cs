@@ -101,14 +101,14 @@ internal sealed class SupportAttachmentService(
             if (!await ClaimMessageAttachmentSlotAsync(messageId, cancellationToken))
             {
                 await transaction.RollbackAsync(cancellationToken);
-                await TryDeleteOrphanedObjectAsync(storageKey, cancellationToken);
+                await TryDeleteOrphanedObjectAsync(storageKey);
                 return new SupportAttachmentUploadResult.Rejected("attachment_message_limit_exceeded");
             }
 
             if (!await ClaimTicketByteBudgetAsync(ticketId, buffer.Length, cancellationToken))
             {
                 await transaction.RollbackAsync(cancellationToken);
-                await TryDeleteOrphanedObjectAsync(storageKey, cancellationToken);
+                await TryDeleteOrphanedObjectAsync(storageKey);
                 return new SupportAttachmentUploadResult.Rejected("attachment_ticket_limit_exceeded");
             }
 
@@ -136,16 +136,22 @@ internal sealed class SupportAttachmentService(
         catch
         {
             // Best-effort: a cleanup failure must never replace or hide the original exception.
-            await TryDeleteOrphanedObjectAsync(storageKey, cancellationToken);
+            await TryDeleteOrphanedObjectAsync(storageKey);
             throw;
         }
     }
 
-    private async Task TryDeleteOrphanedObjectAsync(string storageKey, CancellationToken cancellationToken)
+    // Deliberately ignores the caller's cancellation token: the most common reason this runs at all
+    // is that the request was cancelled (e.g. the client disconnected) after the object upload
+    // succeeded but before the database transaction committed. Reusing an already-cancelled token
+    // here would make the compensating delete throw immediately, get silently swallowed below, and
+    // leave the object orphaned in storage forever - the exact failure this method exists to avoid.
+    private async Task TryDeleteOrphanedObjectAsync(string storageKey)
     {
         try
         {
-            await storage.DeleteAsync(storageKey, cancellationToken);
+            using var cleanupCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await storage.DeleteAsync(storageKey, cleanupCancellation.Token);
         }
         catch
         {

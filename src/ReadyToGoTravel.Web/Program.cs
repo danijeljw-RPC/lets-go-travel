@@ -83,6 +83,12 @@ builder.Services.AddAuthorization(options =>
 
 var apiBaseUrl = builder.Configuration["PlatformApi:BaseUrl"]
     ?? throw new InvalidOperationException("PlatformApi:BaseUrl is required.");
+// Required, not merely optional: without a value matching the API's own Support:InternalCallerSecret,
+// this host silently stops forwarding the browser's address at all, and the API-side rate limiters
+// that depend on it (support-ticket-create, support-guest) fall back to partitioning by this host's
+// own connection - the exact single-shared-bucket-per-deployment failure those fixes exist to close.
+_ = builder.Configuration["Support:InternalCallerSecret"]
+    ?? throw new InvalidOperationException("Support:InternalCallerSecret is required.");
 builder.Services.AddTransient<ApiAccessTokenHandler>();
 builder.Services.AddTransient<SupportClientIpForwardingHandler>();
 builder.Services.AddHttpClient<PlatformApiClient>(client => ConfigureApiClient(client, apiBaseUrl));
@@ -96,6 +102,7 @@ builder.Services.AddHttpClient<SupportApiClient>(client => ConfigureApiClient(cl
     .AddHttpMessageHandler<SupportClientIpForwardingHandler>();
 builder.Services.AddHttpClient<SupportStaffApiClient>(client => ConfigureApiClient(client, apiBaseUrl))
     .AddHttpMessageHandler<ApiAccessTokenHandler>();
+builder.Services.AddScoped<GuestClientAddressAccessor>();
 builder.Services.AddHttpClient<SupportGuestApiClient>(client => ConfigureApiClient(client, apiBaseUrl));
 builder.Services.AddTransient<HostedPaymentComponent>();
 
